@@ -139,25 +139,25 @@ export const SystemConfigPage = () => {
       )}
 
       {!loading && list.length > 0 && (
-        <div className="rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden">
-          <table className="w-full text-sm">
+        <div className="rounded-xl border border-slate-200 dark:border-slate-800 overflow-x-auto">
+          <table className="w-full text-sm min-w-[600px]">
             <thead>
               <tr className="bg-slate-100 dark:bg-slate-800/80 text-slate-700 dark:text-slate-300 text-left">
-                <th className="px-4 py-3 font-medium">配置项</th>
-                <th className="px-4 py-3 font-medium">值</th>
-                <th className="px-4 py-3 font-medium">说明</th>
-                <th className="px-4 py-3 font-medium w-24">操作</th>
+                <th className="px-4 py-3 font-medium whitespace-nowrap">配置项</th>
+                <th className="px-4 py-3 font-medium whitespace-nowrap">值</th>
+                <th className="px-4 py-3 font-medium whitespace-nowrap">说明</th>
+                <th className="px-4 py-3 font-medium w-24 whitespace-nowrap">操作</th>
               </tr>
             </thead>
             <tbody>
               {list.map((item) => (
                 <tr key={item.configKey} className="border-t border-slate-200 dark:border-slate-800">
-                  <td className="px-4 py-3">
+                  <td className="px-4 py-3 whitespace-nowrap">
                     <span className="font-mono text-slate-800 dark:text-slate-200">
                       {getConfigLabel(item.configKey)}
                     </span>
                   </td>
-                  <td className="px-4 py-3">
+                  <td className="px-4 py-3 whitespace-nowrap">
                     {editingKey === item.configKey ? (
                       <input
                         type={isSecretKey(item.configKey) ? "password" : "text"}
@@ -172,7 +172,7 @@ export const SystemConfigPage = () => {
                       </span>
                     )}
                   </td>
-                  <td className="px-4 py-3 text-slate-600 dark:text-slate-500">
+                  <td className="px-4 py-3 text-slate-600 dark:text-slate-500 min-w-0">
                     {editingKey === item.configKey ? (
                       <input
                         type="text"
@@ -185,7 +185,7 @@ export const SystemConfigPage = () => {
                       <span>{item.description ?? getConfigHint(item.configKey) ?? "—"}</span>
                     )}
                   </td>
-                  <td className="px-4 py-3">
+                  <td className="px-4 py-3 whitespace-nowrap">
                     {editingKey === item.configKey ? (
                       <div className="flex items-center gap-2">
                         <button

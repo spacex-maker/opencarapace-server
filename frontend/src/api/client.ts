@@ -1,7 +1,17 @@
 import axios from "axios";
 
-const backendBase =
-  import.meta.env.VITE_BACKEND_BASE ?? "http://localhost:8080";
+/** 根据当前访问地址自动选择后端：localhost/127.0.0.1 → :8080，否则产线域名；可用 VITE_BACKEND_BASE 覆盖 */
+export function getBackendBase(): string {
+  if (import.meta.env.VITE_BACKEND_BASE) return import.meta.env.VITE_BACKEND_BASE;
+  if (typeof window !== "undefined") {
+    const h = window.location.hostname;
+    if (h === "localhost" || h === "127.0.0.1") return "http://localhost:8080";
+    return "https://api.clawheart.live";
+  }
+  return "http://localhost:8080";
+}
+
+const backendBase = getBackendBase();
 
 export const api = axios.create({
   baseURL: backendBase,

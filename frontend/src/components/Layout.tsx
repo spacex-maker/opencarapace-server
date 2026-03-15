@@ -51,16 +51,7 @@ export const Layout = ({ children }: Props) => {
               </Link>
             </>
           )}
-          {!isAuthenticated && (
-            <>
-              <Link to="/login" className={navItemClass("/login")}>
-                登录
-              </Link>
-              <Link to="/register" className={navItemClass("/register")}>
-                注册
-              </Link>
-            </>
-          )}
+          {/* 未登录时不显示登录/注册菜单，访问需登录页面时会自动跳转到登录页 */}
         </nav>
         {isAuthenticated && user && (
           <div className="p-2 border-t border-slate-200 dark:border-slate-800 space-y-1">

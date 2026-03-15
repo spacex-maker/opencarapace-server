@@ -38,11 +38,16 @@ public class LlmProxyController {
             @RequestHeader(name = "X-OC-API-KEY", required = false) String apiKeyHeader,
             @RequestParam(name = "api_key", required = false) String apiKeyParam,
             @RequestParam(name = "x_oc_api_key", required = false) String xOcApiKeyParam) {
-        ApiKey caller = resolveCaller(apiKeyHeader, apiKeyParam != null ? apiKeyParam : xOcApiKeyParam);
+        String fromParam = (apiKeyParam != null && !apiKeyParam.isBlank()) ? apiKeyParam.trim() : (xOcApiKeyParam != null && !xOcApiKeyParam.isBlank() ? xOcApiKeyParam.trim() : null);
+        ApiKey caller = resolveCaller(apiKeyHeader, fromParam);
         if (caller == null) {
+            String raw = (apiKeyHeader != null && !apiKeyHeader.isBlank()) ? apiKeyHeader.trim() : fromParam;
+            String message = (raw == null || raw.isBlank())
+                    ? "X-OC-API-KEY is required (header or query param api_key)"
+                    : "X-OC-API-KEY is invalid or revoked (check key in user dashboard)";
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
                     .contentType(MediaType.APPLICATION_JSON)
-                    .body("{\"error\":{\"message\":\"Missing or invalid X-OC-API-KEY\"}}");
+                    .body("{\"error\":{\"message\":\"" + escapeJson(message) + "\"}}");
         }
         try {
             String json = objectMapper.writeValueAsString(Map.of("backends", proxyService.listBackendNames()));
@@ -69,11 +74,18 @@ public class LlmProxyController {
         if (apiKeyFromParam == null || apiKeyFromParam.isBlank()) {
             apiKeyFromParam = request.getParameter("x_oc_api_key");
         }
+        if (apiKeyFromParam != null) {
+            apiKeyFromParam = apiKeyFromParam.trim();
+        }
         ApiKey caller = resolveCaller(apiKeyHeader, apiKeyFromParam);
         if (caller == null) {
+            String raw = (apiKeyHeader != null && !apiKeyHeader.isBlank()) ? apiKeyHeader.trim() : apiKeyFromParam;
+            String message = (raw == null || raw.isBlank())
+                    ? "X-OC-API-KEY is required (header or query param api_key)"
+                    : "X-OC-API-KEY is invalid or revoked (check key in user dashboard)";
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
                     .contentType(MediaType.APPLICATION_JSON)
-                    .body("{\"error\":{\"message\":\"Missing or invalid X-OC-API-KEY (or query param api_key)\"}}");
+                    .body("{\"error\":{\"message\":\"" + escapeJson(message) + "\"}}");
         }
         String disabledReason = proxyService.getDisabledReason();
         if (disabledReason != null) {

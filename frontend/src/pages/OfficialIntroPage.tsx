@@ -143,7 +143,7 @@ export const OfficialIntroPage = () => {
             </div>
             <h3 className="font-medium text-slate-900 dark:text-white">API Key 与身份</h3>
             <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">
-              邮箱密码与 Google 登录、JWT 鉴权，用户后台管理 API Key，对接 Agent 网关与第三方调用。
+              邮箱密码登录、JWT 鉴权，用户后台管理 API Key，对接 Agent 网关与第三方调用。
             </p>
           </div>
           <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900/50 p-5">
@@ -201,7 +201,7 @@ export const OfficialIntroPage = () => {
         </div>
       </section>
 
-      {/* CTA */}
+      {/* CTA：使用普通 a 标签确保部署后跳转可靠（SPA 路由可能受 base 影响） */}
       <section className="text-center rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/30 p-8">
         <h2 className="text-lg font-semibold text-slate-900 dark:text-white">
           立即开始
@@ -210,18 +210,18 @@ export const OfficialIntroPage = () => {
           注册账号并创建 API Key，即可在 Agent 或网关中接入安全校验。
         </p>
         <div className="mt-4 flex flex-wrap justify-center gap-3">
-          <Link
-            to="/register"
-            className="px-4 py-2 rounded-lg bg-brand-500 hover:bg-brand-600 text-white text-sm font-medium"
+          <a
+            href="/register"
+            className="inline-block px-4 py-2 rounded-lg bg-brand-500 hover:bg-brand-600 text-white text-sm font-medium transition-colors"
           >
             注册
-          </Link>
-          <Link
-            to="/login"
-            className="px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-200 text-sm hover:bg-slate-100 dark:hover:bg-slate-800"
+          </a>
+          <a
+            href="/login"
+            className="inline-block px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-200 text-sm hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
           >
             登录
-          </Link>
+          </a>
         </div>
       </section>
       </div>

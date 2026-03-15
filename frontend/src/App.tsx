@@ -12,21 +12,23 @@ import { SystemConfigPage } from "./pages/SystemConfigPage";
 import { OfficialIntroPage } from "./pages/OfficialIntroPage";
 import { ProtectedRoute } from "./components/ProtectedRoute";
 import { AdminRoute } from "./components/AdminRoute";
+import { ConfirmProvider } from "./contexts/ConfirmContext";
 
 function App() {
   return (
     <ThemeProvider>
       <AuthProvider>
+        <ConfirmProvider>
         <Routes>
-          {/* 官网介绍：独立单页，无侧栏与主站菜单 */}
+          {/* 独立单页：无侧栏，整页展示 */}
           <Route path="/intro" element={<OfficialIntroPage />} />
+          <Route path="/login" element={<LoginPage />} />
+          <Route path="/register" element={<RegisterPage />} />
           {/* 其余页面使用统一 Layout（侧栏 + header） */}
           <Route path="*" element={
             <Layout>
               <Routes>
                 <Route path="/" element={<LandingPage />} />
-                <Route path="/login" element={<LoginPage />} />
-                <Route path="/register" element={<RegisterPage />} />
                 <Route
                   path="/dashboard"
                   element={
@@ -56,6 +58,7 @@ function App() {
             </Layout>
           } />
         </Routes>
+        </ConfirmProvider>
       </AuthProvider>
     </ThemeProvider>
   );

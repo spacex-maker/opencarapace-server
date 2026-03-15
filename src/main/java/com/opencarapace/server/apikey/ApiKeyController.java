@@ -5,6 +5,7 @@ import jakarta.validation.constraints.NotBlank;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -42,7 +43,16 @@ public class ApiKeyController {
         return ResponseEntity.noContent().build();
     }
 
+    @PatchMapping("/{id}")
+    public ResponseEntity<ApiKeyDto> update(@PathVariable Long id, @RequestBody UpdateKeyRequest request) {
+        ApiKey updated = apiKeyService.updateKey(id, request.label(), request.scopes());
+        return ResponseEntity.ok(ApiKeyDto.from(updated));
+    }
+
     public record CreateKeyRequest(@NotBlank String label, String scopes) {
+    }
+
+    public record UpdateKeyRequest(String label, String scopes) {
     }
 
     public record CreateKeyResponse(Long id, String apiKey) {

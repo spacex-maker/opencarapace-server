@@ -2,9 +2,11 @@ package com.opencarapace.server.apikey;
 
 import com.opencarapace.server.user.User;
 import com.opencarapace.server.user.UserRepository;
+import org.springframework.http.HttpStatus;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
@@ -46,13 +48,30 @@ public class ApiKeyService {
     }
 
     public void revokeKey(Long id) {
-        ApiKey apiKey = apiKeyRepository.findById(id).orElseThrow();
+        ApiKey apiKey = apiKeyRepository.findById(id)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "API Key 不存在"));
         User user = getCurrentUser();
         if (!apiKey.getUser().getId().equals(user.getId())) {
-            throw new IllegalArgumentException("Cannot revoke key of another user");
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "无权操作该 API Key");
         }
         apiKey.setActive(false);
         apiKeyRepository.save(apiKey);
+    }
+
+    public ApiKey updateKey(Long id, String label, String scopes) {
+        ApiKey apiKey = apiKeyRepository.findById(id)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "API Key 不存在"));
+        User user = getCurrentUser();
+        if (!apiKey.getUser().getId().equals(user.getId())) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "无权操作该 API Key");
+        }
+        if (label != null && !label.isBlank()) {
+            apiKey.setLabel(label.trim());
+        }
+        if (scopes != null) {
+            apiKey.setScopes(scopes.trim().isEmpty() ? null : scopes.trim());
+        }
+        return apiKeyRepository.save(apiKey);
     }
 
     public ApiKey authenticateByRawKey(String rawKey) {

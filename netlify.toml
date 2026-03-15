@@ -1,0 +1,13 @@
+# OpenCarapace 前端部署到 Netlify
+# 前端在 frontend/ 子目录，使用 Vite 构建
+
+[build]
+  base = "frontend"
+  command = "npm run build"
+  publish = "dist"
+
+# SPA：所有路径回退到 index.html，由前端路由处理
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200

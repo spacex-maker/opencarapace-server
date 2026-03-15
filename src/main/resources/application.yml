@@ -1,0 +1,53 @@
+spring:
+  application:
+    name: opencarapace-server
+  task:
+    scheduling:
+      pool:
+        size: 2
+      # 定时任务时区，凌晨执行按此时区
+      zone: Asia/Shanghai
+  datasource:
+    url: jdbc:mysql://175.27.255.29:33306/opencarapace?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai&useSSL=false&allowPublicKeyRetrieval=true
+    username: root
+    password: Aimate2026!MySQL
+    driver-class-name: com.mysql.cj.jdbc.Driver
+  jpa:
+    hibernate:
+      ddl-auto: update
+    properties:
+      hibernate:
+        format_sql: true
+    open-in-view: false
+  h2:
+    console:
+      enabled: true
+
+server:
+  port: 8080
+
+security:
+  jwt:
+    # 至少 32 字符，生产环境请用环境变量或密钥管理覆盖
+    secret: "Op3nC4r4p4c3JwtS3cr3tK3y2026X9zR2mN7qL5vP8w"
+    access-token-validity-seconds: 86400
+
+google:
+  oauth:
+    client-id: "YOUR_GOOGLE_CLIENT_ID"
+
+opencarapace:
+  # 可选：指定管理员邮箱，启动时将该用户角色设为 ADMIN
+  admin:
+    email: ""
+  frontend:
+    origins:
+      - "http://localhost:5173"
+      - "http://localhost:3000"
+  # 危险指令库 AI 同步：每天凌晨固定时间执行（Tavily + DeepSeek）
+  sync:
+    danger-commands:
+      enabled: true
+      # 每天 03:00（北京时间）执行，秒 分 时 日 月 周
+      cron: "0 0 3 * * ?"
+

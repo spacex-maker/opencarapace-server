@@ -1,0 +1,50 @@
+# ---- Maven / Java ----
+target/
+*.jar
+*.war
+*.ear
+*.class
+*.log
+*.tmp
+*.bak
+*.swp
+*~
+
+# ---- IDE ----
+.idea/
+*.iml
+*.ipr
+*.iws
+.vscode/
+.settings/
+.project
+.classpath
+.factorypath
+
+# ---- Node / Frontend ----
+frontend/node_modules/
+frontend/dist/
+frontend/.env
+frontend/.env.local
+frontend/.env.*.local
+frontend/npm-debug.log*
+frontend/yarn-debug.log*
+frontend/yarn-error.log*
+frontend/.pnpm-debug.log*
+
+# ---- OS ----
+.DS_Store
+Thumbs.db
+
+# ---- Local / Secret ----
+application-local.yml
+application-local.yaml
+*.local.yml
+.env
+.env.local
+.env.*.local
+
+# ---- Build / Misc ----
+*.orig
+*.rej
+.cache/

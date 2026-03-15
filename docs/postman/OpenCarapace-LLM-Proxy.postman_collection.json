@@ -1,0 +1,91 @@
+{
+  "info": {
+    "name": "OpenCarapace LLM 代理",
+    "description": "透明代理（类似 VPN）：只改 baseUrl，路径、body、鉴权与直连厂商一致。\n\n• baseUrl：本地测试默认 http://localhost:8080（服务起在 8080 端口）；上线后改为你的域名。\n• X-OC-API-KEY：用户后台创建的 OpenCarapace API Key\n• Authorization：你的 LLM Key（Bearer sk-xxx），原样转发到上游\n• X-LLM-Backend：可选，如 deepseek / openai，不填用默认\n\n任意 /api/llm/ 下路径均透明转发。",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "http://localhost:8080", "description": "本地测试 8080；上线后改为你的域名" },
+    { "key": "ocApiKey", "value": "", "description": "用户后台创建的 OpenCarapace API Key" },
+    { "key": "llmApiKey", "value": "Bearer sk-xxxxxxxx", "description": "你的 LLM API Key，转发到上游用" },
+    { "key": "llmBackend", "value": "", "description": "可选，如 deepseek / openai；留空用默认" }
+  ],
+  "item": [
+    {
+      "name": "Backends（可用后端列表）",
+      "request": {
+        "method": "GET",
+        "header": [
+          { "key": "X-OC-API-KEY", "value": "{{ocApiKey}}", "type": "text" }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/llm/backends",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "llm", "backends"]
+        },
+        "description": "返回 {\"backends\":[\"default\",\"deepseek\",\"openai\",...]}，选后端时填到 X-LLM-Backend。"
+      }
+    },
+    {
+      "name": "Chat Completions（聊天补全）",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "X-OC-API-KEY", "value": "{{ocApiKey}}", "type": "text" },
+          { "key": "Authorization", "value": "{{llmApiKey}}", "type": "text" },
+          { "key": "X-LLM-Backend", "value": "{{llmBackend}}", "type": "text" },
+          { "key": "Content-Type", "value": "application/json", "type": "text" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"model\": \"deepseek-chat\",\n  \"messages\": [\n    { \"role\": \"user\", \"content\": \"你好，用一句话介绍你自己\" }\n  ],\n  \"max_tokens\": 200\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/api/llm/v1/chat/completions",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "llm", "v1", "chat", "completions"]
+        },
+        "description": "与直连厂商一致，只是 baseUrl 改为 OpenCarapace；路径、body 不变。"
+      }
+    },
+    {
+      "name": "Models（模型列表）",
+      "request": {
+        "method": "GET",
+        "header": [
+          { "key": "X-OC-API-KEY", "value": "{{ocApiKey}}", "type": "text" },
+          { "key": "Authorization", "value": "{{llmApiKey}}", "type": "text" },
+          { "key": "X-LLM-Backend", "value": "{{llmBackend}}", "type": "text" }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/llm/v1/models",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "llm", "v1", "models"]
+        },
+        "description": "任意 GET/POST 路径都会透明转发，用法同直连。"
+      }
+    },
+    {
+      "name": "Embeddings（向量化）",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "X-OC-API-KEY", "value": "{{ocApiKey}}", "type": "text" },
+          { "key": "Authorization", "value": "{{llmApiKey}}", "type": "text" },
+          { "key": "X-LLM-Backend", "value": "{{llmBackend}}", "type": "text" },
+          { "key": "Content-Type", "value": "application/json", "type": "text" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"model\": \"text-embedding-3-small\",\n  \"input\": \"Hello world\"\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/api/llm/v1/embeddings",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "llm", "v1", "embeddings"]
+        },
+        "description": "示例：/api/llm/ 下任意路径都会透明转发，和直连厂商 API 用法一致。"
+      }
+    }
+  ]
+}

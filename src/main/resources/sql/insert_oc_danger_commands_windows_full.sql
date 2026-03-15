@@ -1,0 +1,91 @@
+-- Windows 危险指令库完整数据
+-- 表: oc_danger_commands，(command_pattern, system_type) 唯一
+-- 执行前: SET NAMES utf8mb4; 或 mysql --default-character-set=utf8mb4 ...
+SET NAMES utf8mb4;
+
+INSERT IGNORE INTO oc_danger_commands (command_pattern, system_type, category, risk_level, title, description, mitigation, tags, enabled, created_at, updated_at) VALUES
+-- 格式化与磁盘
+('format C:', 'WINDOWS', 'FILE_SYSTEM', 'CRITICAL', '格式化 C 盘', '格式化系统盘，导致操作系统与所有数据丢失，不可恢复。', '确认盘符与环境；脚本中禁止对系统盘执行 format；生产环境应限制 format 权限。', 'format,disk,windows', 1, NOW(6), NOW(6)),
+('format /fs:ntfs', 'WINDOWS', 'FILE_SYSTEM', 'CRITICAL', '格式化指定卷为 NTFS', '对指定驱动器执行格式化，所有数据丢失。误指定错误盘符会毁掉数据盘。', '执行前用 diskpart list volume 等确认盘符；避免在自动化脚本中未校验即执行 format。', 'format,ntfs,volume', 1, NOW(6), NOW(6)),
+('format D:', 'WINDOWS', 'FILE_SYSTEM', 'CRITICAL', '格式化 D 盘', '格式化 D 盘，该盘所有数据丢失。', '确认 D 盘非系统盘且无重要数据；生产环境禁止未审批执行。', 'format,disk', 1, NOW(6), NOW(6)),
+('diskpart', 'WINDOWS', 'FILE_SYSTEM', 'CRITICAL', 'Diskpart 磁盘分区工具', '交互或脚本中可执行 clean、delete partition 等，清除分区表或删除分区，数据不可恢复。', '仅在确定目标磁盘且为预期操作时使用；脚本中必须二次确认磁盘编号。', 'diskpart,clean,partition', 1, NOW(6), NOW(6)),
+('diskpart ... clean', 'WINDOWS', 'FILE_SYSTEM', 'CRITICAL', 'Diskpart 清理磁盘', '对磁盘执行 clean，清除分区表与所有分区，数据不可恢复。', '仅在确定目标磁盘且为预期操作时使用；脚本中必须二次确认磁盘编号。', 'diskpart,clean,disk', 1, NOW(6), NOW(6)),
+('clean all', 'WINDOWS', 'FILE_SYSTEM', 'CRITICAL', 'Diskpart 彻底清理磁盘', '在 diskpart 中 clean all 会写零并清除磁盘，耗时且不可恢复。', '仅对确定报废或安全擦除的磁盘使用。', 'diskpart,clean all', 1, NOW(6), NOW(6)),
+
+-- 删除文件/目录 (CMD)
+('del /f /s /q', 'WINDOWS', 'FILE_SYSTEM', 'CRITICAL', '强制静默递归删除', '/f 只读也删，/s 子目录，/q 不确认。在错误目录执行会大规模数据丢失。', '先 cd 确认当前目录；避免在 C:\\ 或数据根执行。', 'del,delete,force,quiet', 1, NOW(6), NOW(6)),
+('del /s /q *', 'WINDOWS', 'FILE_SYSTEM', 'CRITICAL', '递归静默删除当前目录及子目录所有文件', '无确认、无回收站，删除当前目录及所有子目录下文件。在系统或数据根目录执行会导致灾难性数据丢失。', '先确认当前目录 cd；避免在 C:\\ 或数据根目录执行；考虑先用 dir /s 核对范围。', 'del,delete,quiet', 1, NOW(6), NOW(6)),
+('rd /s /q', 'WINDOWS', 'FILE_SYSTEM', 'CRITICAL', '递归静默删除目录树', '删除指定目录及其全部子目录和文件，无确认、不可恢复。误删系统或数据目录会导致系统不可用或数据丢失。', '删除前务必确认路径；避免使用变量拼接路径且未校验；重要目录先备份或只读挂载。', 'rd,rmdir,remove directory', 1, NOW(6), NOW(6)),
+('rmdir /s /q', 'WINDOWS', 'FILE_SYSTEM', 'CRITICAL', '静默删除目录树（rmdir 形式）', '与 rd /s /q 等价，递归删除目录及内容，无确认。', '同 rd /s /q；严格校验目标路径与执行环境。', 'rmdir,delete directory', 1, NOW(6), NOW(6)),
+
+-- 删除文件/目录 (PowerShell)
+('Remove-Item -Recurse -Force', 'WINDOWS', 'FILE_SYSTEM', 'CRITICAL', 'PowerShell 递归强制删除', '递归强制删除路径下所有内容，无回收站。误用变量或路径会删除错误目标。', '删除前用 -WhatIf 或打印目标路径确认；避免对 $env:SystemRoot、关键数据根使用。', 'powershell,remove-item,delete', 1, NOW(6), NOW(6)),
+('Remove-Item -Force', 'WINDOWS', 'FILE_SYSTEM', 'HIGH', 'PowerShell 强制删除', '强制删除文件或空目录，只读也可删。', '确认路径；避免对系统文件使用。', 'powershell,remove-item', 1, NOW(6), NOW(6)),
+('Get-ChildItem ... | Remove-Item -Force', 'WINDOWS', 'FILE_SYSTEM', 'CRITICAL', 'PowerShell 管道批量删除', '列出文件后管道删除，若 Get-ChildItem 范围过大（如根目录）会大规模误删。', '严格限定 Get-ChildItem 路径与过滤条件；先 -WhatIf 或小范围测试。', 'powershell,pipeline,delete', 1, NOW(6), NOW(6)),
+('Clear-Content -Path', 'WINDOWS', 'FILE_SYSTEM', 'HIGH', 'PowerShell 清空文件内容', '将文件内容清空为零长度。对配置文件或数据文件误用会导致服务异常或数据丢失。', '确认路径与文件用途；重要文件先备份。', 'powershell,clear-content,file', 1, NOW(6), NOW(6)),
+
+-- 卷影、备份、还原
+('vssadmin delete shadows', 'WINDOWS', 'FILE_SYSTEM', 'CRITICAL', '删除卷影副本', '删除所有或指定卷影副本，导致无法从“以前的版本”恢复文件或系统还原点失效。', '确认备份与还原策略；禁止脚本中未确认即删除卷影。', 'vssadmin,shadow copy,restore', 1, NOW(6), NOW(6)),
+('wbadmin delete backup', 'WINDOWS', 'FILE_SYSTEM', 'CRITICAL', '删除 Windows 备份', '删除指定或全部备份，导致无法从备份恢复。', '确认备份策略与保留需求；禁止脚本中未确认即 delete backup。', 'wbadmin,backup,delete', 1, NOW(6), NOW(6)),
+('cipher /w:', 'WINDOWS', 'FILE_SYSTEM', 'MEDIUM', '安全擦除未使用磁盘空间', '对指定驱动器未分配空间写零，用于安全擦除。误选系统盘或正在使用的盘可能造成性能问题。', '确认盘符与用途；在维护窗口执行。', 'cipher,secure delete,wipe', 1, NOW(6), NOW(6)),
+
+-- 注册表
+('reg delete HKLM', 'WINDOWS', 'OTHER', 'CRITICAL', '删除注册表键（本地机器）', '删除 HKLM 下键或键值，可导致系统、驱动或软件无法启动或配置丢失。', '删除前导出备份；仅删除确认为恶意或废弃的项；禁止脚本中未校验即删除 HKLM\\SYSTEM、HKLM\\SOFTWARE 等。', 'registry,reg delete', 1, NOW(6), NOW(6)),
+('reg delete HKCU', 'WINDOWS', 'OTHER', 'HIGH', '删除当前用户注册表键', '删除 HKCU 下配置，可能导致当前用户配置、软件设置丢失。', '确认键路径与业务影响；重要配置先导出备份。', 'registry,reg delete,user', 1, NOW(6), NOW(6)),
+('reg add HKLM', 'WINDOWS', 'OTHER', 'HIGH', '添加/修改本地机器注册表', '可覆盖系统或软件关键配置，导致无法启动或策略被篡改。', '确认键与值；避免覆盖系统关键项。', 'registry,reg add', 1, NOW(6), NOW(6)),
+
+-- 服务与进程
+('sc delete', 'WINDOWS', 'PROCESS', 'CRITICAL', '删除 Windows 服务', '从 SCM 删除服务项，服务将无法启动。删除系统关键服务（如 Winmgmt、EventLog）会导致管理功能瘫痪或蓝屏。', '仅删除确认为恶意或已卸载软件残留的服务；禁止删除系统服务。', 'sc,service,delete', 1, NOW(6), NOW(6)),
+('sc config', 'WINDOWS', 'PROCESS', 'HIGH', '修改服务配置', '可修改服务启动类型、二进制路径等，误改会导致服务无法启动或执行错误程序。', '确认服务名与参数；系统服务慎改。', 'sc,service,config', 1, NOW(6), NOW(6)),
+('wmic product where call uninstall', 'WINDOWS', 'PROCESS', 'CRITICAL', '通过 WMI 静默卸载产品', '可批量或按条件卸载已安装程序。误用条件会卸载关键软件（如 .NET、VC 运行库）导致依赖应用无法运行。', '严格限定 where 条件；在测试环境先验证；避免在生产环境批量 uninstall。', 'wmic,uninstall,product', 1, NOW(6), NOW(6)),
+('wmic process where call terminate', 'WINDOWS', 'PROCESS', 'HIGH', 'WMI 按条件终止进程', '按条件批量终止进程，误用 where 会结束关键系统或业务进程。', '严格限定 where 条件；先用 get 查看将影响的进程。', 'wmic,process,terminate', 1, NOW(6), NOW(6)),
+('taskkill /f /im', 'WINDOWS', 'PROCESS', 'HIGH', '强制结束按映像名匹配的进程', '按进程名强制终止，可能结束关键系统进程（如 csrss、winlogon）导致蓝屏或登录失败。', '避免 /im 匹配系统关键进程；先用 tasklist 确认；对系统进程慎用 /f。', 'taskkill,process,kill', 1, NOW(6), NOW(6)),
+('taskkill /f /pid', 'WINDOWS', 'PROCESS', 'HIGH', '强制结束指定 PID 进程', '强制终止指定进程。误填系统关键进程 PID 会导致不稳定或蓝屏。', '确认 PID 对应进程；系统进程勿用 /f。', 'taskkill,pid,process', 1, NOW(6), NOW(6)),
+('Stop-Process -Id', 'WINDOWS', 'PROCESS', 'HIGH', 'PowerShell 结束进程', '按 PID 结束进程，误填系统关键进程会导致蓝屏或服务中断。', '确认 PID 对应进程；系统进程勿用。', 'powershell,stop-process,kill', 1, NOW(6), NOW(6)),
+
+-- 关机/重启
+('shutdown /s /t 0', 'WINDOWS', 'PROCESS', 'HIGH', '立即关机', '无延迟关闭计算机，未保存工作丢失。在服务器或共享主机上会中断所有用户。', '确认执行环境；避免在自动化脚本中未确认即关机；服务器操作需审批与维护窗口。', 'shutdown,power off', 1, NOW(6), NOW(6)),
+('shutdown /r /t 0', 'WINDOWS', 'PROCESS', 'HIGH', '立即重启', '无延迟重启计算机，未保存工作丢失，服务短暂中断。', '同 shutdown /s；确认是否为预期重启。', 'shutdown,restart,reboot', 1, NOW(6), NOW(6)),
+('shutdown /p', 'WINDOWS', 'PROCESS', 'HIGH', '立即关机（无超时）', '与 /s /t 0 类似，立即关机。', '确认执行环境与审批。', 'shutdown,power', 1, NOW(6), NOW(6)),
+
+-- 网络与防火墙
+('netsh advfirewall set allprofiles state off', 'WINDOWS', 'NETWORK', 'CRITICAL', '关闭所有配置文件防火墙', '关闭域、专用、公用配置文件防火墙，主机完全暴露于网络攻击。', '仅用于排障且临时；排障后立即恢复；生产禁止长期关闭防火墙。', 'netsh,firewall,security', 1, NOW(6), NOW(6)),
+('netsh interface ip set address', 'WINDOWS', 'NETWORK', 'HIGH', '修改网卡 IP 配置', '可修改或清空 IP、网关，导致断网或 IP 冲突。', '确认接口名与目标配置；避免批量脚本未校验即修改。', 'netsh,ip,network', 1, NOW(6), NOW(6)),
+('wmic nic where netEnabled=true call disable', 'WINDOWS', 'NETWORK', 'CRITICAL', 'WMI 禁用网卡', '禁用满足条件的网卡，导致断网或管理通道中断。', '仅在有明确恢复手段时使用；避免批量禁用。', 'wmic,network,disable', 1, NOW(6), NOW(6)),
+('net share ... /delete', 'WINDOWS', 'NETWORK', 'HIGH', '删除共享', '删除指定或全部共享，误删会中断依赖该共享的访问或应用。', '确认共享名；避免 * 或未校验即删除。', 'net share,share,delete', 1, NOW(6), NOW(6)),
+
+-- 用户与权限
+('takeown /f', 'WINDOWS', 'PERMISSION', 'HIGH', '夺取文件或目录所有权', '将指定文件/目录的所有权改为当前用户，可绕过权限限制。对系统关键文件执行会破坏安全策略或导致系统不稳定。', '仅对业务需要的路径使用；避免对 \\Windows\\、\\Program Files\\ 等系统目录递归 takeown。', 'takeown,ownership,permission', 1, NOW(6), NOW(6)),
+('icacls . /grant', 'WINDOWS', 'PERMISSION', 'HIGH', '批量修改 ACL 权限', '递归修改当前目录及子项权限。误授 Everyone:F 或过宽权限会导致敏感数据暴露或系统被篡改。', '明确授权对象与权限（如仅需读取则不给完全控制）；避免对整盘或系统根执行。', 'icacls,acl,permission', 1, NOW(6), NOW(6)),
+('net user ... /add', 'WINDOWS', 'PERMISSION', 'HIGH', '添加本地用户', '创建本地用户账户。若赋予管理员权限或弱密码会导致提权或入侵。', '强密码策略；最小权限；审计新建账户。', 'net user,user account', 1, NOW(6), NOW(6)),
+('net localgroup administrators ... /add', 'WINDOWS', 'PERMISSION', 'CRITICAL', '将用户加入本地管理员组', '将指定用户加入 Administrators，获得完整本地权限，可完全控制主机。', '仅对可信账户操作；审计所有加入管理员组的操作。', 'net localgroup,administrators,privilege', 1, NOW(6), NOW(6)),
+('net user ... /delete', 'WINDOWS', 'PERMISSION', 'HIGH', '删除本地用户', '删除本地用户账户，若误删当前登录用户或系统账户会导致无法登录或服务失败。', '确认用户名；禁止删除 Administrator、当前用户及系统服务账户。', 'net user,delete,account', 1, NOW(6), NOW(6)),
+('certutil -delkey', 'WINDOWS', 'PERMISSION', 'HIGH', '删除证书私钥', '删除指定证书的私钥，导致该证书无法用于签名或解密，且不可恢复。', '仅对确认为废弃的证书操作；先备份或确认无依赖。', 'certutil,certificate,private key', 1, NOW(6), NOW(6)),
+('Set-ExecutionPolicy Unrestricted', 'WINDOWS', 'PERMISSION', 'HIGH', 'PowerShell 放宽执行策略', '将执行策略设为 Unrestricted，任意脚本可执行，易引入恶意脚本。', '仅临时排障；生产建议 RemoteSigned 或 AllSigned。', 'powershell,execution policy,security', 1, NOW(6), NOW(6)),
+('Reset-ComputerMachinePassword', 'WINDOWS', 'PERMISSION', 'CRITICAL', '重置计算机账户密码（域）', '重置域成员机的机器账户密码，若与域控不同步会导致脱域或信任丢失。', '仅在域控可通信且按文档操作时使用；慎用于关键服务器。', 'domain,machine password,trust', 1, NOW(6), NOW(6)),
+
+-- 启动与 BCD
+('bcdedit /delete', 'WINDOWS', 'OTHER', 'CRITICAL', '删除 BCD 启动项', '删除或修改启动配置，误删默认启动项会导致无法正常进入系统。', '仅在有备份或明确需求时修改 BCD；禁止脚本中未校验即 delete。', 'bcdedit,boot,uefi', 1, NOW(6), NOW(6)),
+('bcdedit /set', 'WINDOWS', 'OTHER', 'HIGH', '修改 BCD 启动项属性', '修改启动项参数（如 default、timeout、debug），误设可能导致无法正常启动或进入调试模式。', '仅在有文档或支持指导下修改；先备份 BCD。', 'bcdedit,boot,set', 1, NOW(6), NOW(6)),
+
+-- 计划任务与事件
+('schtasks /delete', 'WINDOWS', 'PROCESS', 'HIGH', '删除计划任务', '按名称或 /tn 删除计划任务。误删系统或业务关键任务会导致定时任务失效。', '确认任务名与 /tn 参数；避免 /tn \\* 或未限定范围删除。', 'schtasks,task scheduler', 1, NOW(6), NOW(6)),
+('wevtutil cl', 'WINDOWS', 'OTHER', 'HIGH', '清除事件日志', '清除指定或全部 Windows 事件日志，影响审计与事后排查。', '仅在有合规或运维需求时使用；保留审计策略要求的日志。', 'wevtutil,event log,audit', 1, NOW(6), NOW(6)),
+
+-- 域与组策略
+('netdom remove', 'WINDOWS', 'NETWORK', 'CRITICAL', '从域中移除计算机', '将计算机从域中移除，失去域策略与域身份，需重新加域。', '仅在有明确需求时执行；备份本地重要配置。', 'netdom,domain,leave', 1, NOW(6), NOW(6)),
+('gpupdate /force', 'WINDOWS', 'OTHER', 'MEDIUM', '强制立即应用组策略', '立即刷新组策略，可能中断正在运行的会话或服务，域环境下影响面大。', '在维护窗口执行；确认策略变更已测试。', 'gpupdate,group policy', 1, NOW(6), NOW(6)),
+
+-- 系统功能与恢复
+('reagentc /disable', 'WINDOWS', 'OTHER', 'HIGH', '禁用 Windows 恢复环境', '禁用 WinRE，导致无法进入恢复环境、重置此电脑或部分修复功能失效。', '仅在确有需求时禁用；保留恢复能力。', 'reagentc,winre,recovery', 1, NOW(6), NOW(6)),
+('Disable-WindowsOptionalFeature', 'WINDOWS', 'OTHER', 'HIGH', '禁用 Windows 可选功能', '禁用可选功能（如 Hyper-V、WSL），可能影响依赖该功能的软件或开发环境。', '确认无依赖；生产变更需审批。', 'windows feature,optional', 1, NOW(6), NOW(6)),
+('Remove-WindowsCapability', 'WINDOWS', 'OTHER', 'MEDIUM', '移除 Windows 功能包', '移除已安装的 Capability 包，可能影响依赖该能力的应用。', '确认功能列表与业务影响后再执行。', 'windows capability', 1, NOW(6), NOW(6)),
+('dism /image /remove-package', 'WINDOWS', 'OTHER', 'HIGH', '从映像中移除包', '从离线映像中移除 Windows 包，误删关键包会导致映像无法正常安装或启动。', '仅对自定义映像且确认包可移除时使用。', 'dism,image,package', 1, NOW(6), NOW(6)),
+
+-- 文件系统与属性
+('subst', 'WINDOWS', 'FILE_SYSTEM', 'MEDIUM', '创建/删除虚拟驱动器映射', '将路径映射为盘符或删除映射。误删正在使用的盘符或映射系统路径可能导致程序异常。', '确认盘符与路径对应关系；避免映射系统关键路径为常用盘符。', 'subst,virtual drive,mapping', 1, NOW(6), NOW(6)),
+('attrib -r -s -h', 'WINDOWS', 'FILE_SYSTEM', 'MEDIUM', '批量去除只读/系统/隐藏属性', '递归去除只读、系统、隐藏属性，可能暴露或误改系统保护文件。', '限定路径；避免对系统根或 Windows 目录整树操作。', 'attrib,readonly,system,hidden', 1, NOW(6), NOW(6)),
+('fsutil reparsepoint delete', 'WINDOWS', 'FILE_SYSTEM', 'HIGH', '删除重解析点', '删除目录连接点或符号链接的重解析点，可能破坏目录结构或导致路径失效。', '仅对确认为冗余的 reparse point 操作；避免对系统目录操作。', 'fsutil,reparsepoint,symlink', 1, NOW(6), NOW(6)),
+('powercfg -h off', 'WINDOWS', 'OTHER', 'MEDIUM', '关闭休眠并删除休眠文件', '禁用休眠并删除 hiberfil.sys，释放磁盘空间但失去休眠与快速启动能力。', '确认无需休眠与快速启动；笔记本慎用。', 'powercfg,hibernate,hybrid sleep', 1, NOW(6), NOW(6)),
+('compact /compact', 'WINDOWS', 'FILE_SYSTEM', 'LOW', '压缩目录内容', '对目录或卷启用压缩，可能影响性能或与部分软件不兼容。', '确认卷与业务兼容性；系统卷慎用。', 'compact,compression,ntfs', 1, NOW(6), NOW(6))
+;

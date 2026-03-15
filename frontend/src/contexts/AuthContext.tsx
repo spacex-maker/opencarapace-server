@@ -9,7 +9,7 @@ import {
 import { api, setAuthToken } from "../api/client";
 import type { AuthResponse, UserProfile } from "../api/client";
 
-const TOKEN_KEY = "opencarapace_jwt";
+const TOKEN_KEY = "clawheart_jwt";
 
 interface AuthState {
   token: string | null;
@@ -72,7 +72,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       });
       setToken(data.token);
       setUser({
-        id: "",
+        id: 0,
         email: data.email,
         displayName: data.displayName,
         avatarUrl: data.avatarUrl,
@@ -93,7 +93,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       });
       setToken(data.token);
       setUser({
-        id: "",
+        id: 0,
         email: data.email,
         displayName: data.displayName,
         avatarUrl: data.avatarUrl,
@@ -112,7 +112,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       });
       setToken(data.token);
       setUser({
-        id: "",
+        id: 0,
         email: data.email,
         displayName: data.displayName,
         avatarUrl: data.avatarUrl,

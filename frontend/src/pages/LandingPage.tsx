@@ -14,7 +14,7 @@ export const LandingPage = () => {
           </span>
         </h1>
         <p className="text-sm text-slate-600 dark:text-slate-300 leading-relaxed">
-          OpenClaw、小龙虾等 Agent 将大模型请求发往 OpenCarapace，我们做透明转发；
+          OpenClaw、小龙虾等 Agent 将大模型请求发往 ClawHeart，我们做透明转发；
           在中间接入监管层（危险指令库匹配）与可选意图层（AI 判断是否意图执行危险命令），
           危险请求被拦截并记录，保护业务免受越权调用与危险命令影响。
         </p>

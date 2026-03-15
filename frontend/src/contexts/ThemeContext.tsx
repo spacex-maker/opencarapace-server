@@ -2,7 +2,7 @@ import { createContext, useContext, useEffect, useState, ReactNode } from "react
 
 type Theme = "dark" | "light";
 
-const STORAGE_KEY = "opencarapace-theme";
+const STORAGE_KEY = "clawheart-theme";
 
 interface ThemeContextValue {
   theme: Theme;

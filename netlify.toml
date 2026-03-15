@@ -1,9 +1,10 @@
-# OpenCarapace 前端部署到 Netlify
-# 前端在 frontend/ 子目录，使用 Vite 构建
+# ClawHeart 前端部署到 Netlify
+# 必须发布「构建产物」frontend/dist，不能发布 frontend 源码目录（否则会请求 /src/main.tsx 导致 MIME 错误）
 
 [build]
   base = "frontend"
   command = "npm run build"
+  # 发布目录：相对 base（即 frontend/dist），必须是构建产物，不能是 frontend 源码
   publish = "dist"
 
 # SPA：所有路径回退到 index.html，由前端路由处理

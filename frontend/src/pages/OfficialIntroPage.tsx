@@ -28,7 +28,7 @@ export const OfficialIntroPage = () => {
           className="flex items-center gap-2 text-slate-700 dark:text-slate-200 hover:text-slate-900 dark:hover:text-white"
         >
           <Shield className="w-5 h-5 text-brand-500" />
-          <span className="font-semibold tracking-tight">OpenCarapace</span>
+          <span className="font-semibold tracking-tight">ClawHeart</span>
         </Link>
         <div className="flex items-center gap-1">
           {isAuthenticated && user ? (
@@ -89,7 +89,7 @@ export const OfficialIntroPage = () => {
           Agent 安全层
         </p>
         <h1 className="text-3xl md:text-4xl font-bold tracking-tight text-slate-900 dark:text-white">
-          OpenCarapace
+          ClawHeart
         </h1>
         <p className="mt-3 text-lg text-slate-600 dark:text-slate-300 max-w-2xl mx-auto">
           为自主 Agent、工具与函数调用提供统一的安全评估与策略治理，
@@ -165,7 +165,7 @@ export const OfficialIntroPage = () => {
         </h2>
         <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/30 p-6">
           <p className="text-slate-700 dark:text-slate-300 leading-relaxed">
-            OpenCarapace 作为<strong className="text-slate-900 dark:text-white">独立安全层</strong>，
+            ClawHeart 作为<strong className="text-slate-900 dark:text-white">独立安全层</strong>，
             接管 Agent / LLM 对工具、技能、函数的调用。在请求到达具体执行前，
             结合工具注册信息、危险指令库与可选的 LLM 审计，给出
             <span className="font-medium text-slate-800 dark:text-slate-200"> 可执行 / 阻断 / 需人工审核 </span>

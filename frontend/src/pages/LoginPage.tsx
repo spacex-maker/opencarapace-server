@@ -66,7 +66,7 @@ export const LoginPage = () => {
         <div className="w-12 h-12 rounded-xl bg-brand-500/20 flex items-center justify-center mb-4">
           <Shield className="w-6 h-6 text-brand-400" />
         </div>
-        <h1 className="text-xl font-semibold text-slate-900 dark:text-slate-100">登录 OpenCarapace</h1>
+        <h1 className="text-xl font-semibold text-slate-900 dark:text-slate-100">登录 ClawHeart</h1>
         <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
           使用邮箱密码或 Google 账号登录
         </p>

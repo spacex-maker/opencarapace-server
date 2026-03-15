@@ -54,7 +54,7 @@ Content-Type: application/json
       <section className="space-y-3">
         <h3 className="font-semibold text-base text-slate-800 dark:text-slate-100">3. LLM 中转代理（核心集成）</h3>
         <p>
-          OpenClaw、小龙虾等 Agent 将 <strong className="text-slate-800 dark:text-slate-100">Base URL</strong> 改为 OpenCarapace 地址，
+          OpenClaw、小龙虾等 Agent 将 <strong className="text-slate-800 dark:text-slate-100">Base URL</strong> 改为 ClawHeart 地址，
           即可经网关转发到真实 LLM；网关在中间做<strong className="text-slate-800 dark:text-slate-100">监管层</strong>（危险指令库匹配）与可选<strong className="text-slate-800 dark:text-slate-100">意图层</strong>（AI 判断），危险请求返回 403。
         </p>
 
@@ -62,13 +62,13 @@ Content-Type: application/json
         <pre className={codeBlockClass}>
 {`https://你的域名/api/llm
 
-# Agent 无法自定义请求头时，可将 OpenCarapace 鉴权放在 URL：
+# Agent 无法自定义请求头时，可将 ClawHeart 鉴权放在 URL：
 https://你的域名/api/llm?api_key=oc_你创建的APIKey`}
         </pre>
 
         <p className="font-medium text-slate-700 dark:text-slate-200 mt-3">鉴权方式</p>
         <ul className="list-disc list-inside space-y-1 text-slate-600 dark:text-slate-400">
-          <li><span className="font-mono">X-OC-API-KEY</span>：OpenCarapace 鉴权（用户后台创建的 API Key）；或使用查询参数 <span className="font-mono">api_key</span> / <span className="font-mono">x_oc_api_key</span></li>
+          <li><span className="font-mono">X-OC-API-KEY</span>：ClawHeart 鉴权（用户后台创建的 API Key）；或使用查询参数 <span className="font-mono">api_key</span> / <span className="font-mono">x_oc_api_key</span></li>
           <li><span className="font-mono">Authorization</span>：你的 LLM Key（如 Bearer sk-xxx），转发到上游；不传则使用管理员在系统配置中填写的上游 Key</li>
           <li><span className="font-mono">X-LLM-Backend</span>（可选）：指定后端，如 <span className="font-mono">deepseek</span>、<span className="font-mono">openai</span>，不传则用默认</li>
         </ul>
@@ -92,7 +92,7 @@ Content-Type: application/json
         <pre className={codeBlockClass}>
 {`{
   "error": {
-    "message": "OpenCarapace supervision blocked Request: ...",
+    "message": "ClawHeart supervision blocked Request: ...",
     "code": "supervision_blocked"
   }
 }`}

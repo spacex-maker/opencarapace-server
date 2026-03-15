@@ -27,7 +27,7 @@ export const Layout = ({ children }: Props) => {
         <div className="p-3 border-b border-slate-200 dark:border-slate-800">
           <Link to="/" className="flex items-center gap-2 text-slate-900 dark:text-white">
             <Shield className="w-6 h-6 text-brand-500" />
-            <span className="font-semibold tracking-tight">OpenCarapace</span>
+            <span className="font-semibold tracking-tight">ClawHeart</span>
           </Link>
         </div>
         <nav className="flex-1 p-2 space-y-0.5">
@@ -106,7 +106,7 @@ export const Layout = ({ children }: Props) => {
           <div className="max-w-5xl mx-auto px-4 py-8">{children}</div>
         </main>
         <footer className="border-t border-slate-200 dark:border-slate-800 py-4 text-center text-xs text-slate-500 dark:text-slate-400">
-          © {new Date().getFullYear()} OpenCarapace · 安全层 for Agent / Tools
+          © {new Date().getFullYear()} ClawHeart · 安全层 for Agent / Tools
         </footer>
       </div>
     </div>

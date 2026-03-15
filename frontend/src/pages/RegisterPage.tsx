@@ -48,7 +48,7 @@ export const RegisterPage = () => {
         <div className="w-12 h-12 rounded-xl bg-brand-500/20 flex items-center justify-center mb-4">
           <Shield className="w-6 h-6 text-brand-400" />
         </div>
-        <h1 className="text-xl font-semibold text-slate-100">注册 OpenCarapace</h1>
+        <h1 className="text-xl font-semibold text-slate-100">注册 ClawHeart</h1>
         <p className="text-sm text-slate-400 mt-1">
           创建账号后即可使用安全评估与 API Key 管理
         </p>

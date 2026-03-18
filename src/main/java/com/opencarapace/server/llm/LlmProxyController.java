@@ -1,7 +1,5 @@
 package com.opencarapace.server.llm;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.opencarapace.server.apikey.ApiKey;
 import com.opencarapace.server.apikey.ApiKeyService;
 import org.springframework.http.HttpStatus;
@@ -10,14 +8,13 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import jakarta.servlet.http.HttpServletRequest;
-import java.util.Map;
 import java.util.stream.Stream;
 
 /**
  * 大模型 API 透明代理：客户端只认本机为「唯一入口」，路径与请求原样转发到上游。
  * - OpenCarapace 鉴权：请求头 X-OC-API-KEY，或查询参数 api_key / x_oc_api_key（Agent 无法自定义头时可将 Key 写在 URL）
- * - Authorization：用户自己的 LLM Key；不传则使用系统配置中的上游 Key
- * - X-LLM-Backend：可选，指定后端（如 deepseek、openai）
+ * - Authorization：用户自己的 LLM Key（或第三方中转要求的任意认证头）
+ * - X-LLM-Upstream-Url：必填，目标上游/中转的 base URL（如 https://api.deepseek.com 或你的第三方代理地址）
  */
 @RestController
 @RequestMapping("/api/llm")
@@ -25,36 +22,9 @@ public class LlmProxyController {
 
     private final LlmProxyService proxyService;
     private final ApiKeyService apiKeyService;
-    private final ObjectMapper objectMapper = new ObjectMapper();
-
     public LlmProxyController(LlmProxyService proxyService, ApiKeyService apiKeyService) {
         this.proxyService = proxyService;
         this.apiKeyService = apiKeyService;
-    }
-
-    /** 列出可用后端名，便于客户端选择 X-LLM-Backend */
-    @GetMapping(value = "/backends", produces = MediaType.APPLICATION_JSON_VALUE)
-    public ResponseEntity<String> backends(
-            @RequestHeader(name = "X-OC-API-KEY", required = false) String apiKeyHeader,
-            @RequestParam(name = "api_key", required = false) String apiKeyParam,
-            @RequestParam(name = "x_oc_api_key", required = false) String xOcApiKeyParam) {
-        String fromParam = (apiKeyParam != null && !apiKeyParam.isBlank()) ? apiKeyParam.trim() : (xOcApiKeyParam != null && !xOcApiKeyParam.isBlank() ? xOcApiKeyParam.trim() : null);
-        ApiKey caller = resolveCaller(apiKeyHeader, fromParam);
-        if (caller == null) {
-            String raw = (apiKeyHeader != null && !apiKeyHeader.isBlank()) ? apiKeyHeader.trim() : fromParam;
-            String message = (raw == null || raw.isBlank())
-                    ? "X-OC-API-KEY is required (header or query param api_key)"
-                    : "X-OC-API-KEY is invalid or revoked (check key in user dashboard)";
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
-                    .contentType(MediaType.APPLICATION_JSON)
-                    .body("{\"error\":{\"message\":\"" + escapeJson(message) + "\"}}");
-        }
-        try {
-            String json = objectMapper.writeValueAsString(Map.of("backends", proxyService.listBackendNames()));
-            return ResponseEntity.ok(json);
-        } catch (JsonProcessingException e) {
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("{\"error\":{\"message\":\"Internal error\"}}");
-        }
     }
 
     /**
@@ -67,7 +37,7 @@ public class LlmProxyController {
             HttpServletRequest request,
             @RequestHeader(name = "X-OC-API-KEY", required = false) String apiKeyHeader,
             @RequestHeader(name = "Authorization", required = false) String authorizationHeader,
-            @RequestHeader(name = "X-LLM-Backend", required = false) String backendHeader,
+            @RequestHeader(name = "X-LLM-Upstream-Url", required = false) String upstreamUrlHeader,
             @RequestBody(required = false) String body
     ) {
         String apiKeyFromParam = request.getParameter("api_key");
@@ -94,10 +64,16 @@ public class LlmProxyController {
                     .contentType(MediaType.APPLICATION_JSON)
                     .body(msg);
         }
+        if (upstreamUrlHeader == null || upstreamUrlHeader.isBlank()) {
+            String msg = "{\"error\":{\"message\":\"X-LLM-Upstream-Url header is required (target LLM/base proxy URL)\"}}";
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .body(msg);
+        }
         String method = request.getMethod();
         String queryString = stripProxyQueryParams(request.getQueryString());
         String pathWithSlash = path.startsWith("/") ? path : "/" + path;
-        LlmProxyService.ProxyResult result = proxyService.forwardRequest(method, pathWithSlash, queryString, body, authorizationHeader, backendHeader, caller);
+        LlmProxyService.ProxyResult result = proxyService.forwardRequest(method, pathWithSlash, queryString, body, authorizationHeader, upstreamUrlHeader, caller);
         return ResponseEntity.status(result.status())
                 .contentType(MediaType.APPLICATION_JSON)
                 .body(result.body());

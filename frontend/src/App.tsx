@@ -8,7 +8,12 @@ import { RegisterPage } from "./pages/RegisterPage";
 import { DashboardPage } from "./pages/DashboardPage";
 import { ApiDocsPage } from "./pages/ApiDocsPage";
 import { DangerCommandListPage } from "./pages/DangerCommandListPage";
+import { SkillsListPage } from "./pages/SkillsListPage";
 import { SystemConfigPage } from "./pages/SystemConfigPage";
+import { InterceptLogsPage } from "./pages/InterceptLogsPage";
+import { MyInterceptLogsPage } from "./pages/MyInterceptLogsPage";
+import { SettingsPage } from "./pages/SettingsPage";
+import { ApiKeysPage } from "./pages/ApiKeysPage";
 import { OfficialIntroPage } from "./pages/OfficialIntroPage";
 import { ProtectedRoute } from "./components/ProtectedRoute";
 import { AdminRoute } from "./components/AdminRoute";
@@ -37,12 +42,60 @@ function App() {
                     </ProtectedRoute>
                   }
                 />
+                <Route
+                  path="/settings"
+                  element={
+                    <ProtectedRoute>
+                      <SettingsPage />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/api-keys"
+                  element={
+                    <ProtectedRoute>
+                      <ApiKeysPage />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/my/intercept-logs"
+                  element={
+                    <ProtectedRoute>
+                      <MyInterceptLogsPage />
+                    </ProtectedRoute>
+                  }
+                />
                 <Route path="/docs" element={<ApiDocsPage />} />
+                <Route
+                  path="/skills"
+                  element={
+                    <ProtectedRoute>
+                      <SkillsListPage mode="user" />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/danger-commands"
+                  element={
+                    <ProtectedRoute>
+                      <DangerCommandListPage mode="user" />
+                    </ProtectedRoute>
+                  }
+                />
                 <Route
                   path="/admin/danger-commands"
                   element={
                     <AdminRoute>
-                      <DangerCommandListPage />
+                      <DangerCommandListPage mode="admin" />
+                    </AdminRoute>
+                  }
+                />
+                <Route
+                  path="/admin/skills"
+                  element={
+                    <AdminRoute>
+                      <SkillsListPage mode="admin" />
                     </AdminRoute>
                   }
                 />
@@ -51,6 +104,14 @@ function App() {
                   element={
                     <AdminRoute>
                       <SystemConfigPage />
+                    </AdminRoute>
+                  }
+                />
+                <Route
+                  path="/admin/intercept-logs"
+                  element={
+                    <AdminRoute>
+                      <InterceptLogsPage />
                     </AdminRoute>
                   }
                 />

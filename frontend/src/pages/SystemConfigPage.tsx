@@ -2,9 +2,17 @@ import { useState, useEffect } from "react";
 import {
   fetchSystemConfigList,
   setSystemConfig,
+  fetchClawhubSyncSettings,
+  updateClawhubSyncSettings,
+  fetchGroupedSettings,
+  putGroupedSettings,
+  CLAWHUB_CRON_PRESETS,
+  manualSyncClawhubSkills,
   type SystemConfigItem,
+  type ClawhubSyncSettings,
+  type GroupedSettingsDto,
 } from "../api/client";
-import { Settings, Save, Key } from "lucide-react";
+import { Settings, Save, Key, RefreshCw, Shield, Zap, Eye, Brain } from "lucide-react";
 
 const KEY_LABELS: Record<string, string> = {
   "deepseek.api_key": "DeepSeek API Key",
@@ -51,6 +59,8 @@ function getConfigHint(key: string): string | undefined {
   return undefined;
 }
 
+const CUSTOM_CRON_VALUE = "__custom__";
+
 export const SystemConfigPage = () => {
   const [list, setList] = useState<SystemConfigItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -59,6 +69,18 @@ export const SystemConfigPage = () => {
   const [editValue, setEditValue] = useState("");
   const [editDesc, setEditDesc] = useState("");
   const [saving, setSaving] = useState(false);
+
+  const [clawhubSync, setClawhubSync] = useState<ClawhubSyncSettings | null>(null);
+  const [clawhubSyncLoading, setClawhubSyncLoading] = useState(true);
+  const [clawhubEnabled, setClawhubEnabled] = useState(false);
+  const [clawhubCronPreset, setClawhubCronPreset] = useState<string>("0 0 2 * * ?");
+  const [clawhubCronCustom, setClawhubCronCustom] = useState("");
+  const [clawhubSaving, setClawhubSaving] = useState(false);
+  const [clawhubSyncingOnce, setClawhubSyncingOnce] = useState(false);
+
+  const [grouped, setGrouped] = useState<GroupedSettingsDto | null>(null);
+  const [groupedLoading, setGroupedLoading] = useState(true);
+  const [groupedSaving, setGroupedSaving] = useState<string | null>(null);
 
   const load = () => {
     setLoading(true);
@@ -75,6 +97,81 @@ export const SystemConfigPage = () => {
   useEffect(() => {
     load();
   }, []);
+
+  const loadClawhubSync = () => {
+    setClawhubSyncLoading(true);
+    fetchClawhubSyncSettings()
+      .then((data) => {
+        setClawhubSync(data);
+        setClawhubEnabled(data.enabled);
+        const preset = CLAWHUB_CRON_PRESETS.find((p) => p.value === data.cronExpression);
+        setClawhubCronPreset(preset ? preset.value : CUSTOM_CRON_VALUE);
+        if (!preset) setClawhubCronCustom(data.cronExpression);
+      })
+      .catch(() => setClawhubSync(null))
+      .finally(() => setClawhubSyncLoading(false));
+  };
+
+  useEffect(() => {
+    loadClawhubSync();
+  }, []);
+
+  const loadGrouped = () => {
+    setGroupedLoading(true);
+    fetchGroupedSettings()
+      .then(setGrouped)
+      .catch(() => setGrouped(null))
+      .finally(() => setGroupedLoading(false));
+  };
+  useEffect(() => {
+    loadGrouped();
+  }, []);
+
+  const saveGroupedSection = async (
+    section: keyof GroupedSettingsDto,
+    payload: Partial<GroupedSettingsDto>
+  ) => {
+    if (!grouped) return;
+    setGroupedSaving(section);
+    setError("");
+    try {
+      const next = { ...grouped, ...payload };
+      const updated = await putGroupedSettings(next);
+      setGrouped(updated);
+    } catch (err: unknown) {
+      const msg =
+        err && typeof err === "object" && "response" in err
+          ? (err as { response?: { data?: { message?: string } } }).response?.data?.message
+          : null;
+      setError(msg || "保存失败");
+    } finally {
+      setGroupedSaving(null);
+    }
+  };
+
+  const saveClawhubSync = async () => {
+    setClawhubSaving(true);
+    setError("");
+    const cron =
+      clawhubCronPreset === CUSTOM_CRON_VALUE ? clawhubCronCustom.trim() : clawhubCronPreset;
+    if (!cron) {
+      setError("请选择或填写同步频次");
+      setClawhubSaving(false);
+      return;
+    }
+    try {
+      const updated = await updateClawhubSyncSettings(clawhubEnabled, cron);
+      setClawhubSync(updated);
+    } catch (err: unknown) {
+      const msg =
+        err && typeof err === "object" && "response" in err
+          ? (err as { response?: { data?: { message?: string } } }).response?.data?.message
+          : null;
+      setError(msg || "保存失败");
+    } finally {
+      setClawhubSaving(false);
+    }
+  };
 
   const startEdit = (item: SystemConfigItem) => {
     setEditingKey(item.configKey);
@@ -124,18 +221,461 @@ export const SystemConfigPage = () => {
         </div>
       </div>
 
+      {/* ClawHub 技能同步 - 独立卡片 */}
+      <section className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900/50 p-5 shadow-sm">
+        {clawhubSyncLoading ? (
+          <div className="text-sm text-slate-500 dark:text-slate-400 py-4">加载中…</div>
+        ) : (
+          <>
+            <div className="flex items-start justify-between gap-2 mb-4">
+              <div className="flex items-center gap-2">
+                <div className="w-9 h-9 rounded-lg bg-amber-500/20 flex items-center justify-center">
+                  <RefreshCw className="w-4 h-4 text-amber-600 dark:text-amber-400" />
+                </div>
+                <div>
+                  <h3 className="text-base font-semibold text-slate-900 dark:text-white">
+                    ClawHub 技能同步
+                  </h3>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">
+                    从 ClawHub 公开 API 定时拉取技能列表到本地，无需安装 CLI
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={saveClawhubSync}
+                  disabled={clawhubSaving || clawhubSyncingOnce}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-brand-500 hover:bg-brand-600 text-white text-xs font-medium disabled:opacity-50"
+                >
+                  <Save className="w-3.5 h-3.5" />
+                  {clawhubSaving ? "保存中…" : "保存"}
+                </button>
+                <button
+                  type="button"
+                  onClick={async () => {
+                    try {
+                      setClawhubSyncingOnce(true);
+                      const res = await manualSyncClawhubSkills();
+                      // 简单提示，不引入额外 Toast 组件
+                      alert(`已从 ${res.source} 手动同步 ${res.synced} 条技能。`);
+                    } catch (e: any) {
+                      alert(e?.response?.data?.message || e?.message || "手动同步失败");
+                    } finally {
+                      setClawhubSyncingOnce(false);
+                    }
+                  }}
+                  disabled={clawhubSyncingOnce}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-700 hover:bg-slate-800 text-white text-xs font-medium disabled:opacity-50"
+                >
+                  <RefreshCw className="w-3.5 h-3.5" />
+                  {clawhubSyncingOnce ? "同步中…" : "手动同步一次"}
+                </button>
+              </div>
+            </div>
+            <div className="space-y-4 max-w-md">
+            <div className="flex items-center justify-between">
+              <label className="text-sm font-medium text-slate-700 dark:text-slate-200">
+                启用定时同步
+              </label>
+              <button
+                type="button"
+                role="switch"
+                aria-checked={clawhubEnabled}
+                onClick={() => setClawhubEnabled((v) => !v)}
+                className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full border transition-colors focus:outline-none focus:ring-2 focus:ring-brand-500/50 ${
+                  clawhubEnabled
+                    ? "bg-brand-500 border-brand-500"
+                    : "bg-slate-200 dark:bg-slate-700 border-slate-300 dark:border-slate-600"
+                }`}
+              >
+                <span
+                  className={`pointer-events-none inline-block h-5 w-5 rounded-full bg-white shadow ring-0 transition-transform ${
+                    clawhubEnabled ? "translate-x-5" : "translate-x-0.5"
+                  }`}
+                />
+              </button>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-slate-700 dark:text-slate-200 mb-1.5">
+                同步频次
+              </label>
+              <div className="flex flex-wrap gap-2">
+                {CLAWHUB_CRON_PRESETS.map((p) => {
+                  const active = clawhubCronPreset === p.value;
+                  return (
+                    <button
+                      key={p.value}
+                      type="button"
+                      onClick={() => setClawhubCronPreset(p.value)}
+                      className={`px-3 py-1.5 rounded-full border text-xs font-medium transition-colors ${
+                        active
+                          ? "bg-brand-500 text-white border-brand-500"
+                          : "bg-slate-50 dark:bg-slate-800/60 text-slate-700 dark:text-slate-200 border-slate-200 dark:border-slate-600 hover:bg-slate-100 dark:hover:bg-slate-700"
+                      }`}
+                    >
+                      {p.label}
+                    </button>
+                  );
+                })}
+                <button
+                  type="button"
+                  onClick={() => setClawhubCronPreset(CUSTOM_CRON_VALUE)}
+                  className={`px-3 py-1.5 rounded-full border text-xs font-medium transition-colors ${
+                    clawhubCronPreset === CUSTOM_CRON_VALUE
+                      ? "bg-brand-500 text-white border-brand-500"
+                      : "bg-slate-50 dark:bg-slate-800/60 text-slate-700 dark:text-slate-200 border-slate-200 dark:border-slate-600 hover:bg-slate-100 dark:hover:bg-slate-700"
+                  }`}
+                >
+                  自定义 Cron
+                </button>
+              </div>
+              {clawhubCronPreset === CUSTOM_CRON_VALUE && (
+                <input
+                  type="text"
+                  value={clawhubCronCustom}
+                  onChange={(e) => setClawhubCronCustom(e.target.value)}
+                  placeholder="如 0 0 2 * * ?"
+                  className="mt-2 w-full rounded-lg bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-600 px-3 py-2 text-sm font-mono text-slate-900 dark:text-slate-100 placeholder-slate-400 focus:ring-2 focus:ring-brand-500/50"
+                />
+              )}
+            </div>
+              {clawhubSync?.lastRunAt && (
+                <p className="text-xs text-slate-500 dark:text-slate-400">
+                  上次执行：{new Date(clawhubSync.lastRunAt).toLocaleString("zh-CN")}
+                </p>
+              )}
+            </div>
+          </>
+        )}
+      </section>
+
+      {/* 危险指令库同步 - 独立卡片 */}
+      <section className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900/50 p-5 shadow-sm">
+        <div className="flex items-start justify-between gap-2 mb-4">
+          <div className="flex items-center gap-2">
+            <div className="w-9 h-9 rounded-lg bg-red-500/20 flex items-center justify-center">
+              <Shield className="w-4 h-4 text-red-600 dark:text-red-400" />
+            </div>
+            <div>
+              <h3 className="text-base font-semibold text-slate-900 dark:text-white">危险指令库同步</h3>
+              <p className="text-xs text-slate-500 dark:text-slate-400">Tavily + DeepSeek 定时从互联网更新危险指令数据</p>
+            </div>
+          </div>
+          {grouped?.dangerCommands && (
+            <button
+              type="button"
+              onClick={() => saveGroupedSection("dangerCommands", { dangerCommands: grouped.dangerCommands })}
+              disabled={groupedSaving === "dangerCommands"}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-brand-500 hover:bg-brand-600 text-white text-xs font-medium disabled:opacity-50"
+            >
+              <Save className="w-3.5 h-3.5" />
+              {groupedSaving === "dangerCommands" ? "保存中…" : "保存"}
+            </button>
+          )}
+        </div>
+        {groupedLoading ? (
+          <div className="text-sm text-slate-500 dark:text-slate-400 py-4">加载中…</div>
+        ) : grouped?.dangerCommands ? (
+          <div className="space-y-4 max-w-md">
+            <div className="flex items-center justify-between">
+              <label className="text-sm font-medium text-slate-700 dark:text-slate-200">启用互联网更新</label>
+              <button
+                type="button"
+                role="switch"
+                aria-checked={grouped.dangerCommands.useInternet}
+                onClick={() =>
+                  setGrouped((g) =>
+                    g ? { ...g, dangerCommands: { ...g.dangerCommands, useInternet: !g.dangerCommands.useInternet } } : g,
+                  )
+                }
+                className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full border transition-colors ${
+                  grouped.dangerCommands.useInternet ? "bg-brand-500 border-brand-500" : "bg-slate-200 dark:bg-slate-700 border-slate-300"
+                }`}
+              >
+                <span
+                  className={`pointer-events-none inline-block h-5 w-5 rounded-full bg-white shadow transition-transform ${
+                    grouped.dangerCommands.useInternet ? "translate-x-5" : "translate-x-0.5"
+                  }`}
+                />
+              </button>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-slate-700 dark:text-slate-200 mb-1">DeepSeek API Key</label>
+              <input
+                type="password"
+                autoComplete="new-password"
+                name="danger-deepseek-api-key"
+                placeholder={grouped.dangerCommands.deepseekApiKeySet ? "留空保留原值" : "用于 AI 解析"}
+                value={grouped.dangerCommands.deepseekApiKey ?? ""}
+                onChange={(e) =>
+                  setGrouped((g) =>
+                    g ? { ...g, dangerCommands: { ...g.dangerCommands, deepseekApiKey: e.target.value } } : g,
+                  )
+                }
+                className="w-full rounded-lg bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-600 px-3 py-2 text-sm"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-slate-700 dark:text-slate-200 mb-1">Tavily API Key</label>
+              <input
+                type="password"
+                autoComplete="new-password"
+                name="danger-tavily-api-key"
+                placeholder={grouped.dangerCommands.tavilyApiKeySet ? "留空保留原值" : "用于互联网搜索"}
+                value={grouped.dangerCommands.tavilyApiKey ?? ""}
+                onChange={(e) =>
+                  setGrouped((g) =>
+                    g ? { ...g, dangerCommands: { ...g.dangerCommands, tavilyApiKey: e.target.value } } : g,
+                  )
+                }
+                className="w-full rounded-lg bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-600 px-3 py-2 text-sm"
+              />
+            </div>
+          </div>
+        ) : (
+          <p className="text-sm text-slate-500 dark:text-slate-400 py-2">加载失败或暂无数据，请刷新或确认管理员权限</p>
+        )}
+      </section>
+
+      {/* 大模型代理 - 独立卡片 */}
+      <section className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900/50 p-5 shadow-sm">
+        <div className="flex items-start justify-between gap-2 mb-4">
+          <div className="flex items-center gap-2">
+            <div className="w-9 h-9 rounded-lg bg-blue-500/20 flex items-center justify-center">
+              <Zap className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+            </div>
+            <div>
+              <h3 className="text-base font-semibold text-slate-900 dark:text-white">大模型代理</h3>
+              <p className="text-xs text-slate-500 dark:text-slate-400">
+                仅控制是否启用中转。上游地址与 API Key 均由调用方在请求头中传入（X-LLM-Upstream-Url + Authorization）。
+              </p>
+            </div>
+          </div>
+          {grouped?.llmProxy && (
+            <button
+              type="button"
+              onClick={() => grouped && saveGroupedSection("llmProxy", { llmProxy: grouped.llmProxy })}
+              disabled={groupedSaving === "llmProxy"}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-brand-500 hover:bg-brand-600 text-white text-xs font-medium disabled:opacity-50"
+            >
+              <Save className="w-3.5 h-3.5" />
+              {groupedSaving === "llmProxy" ? "保存中…" : "保存"}
+            </button>
+          )}
+        </div>
+        {groupedLoading ? (
+          <div className="text-sm text-slate-500 dark:text-slate-400 py-4">加载中…</div>
+        ) : grouped?.llmProxy ? (
+          <div className="space-y-4 max-w-lg">
+            <div className="flex items-center justify-between">
+              <label className="text-sm font-medium text-slate-700 dark:text-slate-200">启用中转</label>
+              <button
+                type="button"
+                role="switch"
+                aria-checked={grouped.llmProxy.enabled}
+                onClick={() =>
+                  setGrouped((g) =>
+                    g ? { ...g, llmProxy: { ...g.llmProxy, enabled: !g.llmProxy.enabled } } : g,
+                  )
+                }
+                className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full border transition-colors ${
+                  grouped.llmProxy.enabled ? "bg-brand-500 border-brand-500" : "bg-slate-200 dark:bg-slate-700"
+                }`}
+              >
+                <span
+                  className={`inline-block h-5 w-5 rounded-full bg-white shadow transition-transform ${
+                    grouped.llmProxy.enabled ? "translate-x-5" : "translate-x-0.5"
+                  }`}
+                />
+              </button>
+            </div>
+          </div>
+        ) : (
+          <p className="text-sm text-slate-500 dark:text-slate-400 py-2">加载失败或暂无数据</p>
+        )}
+      </section>
+
+      {/* 监管层 - 独立卡片 */}
+      <section className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900/50 p-5 shadow-sm">
+        <div className="flex items-start justify-between gap-2 mb-4">
+          <div className="flex items-center gap-2">
+            <div className="w-9 h-9 rounded-lg bg-amber-500/20 flex items-center justify-center">
+              <Eye className="w-4 h-4 text-amber-600 dark:text-amber-400" />
+            </div>
+            <div>
+              <h3 className="text-base font-semibold text-slate-900 dark:text-white">监管层</h3>
+              <p className="text-xs text-slate-500 dark:text-slate-400">对代理请求/响应做危险指令库匹配，触犯则拦截</p>
+            </div>
+          </div>
+          {grouped?.supervision && (
+            <button
+              type="button"
+              onClick={() => grouped && saveGroupedSection("supervision", { supervision: grouped.supervision })}
+              disabled={groupedSaving === "supervision"}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-brand-500 hover:bg-brand-600 text-white text-xs font-medium disabled:opacity-50"
+            >
+              <Save className="w-3.5 h-3.5" />
+              {groupedSaving === "supervision" ? "保存中…" : "保存"}
+            </button>
+          )}
+        </div>
+        {groupedLoading ? (
+          <div className="text-sm text-slate-500 dark:text-slate-400 py-4">加载中…</div>
+        ) : grouped?.supervision ? (
+          <div className="space-y-4 max-w-md">
+            <div className="flex items-center justify-between">
+              <label className="text-sm font-medium text-slate-700 dark:text-slate-200">启用监管</label>
+              <button
+                type="button"
+                role="switch"
+                aria-checked={grouped.supervision.enabled}
+                onClick={() =>
+                  setGrouped((g) =>
+                    g ? { ...g, supervision: { ...g.supervision, enabled: !g.supervision.enabled } } : g,
+                  )
+                }
+                className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full border transition-colors ${
+                  grouped.supervision.enabled ? "bg-brand-500 border-brand-500" : "bg-slate-200 dark:bg-slate-700"
+                }`}
+              >
+                <span
+                  className={`inline-block h-5 w-5 rounded-full bg-white shadow transition-transform ${
+                    grouped.supervision.enabled ? "translate-x-5" : "translate-x-0.5"
+                  }`}
+                />
+              </button>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-slate-700 dark:text-slate-200 mb-1">
+                触犯时拦截的等级
+              </label>
+              <div className="flex flex-wrap gap-2 mb-1">
+                {["CRITICAL", "HIGH", "MEDIUM", "LOW"].map((level) => {
+                  const selected = (grouped.supervision.blockLevels || "")
+                    .split(",")
+                    .filter(Boolean)
+                    .includes(level);
+                  const toggle = () => {
+                    setGrouped((g) => {
+                      if (!g) return g;
+                      const current = (g.supervision.blockLevels || "")
+                        .split(",")
+                        .filter(Boolean);
+                      const next = selected
+                        ? current.filter((x) => x !== level)
+                        : [...current, level];
+                      return {
+                        ...g,
+                        supervision: {
+                          ...g.supervision,
+                          blockLevels: next.join(","),
+                        },
+                      };
+                    });
+                  };
+                  return (
+                    <button
+                      key={level}
+                      type="button"
+                      onClick={toggle}
+                      className={`px-2.5 py-1 rounded-full border text-xs font-medium transition-colors ${
+                        selected
+                          ? "bg-brand-500 text-white border-brand-500"
+                          : "bg-slate-50 dark:bg-slate-800/60 text-slate-700 dark:text-slate-200 border-slate-200 dark:border-slate-600 hover:bg-slate-100 dark:hover:bg-slate-700"
+                      }`}
+                    >
+                      {level}
+                    </button>
+                  );
+                })}
+              </div>
+              <p className="text-xs text-slate-500 dark:text-slate-400">
+                当前：{grouped.supervision.blockLevels || "未选择（默认不拦截）"}
+              </p>
+            </div>
+          </div>
+        ) : (
+          <p className="text-sm text-slate-500 dark:text-slate-400 py-2">加载失败或暂无数据</p>
+        )}
+      </section>
+
+      {/* 意图层 - 独立卡片 */}
+      <section className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900/50 p-5 shadow-sm">
+        <div className="flex items-start justify-between gap-2 mb-4">
+          <div className="flex items-center gap-2">
+            <div className="w-9 h-9 rounded-lg bg-purple-500/20 flex items-center justify-center">
+              <Brain className="w-4 h-4 text-purple-600 dark:text-purple-400" />
+            </div>
+            <div>
+              <h3 className="text-base font-semibold text-slate-900 dark:text-white">意图层</h3>
+              <p className="text-xs text-slate-500 dark:text-slate-400">
+                用 AI 判断是否意图执行危险指令（会多一次上游调用，使用调用方自己的 LLM）
+              </p>
+            </div>
+          </div>
+          {grouped?.intent && (
+            <button
+              type="button"
+              onClick={() => grouped && saveGroupedSection("intent", { intent: grouped.intent })}
+              disabled={groupedSaving === "intent"}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-brand-500 hover:bg-brand-600 text-white text-xs font-medium disabled:opacity-50"
+            >
+              <Save className="w-3.5 h-3.5" />
+              {groupedSaving === "intent" ? "保存中…" : "保存"}
+            </button>
+          )}
+        </div>
+        {groupedLoading ? (
+          <div className="text-sm text-slate-500 dark:text-slate-400 py-4">加载中…</div>
+        ) : grouped?.intent ? (
+          <div className="space-y-4 max-w-md">
+            <div className="flex items-center justify-between">
+              <label className="text-sm font-medium text-slate-700 dark:text-slate-200">启用意图判断</label>
+              <button
+                type="button"
+                role="switch"
+                aria-checked={grouped.intent.enabled}
+                onClick={() =>
+                  setGrouped((g) =>
+                    g ? { ...g, intent: { ...g.intent, enabled: !g.intent.enabled } } : g,
+                  )
+                }
+                className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full border transition-colors ${
+                  grouped.intent.enabled ? "bg-brand-500 border-brand-500" : "bg-slate-200 dark:bg-slate-700"
+                }`}
+              >
+                <span
+                  className={`inline-block h-5 w-5 rounded-full bg-white shadow transition-transform ${
+                    grouped.intent.enabled ? "translate-x-5" : "translate-x-0.5"
+                  }`}
+                />
+              </button>
+            </div>
+          </div>
+        ) : (
+          <p className="text-sm text-slate-500 dark:text-slate-400 py-2">加载失败或暂无数据</p>
+        )}
+      </section>
+
       {error && (
         <div className="rounded-lg bg-red-500/10 border border-red-500/30 text-red-600 dark:text-red-300 text-sm px-4 py-3">
           {error}
         </div>
       )}
 
+      {/* 其余键值配置：与上方卡片区分，列表形式 */}
+      <div className="pt-4 border-t border-slate-200 dark:border-slate-700">
+        <h3 className="text-base font-semibold text-slate-800 dark:text-slate-200 mb-3">其余键值配置</h3>
+        <p className="text-sm text-slate-500 dark:text-slate-400 mb-4">以下为未在专用卡片中管理的键值项，可在此编辑。</p>
+      </div>
+
       {loading && (
         <div className="text-slate-500 dark:text-slate-400 text-sm py-8">加载中…</div>
       )}
 
       {!loading && list.length === 0 && (
-        <div className="text-slate-500 dark:text-slate-400 text-sm py-8">暂无配置项</div>
+        <p className="text-slate-500 dark:text-slate-400 text-sm py-4">当前无其余键值项，所有配置均通过上方卡片管理。</p>
       )}
 
       {!loading && list.length > 0 && (

@@ -12,13 +12,11 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.reactive.function.client.WebClient;
 import org.springframework.web.reactive.function.client.WebClientResponseException;
 
-import java.util.ArrayList;
-import java.util.List;
 import java.util.Optional;
 
 /**
- * 大模型 API 中转代理：将请求转发到后台配置的上游地址，并在中间做监管（日志、可扩展策略）。
- * 上游一般为 OpenAI 兼容接口（如 OpenAI、DeepSeek、本地部署等）。
+ * 大模型 API 中转代理：将请求转发到调用方指定的上游地址，并在中间做监管（日志、可扩展策略）。
+ * 上游一般为 OpenAI 兼容接口（如 OpenAI、DeepSeek、本地部署、第三方中转等）。
  */
 @Service
 @RequiredArgsConstructor
@@ -39,56 +37,25 @@ public class LlmProxyService {
         if (!"true".equalsIgnoreCase(getConfigValue(SystemConfig.KEY_LLM_PROXY_ENABLED).orElse("").trim())) {
             return "请在【系统配置】将 llm_proxy.enabled 设为 true";
         }
-        String url = getConfigValue(SystemConfig.KEY_LLM_PROXY_UPSTREAM_URL).orElse("").trim();
-        if (url.isEmpty()) {
-            return "请在【系统配置】填写 llm_proxy.upstream_url（如 https://api.deepseek.com）";
+        return null;
+    }
+
+    /** 解析上游 Authorization：直接使用调用方传入的 Authorization 头 */
+    private String resolveUpstreamAuthorization(String requestAuthHeader) {
+        if (requestAuthHeader != null && !requestAuthHeader.isBlank()) {
+            return requestAuthHeader.trim();
         }
         return null;
     }
 
-    /** 多后端配置键前缀：llm_proxy.backend.{name}.url / llm_proxy.backend.{name}.api_key */
-    public static final String BACKEND_CONFIG_PREFIX = "llm_proxy.backend.";
-
-    /**
-     * 解析后端：不传或 default 使用默认上游；否则用 llm_proxy.backend.{name}.url。
-     * @return BackendConfig 或 null（表示未找到该后端）
-     */
-    public BackendConfig resolveBackend(String backendName) {
-        if (backendName == null || backendName.isBlank() || "default".equalsIgnoreCase(backendName.trim())) {
-            String url = getConfigValue(SystemConfig.KEY_LLM_PROXY_UPSTREAM_URL).orElse("").trim();
-            if (url.isEmpty()) return null;
-            String key = getConfigValue(SystemConfig.KEY_LLM_PROXY_UPSTREAM_API_KEY).orElse("").trim();
-            return new BackendConfig(url, key.isEmpty() ? null : "Bearer " + key, "default");
-        }
-        String name = backendName.trim().toLowerCase();
-        if (!name.matches("[a-z0-9_-]+")) {
-            return null;
-        }
-        String url = getConfigValue(BACKEND_CONFIG_PREFIX + name + ".url").orElse("").trim();
-        if (url.isEmpty()) return null;
-        String key = getConfigValue(BACKEND_CONFIG_PREFIX + name + ".api_key").orElse("").trim();
-        return new BackendConfig(url, key.isEmpty() ? null : "Bearer " + key, name);
-    }
-
-    /** 单个后端的 baseUrl + 可选默认 Authorization */
-    public record BackendConfig(String baseUrl, String defaultAuth, String backendName) {}
-
-    /** 解析上游 Authorization：优先请求头，否则用该后端的 defaultAuth */
-    private String resolveUpstreamAuthorization(String requestAuthHeader, String backendDefaultAuth) {
-        if (requestAuthHeader != null && !requestAuthHeader.isBlank()) {
-            return requestAuthHeader.trim();
-        }
-        return backendDefaultAuth;
-    }
-
     /** 转发到上游 POST path，委托给透明代理。 */
-    public ProxyResult forward(String path, String rawBody, String upstreamAuth, String backendName, ApiKey caller) {
-        return forwardRequest("POST", path, null, rawBody, upstreamAuth, backendName, caller);
+    public ProxyResult forward(String path, String rawBody, String upstreamAuth, String upstreamBaseUrl, ApiKey caller) {
+        return forwardRequest("POST", path, null, rawBody, upstreamAuth, upstreamBaseUrl, caller);
     }
 
     /** GET 转发（如 /v1/models），支持 X-LLM-Backend。 */
-    public ProxyResult forwardGet(String path, String upstreamAuth, String backendName, ApiKey caller) {
-        return forwardRequest("GET", path, null, null, upstreamAuth, backendName, caller);
+    public ProxyResult forwardGet(String path, String upstreamAuth, String upstreamBaseUrl, ApiKey caller) {
+        return forwardRequest("GET", path, null, null, upstreamAuth, upstreamBaseUrl, caller);
     }
 
     /**
@@ -96,34 +63,32 @@ public class LlmProxyService {
      * 任意 path（如 /v1/chat/completions、/v1/embeddings、/v1/audio/...）均可转发。
      */
     public ProxyResult forwardRequest(String method, String path, String queryString, String body,
-                                      String upstreamAuth, String backendName, ApiKey caller) {
-        BackendConfig backend = resolveBackend(backendName);
-        if (backend == null) {
-            String hint = (backendName == null || backendName.isBlank() || "default".equalsIgnoreCase(backendName.trim()))
-                    ? "默认上游未配置，请填写 llm_proxy.upstream_url"
-                    : "未知后端: " + backendName;
+                                      String upstreamAuth, String upstreamBaseUrl, ApiKey caller) {
+        String baseUrl = upstreamBaseUrl != null ? upstreamBaseUrl.trim() : "";
+        if (baseUrl.isEmpty()) {
+            String hint = "Missing X-LLM-Upstream-Url header (target LLM/base proxy URL is required)";
             return ProxyResult.error(400, "{\"error\":{\"message\":\"" + hint.replace("\"", "\\\"") + "\"}}");
         }
-        String auth = resolveUpstreamAuthorization(upstreamAuth, backend.defaultAuth());
+        String auth = resolveUpstreamAuthorization(upstreamAuth);
         if (auth == null || auth.isBlank()) {
             return ProxyResult.error(400, "{\"error\":{\"message\":\"Missing Authorization header (your LLM API key, e.g. Bearer sk-xxx)\"}}");
         }
         String normalizedPath = path != null && !path.startsWith("/") ? "/" + path : (path != null ? path : "/");
-        String fullUrl = backend.baseUrl().endsWith("/")
-                ? backend.baseUrl() + normalizedPath.replaceFirst("^/", "")
-                : backend.baseUrl() + normalizedPath;
+        String fullUrl = baseUrl.endsWith("/")
+                ? baseUrl + normalizedPath.replaceFirst("^/", "")
+                : baseUrl + normalizedPath;
         if (queryString != null && !queryString.isBlank()) {
             fullUrl = fullUrl + (fullUrl.contains("?") ? "&" : "?") + queryString;
         }
 
         if (caller != null) {
-            log.info("LLM proxy: backend={}, method={}, path={}, caller key id={}",
-                    backend.backendName(), method, normalizedPath, caller.getId());
+            log.info("LLM proxy: upstream={}, method={}, path={}, caller key id={}",
+                    baseUrl, method, normalizedPath, caller.getId());
         }
 
         // 监管层 + 意图层：请求前校验（仅对 chat/completions 的 POST body）
         if (supervisionService.isSupervisionEnabled() && "POST".equalsIgnoreCase(method) && normalizedPath.contains("chat/completions") && body != null && !body.isBlank()) {
-            LlmSupervisionService.SupervisionResult reqCheck = supervisionService.checkRequestWithIntent(body, caller, backend.baseUrl(), auth);
+            LlmSupervisionService.SupervisionResult reqCheck = supervisionService.checkRequestWithIntent(body, caller, baseUrl, auth);
             if (!reqCheck.allowed()) {
                 String msg = buildSupervisionBlockMessage(reqCheck, true);
                 log.warn("LLM proxy supervision block (request): path={}, risk={}, matches={}", normalizedPath, reqCheck.riskLevel(), reqCheck.matches());
@@ -171,20 +136,6 @@ public class LlmProxyService {
 
     public Optional<String> getConfigValue(String key) {
         return configService.getValue(key);
-    }
-
-    /** 返回可用后端名：default + 所有已配置的 llm_proxy.backend.{name}.url 的 name */
-    public List<String> listBackendNames() {
-        List<String> out = new ArrayList<>();
-        out.add("default");
-        for (com.opencarapace.server.config.entity.SystemConfig c : configService.listAllMasked()) {
-            String k = c.getConfigKey();
-            if (k != null && k.startsWith(BACKEND_CONFIG_PREFIX) && k.endsWith(".url")) {
-                String name = k.substring(BACKEND_CONFIG_PREFIX.length(), k.length() - 4);
-                if (!name.isEmpty() && !out.contains(name)) out.add(name);
-            }
-        }
-        return out;
     }
 
     private static String buildSupervisionBlockMessage(LlmSupervisionService.SupervisionResult result, boolean isRequest) {

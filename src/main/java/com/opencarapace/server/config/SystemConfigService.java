@@ -25,9 +25,21 @@ public class SystemConfigService {
         return repository.findByConfigKey(configKey);
     }
 
+    /** 不在 KV 列表中展示，仅由专用卡片 API/UI 管理的 key 或前缀 */
+    private static final java.util.Set<String> HIDDEN_KEYS = java.util.Set.of(
+            SystemConfig.KEY_CLAWHUB_SYNC_ENABLED,
+            SystemConfig.KEY_CLAWHUB_SYNC_CRON,
+            SystemConfig.KEY_CLAWHUB_SYNC_LAST_RUN_AT,
+            SystemConfig.KEY_DANGER_COMMANDS_USE_INTERNET,
+            SystemConfig.KEY_DEEPSEEK_API_KEY,
+            SystemConfig.KEY_TAVILY_API_KEY
+    );
+    private static final String HIDDEN_PREFIX = "llm_proxy.";
+
     @Transactional(readOnly = true)
     public List<SystemConfig> listAllMasked() {
         return repository.findAll().stream()
+                .filter(c -> !HIDDEN_KEYS.contains(c.getConfigKey()) && !c.getConfigKey().startsWith(HIDDEN_PREFIX))
                 .map(c -> isSecretKey(c.getConfigKey()) && c.getConfigValue() != null && !c.getConfigValue().isBlank()
                         ? maskConfig(c)
                         : c)

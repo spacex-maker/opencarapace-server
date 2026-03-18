@@ -9,6 +9,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Instant;
 import java.util.Optional;
 
 @Service
@@ -21,6 +22,14 @@ public class DangerCommandService {
     public Page<DangerCommand> search(SystemType systemType, DangerCategory category,
                                       RiskLevel riskLevel, String keyword, Pageable pageable) {
         return repository.search(systemType, category, riskLevel, keyword, pageable);
+    }
+
+    @Transactional(readOnly = true)
+    public Page<DangerCommand> incremental(Instant createdAfter, Pageable pageable) {
+        if (createdAfter == null) {
+            return repository.findAll(pageable);
+        }
+        return repository.findByEnabledTrueAndCreatedAtAfterOrderByCreatedAtAsc(createdAfter, pageable);
     }
 
     @Transactional(readOnly = true)

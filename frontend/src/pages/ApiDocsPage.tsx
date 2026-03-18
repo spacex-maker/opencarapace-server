@@ -60,11 +60,10 @@ Body:
   }
 }
 
-获取可用后端: GET ${apiBase}/api/llm/backends
-Header: X-OC-API-KEY: oc_xxx
-响应: { "backends": [ "default", "deepseek", "openai", ... ] }
-
 任意 /api/llm/ 下路径（如 /v1/chat/completions、/v1/models、/v1/embeddings）均会透明转发。
+上游地址与 API Key 由调用方自行指定：
+- X-LLM-Upstream-Url: 上游 LLM 或第三方中转的 base URL（如 https://api.deepseek.com）
+- Authorization: 上游要求的认证头（如 Bearer sk-xxx）
 
 ## 4. 工具 / 对话 / 命令安全检查
 对工具调用、对话内容或命令做安全评估，返回 allow / block / review 及风险等级。
@@ -127,6 +126,7 @@ async function sendLlmRequest(
   apiBase: string,
   key: string,
   llmKey: string,
+  upstreamUrl: string,
   body: string
 ): Promise<{ status: number; body: string }> {
   let parsed: unknown;
@@ -143,6 +143,7 @@ async function sendLlmRequest(
       "Content-Type": "application/json",
       "X-OC-API-KEY": key,
       Authorization: authHeader,
+      "X-LLM-Upstream-Url": upstreamUrl.trim(),
     },
     body: JSON.stringify(parsed),
   });
@@ -164,6 +165,7 @@ export const ApiDocsPage = () => {
   const [copyDone, setCopyDone] = useState(false);
   const [ocApiKey, setOcApiKey] = useState("");
   const [llmKey, setLlmKey] = useState("");
+  const [upstreamUrl, setUpstreamUrl] = useState("");
   const [bodyNormal, setBodyNormal] = useState(DEFAULT_LLM_BODY);
   const [bodyViolation, setBodyViolation] = useState(VIOLATION_LLM_BODY);
   const [sendingNormal, setSendingNormal] = useState(false);
@@ -184,6 +186,10 @@ export const ApiDocsPage = () => {
       setTestError("请填写 LLM Key");
       return false;
     }
+    if (!upstreamUrl.trim()) {
+      setTestError("请填写上游地址（X-LLM-Upstream-Url）");
+      return false;
+    }
     setTestError(null);
     return true;
   };
@@ -193,7 +199,7 @@ export const ApiDocsPage = () => {
     setSendingNormal(true);
     setResultNormal(null);
     try {
-      const r = await sendLlmRequest(REQUEST_BASE, ocApiKey.trim(), llmKey.trim(), bodyNormal);
+      const r = await sendLlmRequest(REQUEST_BASE, ocApiKey.trim(), llmKey.trim(), upstreamUrl.trim(), bodyNormal);
       setResultNormal(r);
     } catch (e) {
       setTestError(e instanceof Error ? e.message : "请求失败");
@@ -207,7 +213,7 @@ export const ApiDocsPage = () => {
     setSendingViolation(true);
     setResultViolation(null);
     try {
-      const r = await sendLlmRequest(REQUEST_BASE, ocApiKey.trim(), llmKey.trim(), bodyViolation);
+      const r = await sendLlmRequest(REQUEST_BASE, ocApiKey.trim(), llmKey.trim(), upstreamUrl.trim(), bodyViolation);
       setResultViolation(r);
     } catch (e) {
       setTestError(e instanceof Error ? e.message : "请求失败");
@@ -224,8 +230,8 @@ export const ApiDocsPage = () => {
     setTestError(null);
     try {
       const [r1, r2] = await Promise.all([
-        sendLlmRequest(REQUEST_BASE, ocApiKey.trim(), llmKey.trim(), bodyNormal),
-        sendLlmRequest(REQUEST_BASE, ocApiKey.trim(), llmKey.trim(), bodyViolation),
+        sendLlmRequest(REQUEST_BASE, ocApiKey.trim(), llmKey.trim(), upstreamUrl.trim(), bodyNormal),
+        sendLlmRequest(REQUEST_BASE, ocApiKey.trim(), llmKey.trim(), upstreamUrl.trim(), bodyViolation),
       ]);
       setResultNormal(r1);
       setResultViolation(r2);
@@ -382,17 +388,26 @@ Content-Type: application/json
 ${DOCS_API_BASE}/api/llm?api_key=oc_你创建的APIKey`}
         </pre>
 
-        <p className="font-medium text-slate-700 dark:text-slate-200 mt-3">鉴权方式</p>
+        <p className="font-medium text-slate-700 dark:text-slate-200 mt-3">请求头说明</p>
         <ul className="list-disc list-inside space-y-1 text-slate-600 dark:text-slate-400">
-          <li><span className="font-mono">X-OC-API-KEY</span>：ClawHeart 鉴权（用户后台创建的 API Key）；或使用查询参数 <span className="font-mono">api_key</span> / <span className="font-mono">x_oc_api_key</span></li>
-          <li><span className="font-mono">Authorization</span>：你的 LLM Key（如 Bearer sk-xxx），转发到上游；不传则使用管理员在系统配置中填写的上游 Key</li>
-          <li><span className="font-mono">X-LLM-Backend</span>（可选）：指定后端，如 <span className="font-mono">deepseek</span>、<span className="font-mono">openai</span>，不传则用默认</li>
+          <li>
+            <span className="font-mono">X-OC-API-KEY</span>：ClawHeart 鉴权（用户后台创建的 API Key）；或使用查询参数{" "}
+            <span className="font-mono">api_key</span> / <span className="font-mono">x_oc_api_key</span>
+          </li>
+          <li>
+            <span className="font-mono">Authorization</span>：你的 LLM Key（如 Bearer sk-xxx），原样转发给上游 / 第三方中转
+          </li>
+          <li>
+            <span className="font-mono">X-LLM-Upstream-Url</span>：上游 base URL（如{" "}
+            <span className="font-mono">https://api.deepseek.com</span> 或你的第三方代理地址）
+          </li>
         </ul>
 
         <p className="font-medium text-slate-700 dark:text-slate-200 mt-3">请求示例（聊天补全）</p>
         <pre className={codeBlockClass}>
 {`POST ${DOCS_API_BASE}/api/llm/v1/chat/completions
 X-OC-API-KEY: oc_xxx
+X-LLM-Upstream-Url: https://api.deepseek.com
 Authorization: Bearer sk_你的LLM密钥
 Content-Type: application/json
 
@@ -414,14 +429,10 @@ Content-Type: application/json
 }`}
         </pre>
 
-        <p className="font-medium text-slate-700 dark:text-slate-200 mt-3">获取可用后端列表</p>
-        <pre className={codeBlockClass}>
-{`GET ${DOCS_API_BASE}/api/llm/backends
-X-OC-API-KEY: oc_xxx
-
-// 响应: { "backends": [ "default", "deepseek", "openai", ... ] }`}
-        </pre>
-        <p>任意 <span className="font-mono">/api/llm/</span> 下的路径（如 <span className="font-mono">/v1/chat/completions</span>、<span className="font-mono">/v1/models</span>、<span className="font-mono">/v1/embeddings</span>）均会透明转发。</p>
+        <p>
+          任意 <span className="font-mono">/api/llm/</span> 下的路径（如 <span className="font-mono">/v1/chat/completions</span>、
+          <span className="font-mono">/v1/models</span>、<span className="font-mono">/v1/embeddings</span>）均会透明转发。
+        </p>
       </section>
 
       <section className="space-y-3">
@@ -472,8 +483,8 @@ Content-Type: application/json
           <h2 className="text-xl font-semibold text-slate-900 dark:text-white">对照演示</h2>
           <p className="text-slate-500 dark:text-slate-400 text-xs">正常请求与违规请求同屏对比，可分别发送或一起发送。</p>
 
-          {/* 共用：API Key + LLM Key */}
-          <div className="grid sm:grid-cols-2 gap-3">
+          {/* 共用：API Key + LLM Key + 上游 URL */}
+          <div className="grid sm:grid-cols-3 gap-3">
             <div>
               <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">
                 ClawHeart API Key <span className="text-red-500">*</span>
@@ -493,6 +504,19 @@ Content-Type: application/json
                   {showOcKey ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                 </button>
               </div>
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">
+                上游地址（X-LLM-Upstream-Url） <span className="text-red-500">*</span>
+              </label>
+              <input
+                type="text"
+                value={upstreamUrl}
+                onChange={(e) => setUpstreamUrl(e.target.value)}
+                placeholder="https://api.deepseek.com 或你的三方中转地址"
+                autoComplete="off"
+                className={inputClass}
+              />
             </div>
             <div>
               <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">

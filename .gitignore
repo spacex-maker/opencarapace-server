@@ -32,6 +32,34 @@ frontend/yarn-debug.log*
 frontend/yarn-error.log*
 frontend/.pnpm-debug.log*
 
+# local-desktop Electron 客户端
+local-desktop/node_modules/
+local-desktop/dist/
+local-desktop/out/
+local-desktop/.vite/
+local-desktop/.turbo/
+local-desktop/.env
+local-desktop/.env.local
+local-desktop/.env.*.local
+local-desktop/npm-debug.log*
+local-desktop/yarn-debug.log*
+local-desktop/yarn-error.log*
+local-desktop/.pnpm-debug.log*
+
+# local-desktop 前端子项目（Vite/React）
+local-desktop/frontend/node_modules/
+local-desktop/frontend/dist/
+local-desktop/frontend/.vite/
+local-desktop/frontend/.turbo/
+local-desktop/frontend/.env
+local-desktop/frontend/.env.local
+local-desktop/frontend/.env.*.local
+local-desktop/frontend/npm-debug.log*
+local-desktop/frontend/yarn-debug.log*
+local-desktop/frontend/yarn-error.log*
+local-desktop/frontend/.pnpm-debug.log*
+
+
 # ---- OS ----
 .DS_Store
 Thumbs.db

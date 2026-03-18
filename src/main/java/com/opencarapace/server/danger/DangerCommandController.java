@@ -23,29 +23,54 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.time.Instant;
+import java.time.format.DateTimeParseException;
+
 /**
- * 云端危险指令库 API：仅管理员可查看与维护。
+ * 云端危险指令库 API。
+ * - 登录用户：可查询列表与详情
+ * - 管理员：额外支持新增 / 更新 / 删除
  */
 @RestController
 @RequestMapping("/api/danger-commands")
 @RequiredArgsConstructor
-@PreAuthorize("hasRole('ADMIN')")
 public class DangerCommandController {
 
     private final DangerCommandService dangerCommandService;
 
-    /** 分页查询，支持按系统类型、分类、风险等级、关键词筛选（公开） */
+    /** 分页查询，支持按系统类型、分类、风险等级、关键词筛选（登录用户可见） */
     @GetMapping
     public Page<DangerCommand> search(
-            @RequestParam(required = false) SystemType systemType,
-            @RequestParam(required = false) DangerCategory category,
-            @RequestParam(required = false) RiskLevel riskLevel,
-            @RequestParam(required = false) String keyword,
+            @RequestParam(name = "systemType", required = false) SystemType systemType,
+            @RequestParam(name = "category", required = false) DangerCategory category,
+            @RequestParam(name = "riskLevel", required = false) RiskLevel riskLevel,
+            @RequestParam(name = "keyword", required = false) String keyword,
             @PageableDefault(size = 20, sort = "createdAt") Pageable pageable) {
         return dangerCommandService.search(systemType, category, riskLevel, keyword, pageable);
     }
 
-    /** 按 ID 查询单条 */
+    /**
+     * 增量同步接口：按创建时间拉取新增的危险指令。
+     * createdAfter 传 ISO-8601 字符串（如 2026-03-17T00:00:00Z），为空则表示全量。
+     */
+    @GetMapping("/incremental")
+    public Page<DangerCommand> incremental(
+            @RequestParam(name = "createdAfter", required = false) String createdAfter,
+            @PageableDefault(size = 10, sort = "createdAt") Pageable pageable
+    ) {
+        Instant instant = null;
+        if (createdAfter != null && !createdAfter.isBlank()) {
+            try {
+                instant = Instant.parse(createdAfter);
+            } catch (DateTimeParseException ignored) {
+                // 非法格式直接视为 null，相当于全量
+                instant = null;
+            }
+        }
+        return dangerCommandService.incremental(instant, pageable);
+    }
+
+    /** 按 ID 查询单条（登录用户可见） */
     @GetMapping("/{id}")
     public ResponseEntity<DangerCommand> getById(@PathVariable Long id) {
         return dangerCommandService.findById(id)
@@ -53,15 +78,17 @@ public class DangerCommandController {
                 .orElse(ResponseEntity.notFound().build());
     }
 
-    /** 新增危险指令（需认证） */
+    /** 新增危险指令（仅管理员） */
     @PostMapping
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<DangerCommand> create(@Valid @RequestBody DangerCommandDto dto) {
         DangerCommand entity = toEntity(dto);
         return ResponseEntity.status(HttpStatus.CREATED).body(dangerCommandService.create(entity));
     }
 
-    /** 更新危险指令 */
+    /** 更新危险指令（仅管理员） */
     @PutMapping("/{id}")
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<DangerCommand> update(@PathVariable Long id, @Valid @RequestBody DangerCommandDto dto) {
         DangerCommand entity = toEntity(dto);
         return dangerCommandService.update(id, entity)
@@ -69,8 +96,9 @@ public class DangerCommandController {
                 .orElse(ResponseEntity.notFound().build());
     }
 
-    /** 删除危险指令 */
+    /** 删除危险指令（仅管理员） */
     @DeleteMapping("/{id}")
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<Void> delete(@PathVariable Long id) {
         return dangerCommandService.deleteById(id)
                 ? ResponseEntity.noContent().build()

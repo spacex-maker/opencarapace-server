@@ -65,4 +65,11 @@ public class SystemConfig {
     public static final String KEY_LLM_PROXY_INTENT_ENABLED = "llm_proxy.intent.enabled";
     /** 意图层：用于意图分类的模型名，如 gpt-3.5-turbo 或 deepseek-chat */
     public static final String KEY_LLM_PROXY_INTENT_MODEL = "llm_proxy.intent.model";
+
+    /** ClawHub 技能同步：是否启用定时同步，true/false */
+    public static final String KEY_CLAWHUB_SYNC_ENABLED = "clawhub.sync.enabled";
+    /** ClawHub 技能同步：cron 表达式，如 0 0 2 * * ? */
+    public static final String KEY_CLAWHUB_SYNC_CRON = "clawhub.sync.cron";
+    /** ClawHub 技能同步：上次执行时间（ISO-8601） */
+    public static final String KEY_CLAWHUB_SYNC_LAST_RUN_AT = "clawhub.sync.last_run_at";
 }

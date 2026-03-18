@@ -8,9 +8,9 @@ spring:
       # 定时任务时区，凌晨执行按此时区
       zone: Asia/Shanghai
   datasource:
-    url: jdbc:mysql://175.27.255.29:33306/opencarapace?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai&useSSL=false&allowPublicKeyRetrieval=true
-    username: root
-    password: Aimate2026!MySQL
+    url: jdbc:mysql://170.106.195.25:3306/opencarapace?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai&useSSL=false&allowPublicKeyRetrieval=true
+    username: claw2026
+    password: AgPanopticon!2026#Db
     driver-class-name: com.mysql.cj.jdbc.Driver
   jpa:
     hibernate:
@@ -35,6 +35,13 @@ security:
 google:
   oauth:
     client-id: "YOUR_GOOGLE_CLIENT_ID"
+
+# ClawHub 技能同步（通过公开 API，无需安装 clawhub CLI）
+claw:
+  skills:
+    clawhub-base-url: "https://clawhub.ai"
+    clawhub-search-queries: "skill,tool,api,code,shell,security,web,data,agent,openclaw,claw,assistant,automation"
+    clawhub-search-limit-per-query: 200
 
 opencarapace:
   # 可选：指定管理员邮箱，启动时将该用户角色设为 ADMIN

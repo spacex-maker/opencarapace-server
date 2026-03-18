@@ -1,0 +1,23 @@
+{
+  "name": "@clawheart/local-proxy",
+  "version": "0.1.0",
+  "private": false,
+  "type": "module",
+  "bin": {
+    "clawheart-proxy": "dist/index.js"
+  },
+  "scripts": {
+    "dev": "tsx src/index.ts",
+    "build": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "axios": "^1.7.9",
+    "express": "^4.19.2",
+    "sqlite3": "^5.1.7"
+  },
+  "devDependencies": {
+    "tsx": "^4.19.0",
+    "typescript": "^5.5.3"
+  }
+}
+

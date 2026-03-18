@@ -45,6 +45,10 @@ local-desktop/npm-debug.log*
 local-desktop/yarn-debug.log*
 local-desktop/yarn-error.log*
 local-desktop/.pnpm-debug.log*
+local-desktop/*.db
+local-desktop/*.db-journal
+local-desktop/*.db-shm
+local-desktop/*.db-wal
 
 # local-desktop 前端子项目（Vite/React）
 local-desktop/frontend/node_modules/
@@ -76,3 +80,14 @@ application-local.yaml
 *.orig
 *.rej
 .cache/
+
+# ---- OpenClaw / Local Data ----
+# OpenClaw 用户数据目录（通常在 ~/.openclaw）
+.openclaw/
+# 内置 Node.js 目录（通常在 ~/.opencarapace）
+.opencarapace/
+# SQLite 数据库文件
+*.db
+*.db-journal
+*.db-shm
+*.db-wal

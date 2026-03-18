@@ -10,6 +10,7 @@ const {
   getLocalSettings,
   getLocalAuth,
   getDb,
+  saveLastKnownVersion,
 } = require("./db");
 
 async function syncDangerCommandsFromServer(apiKey, onProgress) {
@@ -151,14 +152,19 @@ async function syncSystemSkillsStatusFromServer(apiKey, onProgress) {
       }
     }
 
-    // 写入/更新本地 skills 表（按官方 status）
+    // 写入/更新本地 skills 表（与 Web 端字段保持一致）
     if (lastUpdatedAt == null && page === 0) {
       await replaceSkills(
         batch.map((s) => ({
           id: s.id,
           slug: s.slug,
+          name: s.name || null,
+          type: s.type || null,
+          category: s.category || null,
           status: s.status || "ACTIVE",
+          short_desc: s.shortDesc || null,
           updated_at: s.updatedAt || null,
+          source_name: s.sourceName || null,
         }))
       );
     } else {
@@ -166,8 +172,13 @@ async function syncSystemSkillsStatusFromServer(apiKey, onProgress) {
         batch.map((s) => ({
           id: s.id,
           slug: s.slug,
+          name: s.name || null,
+          type: s.type || null,
+          category: s.category || null,
           status: s.status || "ACTIVE",
+          short_desc: s.shortDesc || null,
           updated_at: s.updatedAt || null,
+          source_name: s.sourceName || null,
         }))
       );
     }
@@ -218,6 +229,14 @@ async function syncUserSkillsFromServer(apiKey) {
 
   await replaceUserSkills(rows);
 
+  const versionRes = await axios.get(`${apiBase}/api/user-settings/version`, {
+    headers,
+    validateStatus: () => true,
+  });
+  if (versionRes.status === 200 && versionRes.data && typeof versionRes.data.combinedVersion === "number") {
+    await saveLastKnownVersion(versionRes.data.combinedVersion);
+  }
+
   return rows.length;
 }
 
@@ -250,6 +269,14 @@ async function syncUserDangerCommandsFromServer(apiKey) {
     db.run("UPDATE danger_commands SET user_enabled = NULL", () => resolve());
   });
   await require("./db").applyUserDangerPrefs(rows);
+
+  const versionRes = await axios.get(`${apiBase}/api/user-settings/version`, {
+    headers,
+    validateStatus: () => true,
+  });
+  if (versionRes.status === 200 && versionRes.data && typeof versionRes.data.combinedVersion === "number") {
+    await saveLastKnownVersion(versionRes.data.combinedVersion);
+  }
 
   return rows.length;
 }

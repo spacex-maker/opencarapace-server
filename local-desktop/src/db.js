@@ -50,9 +50,13 @@ function getDb() {
     db.run(
       `CREATE TABLE IF NOT EXISTS local_user_settings (
         id INTEGER PRIMARY KEY CHECK (id = 1),
-        llm_route_mode TEXT NOT NULL DEFAULT 'GATEWAY'
+        llm_route_mode TEXT NOT NULL DEFAULT 'GATEWAY',
+        sync_user_skills_to_cloud INTEGER NOT NULL DEFAULT 1,
+        sync_user_dangers_to_cloud INTEGER NOT NULL DEFAULT 1
       )`
     );
+    db.run("ALTER TABLE local_user_settings ADD COLUMN sync_user_skills_to_cloud INTEGER NOT NULL DEFAULT 1", () => {});
+    db.run("ALTER TABLE local_user_settings ADD COLUMN sync_user_dangers_to_cloud INTEGER NOT NULL DEFAULT 1", () => {});
     db.run(
       `CREATE TABLE IF NOT EXISTS local_llm_mappings (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -74,18 +78,81 @@ function getDb() {
       )`
     );
     db.run(
+      `CREATE TABLE IF NOT EXISTS local_sync_state (
+        id INTEGER PRIMARY KEY CHECK (id = 1),
+        last_known_version INTEGER NOT NULL DEFAULT 0
+      )`
+    );
+    db.run(
+      `CREATE TABLE IF NOT EXISTS local_openclaw_settings (
+        id INTEGER PRIMARY KEY CHECK (id = 1),
+        ui_url TEXT NOT NULL DEFAULT 'http://localhost:18789',
+        install_cmd TEXT NOT NULL DEFAULT ''
+      )`
+    );
+    // 兼容老版本表结构：补充 openclaw 配置列
+    db.run("ALTER TABLE local_openclaw_settings ADD COLUMN ui_url TEXT NOT NULL DEFAULT 'http://localhost:18789'", () => {});
+    db.run("ALTER TABLE local_openclaw_settings ADD COLUMN install_cmd TEXT NOT NULL DEFAULT ''", () => {});
+    db.run(
       `CREATE TABLE IF NOT EXISTS skills (
         id INTEGER,
         slug TEXT PRIMARY KEY,
+        name TEXT,
+        type TEXT,
+        category TEXT,
         status TEXT NOT NULL,
-        updated_at TEXT
+        short_desc TEXT,
+        updated_at TEXT,
+        source_name TEXT
       )`
     );
-    // 兼容老版本 skills 表结构，补充 id / updated_at 列
+    // 兼容老版本 skills 表结构，补充新增字段
     db.run("ALTER TABLE skills ADD COLUMN id INTEGER", () => {});
     db.run("ALTER TABLE skills ADD COLUMN updated_at TEXT", () => {});
+    db.run("ALTER TABLE skills ADD COLUMN source_name TEXT", () => {});
+    db.run("ALTER TABLE skills ADD COLUMN name TEXT", () => {});
+    db.run("ALTER TABLE skills ADD COLUMN type TEXT", () => {});
+    db.run("ALTER TABLE skills ADD COLUMN category TEXT", () => {});
+    db.run("ALTER TABLE skills ADD COLUMN short_desc TEXT", () => {});
   });
   return db;
+}
+
+function getOpenClawSettings() {
+  const database = getDb();
+  return new Promise((resolve) => {
+    database.get("SELECT ui_url, install_cmd FROM local_openclaw_settings WHERE id = 1", (err, row) => {
+      if (err || !row) {
+        resolve({
+          uiUrl: "http://localhost:3000",
+          installCmd: "",
+        });
+      } else {
+        resolve({
+          uiUrl: row.ui_url || "http://localhost:3000",
+          installCmd: row.install_cmd || "",
+        });
+      }
+    });
+  });
+}
+
+function saveOpenClawSettings(settings) {
+  const database = getDb();
+  const uiUrl = String(settings?.uiUrl || "http://localhost:3000");
+  const installCmd = String(settings?.installCmd || "");
+  return new Promise((resolve, reject) => {
+    database.run(
+      `INSERT INTO local_openclaw_settings (id, ui_url, install_cmd)
+       VALUES (1, ?, ?)
+       ON CONFLICT(id) DO UPDATE SET ui_url = excluded.ui_url, install_cmd = excluded.install_cmd`,
+      [uiUrl, installCmd],
+      (err) => {
+        if (err) reject(err);
+        else resolve();
+      }
+    );
+  });
 }
 
 function replaceDangerCommands(rows) {
@@ -177,6 +244,78 @@ function applyUserDangerPrefs(rows) {
   });
 }
 
+function updateUserDangerCommand(id, enabled) {
+  const database = getDb();
+  return new Promise((resolve, reject) => {
+    database.run(
+      `UPDATE danger_commands SET user_enabled = ? WHERE id = ?`,
+      [enabled ? 1 : 0, id],
+      (err) => {
+        if (err) reject(err);
+        else resolve();
+      }
+    );
+  });
+}
+
+function getSyncUserDangersToCloud() {
+  const database = getDb();
+  return new Promise((resolve) => {
+    database.get("SELECT sync_user_dangers_to_cloud FROM local_user_settings WHERE id = 1", (err, row) => {
+      if (err || !row || typeof row.sync_user_dangers_to_cloud !== "number") {
+        resolve(1);
+      } else {
+        resolve(row.sync_user_dangers_to_cloud);
+      }
+    });
+  });
+}
+
+function saveSyncUserDangersToCloud(value) {
+  const database = getDb();
+  return new Promise((resolve, reject) => {
+    database.run(
+      `INSERT INTO local_user_settings (id, sync_user_dangers_to_cloud)
+       VALUES (1, ?)
+       ON CONFLICT(id) DO UPDATE SET sync_user_dangers_to_cloud = excluded.sync_user_dangers_to_cloud`,
+      [value ? 1 : 0],
+      (err) => {
+        if (err) reject(err);
+        else resolve();
+      }
+    );
+  });
+}
+
+function getLastKnownVersion() {
+  const database = getDb();
+  return new Promise((resolve) => {
+    database.get("SELECT last_known_version FROM local_sync_state WHERE id = 1", (err, row) => {
+      if (err || !row) {
+        resolve(0);
+      } else {
+        resolve(row.last_known_version || 0);
+      }
+    });
+  });
+}
+
+function saveLastKnownVersion(version) {
+  const database = getDb();
+  return new Promise((resolve, reject) => {
+    database.run(
+      `INSERT INTO local_sync_state (id, last_known_version)
+       VALUES (1, ?)
+       ON CONFLICT(id) DO UPDATE SET last_known_version = excluded.last_known_version`,
+      [version],
+      (err) => {
+        if (err) reject(err);
+        else resolve();
+      }
+    );
+  });
+}
+
 function replaceDisabledSkills(slugs) {
   const database = getDb();
   return new Promise((resolve, reject) => {
@@ -220,11 +359,24 @@ function replaceSkills(rows) {
   return new Promise((resolve, reject) => {
     database.serialize(() => {
       database.run("DELETE FROM skills");
-      const stmt = database.prepare("INSERT INTO skills (id, slug, status, updated_at) VALUES (?, ?, ?, ?)");
+      const stmt = database.prepare(
+        "INSERT INTO skills (id, slug, name, type, category, status, short_desc, updated_at, source_name) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)"
+      );
       for (const r of rows) {
-        stmt.run(r.id || null, r.slug, r.status, r.updated_at || null, (err) => {
-          if (err) reject(err);
-        });
+        stmt.run(
+          r.id || null,
+          r.slug,
+          r.name || null,
+          r.type || null,
+          r.category || null,
+          r.status,
+          r.short_desc || null,
+          r.updated_at || null,
+          r.source_name || null,
+          (err) => {
+            if (err) reject(err);
+          }
+        );
       }
       stmt.finalize((err) => {
         if (err) reject(err);
@@ -239,17 +391,33 @@ function upsertSkills(rows) {
   return new Promise((resolve, reject) => {
     database.serialize(() => {
       const stmt = database.prepare(
-        `INSERT INTO skills (id, slug, status, updated_at)
-         VALUES (?, ?, ?, ?)
+        `INSERT INTO skills (id, slug, name, type, category, status, short_desc, updated_at, source_name)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
          ON CONFLICT(slug) DO UPDATE SET
            id = excluded.id,
+           name = excluded.name,
+           type = excluded.type,
+           category = excluded.category,
            status = excluded.status,
-           updated_at = excluded.updated_at`
+           short_desc = excluded.short_desc,
+           updated_at = excluded.updated_at,
+           source_name = excluded.source_name`
       );
       for (const r of rows) {
-        stmt.run(r.id || null, r.slug, r.status, r.updated_at || null, (err) => {
-          if (err) reject(err);
-        });
+        stmt.run(
+          r.id || null,
+          r.slug,
+          r.name || null,
+          r.type || null,
+          r.category || null,
+          r.status,
+          r.short_desc || null,
+          r.updated_at || null,
+          r.source_name || null,
+          (err) => {
+            if (err) reject(err);
+          }
+        );
       }
       stmt.finalize((err) => {
         if (err) reject(err);
@@ -345,6 +513,51 @@ function replaceUserSkills(rows) {
   });
 }
 
+function upsertUserSkill(slug, enabled) {
+  const database = getDb();
+  return new Promise((resolve, reject) => {
+    database.run(
+      `INSERT INTO user_skills (slug, enabled)
+       VALUES (?, ?)
+       ON CONFLICT(slug) DO UPDATE SET enabled = excluded.enabled`,
+      [slug, enabled ? 1 : 0],
+      (err) => {
+        if (err) reject(err);
+        else resolve();
+      }
+    );
+  });
+}
+
+function getSyncUserSkillsToCloud() {
+  const database = getDb();
+  return new Promise((resolve) => {
+    database.get("SELECT sync_user_skills_to_cloud FROM local_user_settings WHERE id = 1", (err, row) => {
+      if (err || !row || typeof row.sync_user_skills_to_cloud !== "number") {
+        resolve(1);
+      } else {
+        resolve(row.sync_user_skills_to_cloud);
+      }
+    });
+  });
+}
+
+function saveSyncUserSkillsToCloud(value) {
+  const database = getDb();
+  return new Promise((resolve, reject) => {
+    database.run(
+      `INSERT INTO local_user_settings (id, sync_user_skills_to_cloud)
+       VALUES (1, ?)
+       ON CONFLICT(id) DO UPDATE SET sync_user_skills_to_cloud = excluded.sync_user_skills_to_cloud`,
+      [value ? 1 : 0],
+      (err) => {
+        if (err) reject(err);
+        else resolve();
+      }
+    );
+  });
+}
+
 function getLocalAuth() {
   const database = getDb();
   return new Promise((resolve) => {
@@ -397,6 +610,43 @@ function deleteLlmMapping(id) {
   });
 }
 
+function ensureDefaultLlmMappings() {
+  const database = getDb();
+  const defaults = [
+    { prefix: "openai", target_base: "https://api.openai.com" },
+    { prefix: "deepseek", target_base: "https://api.deepseek.com" },
+    { prefix: "anthropic", target_base: "https://api.anthropic.com" },
+    { prefix: "gemini", target_base: "https://generativelanguage.googleapis.com" },
+  ];
+  return new Promise((resolve, reject) => {
+    database.serialize(() => {
+      database.get("SELECT COUNT(1) AS c FROM local_llm_mappings", (err, row) => {
+        if (err) {
+          reject(err);
+          return;
+        }
+        const count = row?.c ?? 0;
+        if (count > 0) {
+          resolve(false);
+          return;
+        }
+        const stmt = database.prepare(
+          "INSERT OR IGNORE INTO local_llm_mappings (prefix, target_base) VALUES (?, ?)"
+        );
+        for (const d of defaults) {
+          stmt.run(d.prefix, d.target_base, (e) => {
+            if (e) reject(e);
+          });
+        }
+        stmt.finalize((e) => {
+          if (e) reject(e);
+          else resolve(true);
+        });
+      });
+    });
+  });
+}
+
 function saveLocalAuth(auth) {
   const database = getDb();
   return new Promise((resolve, reject) => {
@@ -413,6 +663,16 @@ function saveLocalAuth(auth) {
   });
 }
 
+function clearLocalAuth() {
+  const database = getDb();
+  return new Promise((resolve, reject) => {
+    database.run("DELETE FROM local_auth WHERE id = 1", (err) => {
+      if (err) reject(err);
+      else resolve();
+    });
+  });
+}
+
 module.exports = {
   getDb,
   replaceDangerCommands,
@@ -423,14 +683,26 @@ module.exports = {
   upsertSkills,
   getLocalSettings,
   saveLocalSettings,
+  getOpenClawSettings,
+  saveOpenClawSettings,
   getLlmRouteMode,
   saveLlmRouteMode,
   listLlmMappings,
   upsertLlmMapping,
   deleteLlmMapping,
+  ensureDefaultLlmMappings,
   replaceUserSkills,
+  upsertUserSkill,
+  getSyncUserSkillsToCloud,
+  saveSyncUserSkillsToCloud,
   getLocalAuth,
   saveLocalAuth,
+  clearLocalAuth,
   applyUserDangerPrefs,
+  updateUserDangerCommand,
+  getSyncUserDangersToCloud,
+  saveSyncUserDangersToCloud,
+  getLastKnownVersion,
+  saveLastKnownVersion,
 };
 

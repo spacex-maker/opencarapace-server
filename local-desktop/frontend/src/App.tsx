@@ -8,6 +8,7 @@ import { SkillsPanel } from "./components/SkillsPanel";
 import { AuthPanel } from "./components/AuthPanel";
 import { SettingsPanel } from "./components/SettingsPanel";
 import { DocsPanel } from "./components/DocsPanel";
+import { OpenClawPanel } from "./components/OpenClawPanel";
 
 export function App() {
   const [status, setStatus] = useState<LocalStatus | null>(null);
@@ -16,7 +17,7 @@ export function App() {
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<
-    "overview" | "local" | "danger" | "skills" | "settings" | "docs" | "auth"
+    "overview" | "local" | "danger" | "skills" | "openclaw" | "settings" | "docs" | "auth"
   >("overview");
 
   const [apiBase, setApiBase] = useState("https://api.clawheart.live");
@@ -44,6 +45,43 @@ export function App() {
     load();
   }, []);
 
+  useEffect(() => {
+    let isActive = true;
+
+    const checkAndSync = async () => {
+      if (!isActive) return;
+      try {
+        const res = await fetch("http://127.0.0.1:19111/api/user-settings/check-version");
+        if (!res.ok) return;
+        const data = await res.json();
+        if (data?.needSync && data?.cloudVersion) {
+          await fetch("http://127.0.0.1:19111/api/user-settings/sync", { method: "POST" });
+        }
+      } catch {
+        // ignore
+      }
+    };
+
+    checkAndSync();
+    const timer = setInterval(checkAndSync, 30000);
+
+    return () => {
+      isActive = false;
+      clearInterval(timer);
+    };
+  }, []);
+
+  const refreshStatus = async () => {
+    const res = await fetch("http://127.0.0.1:19111/api/status");
+    const data = await res.json();
+    setStatus(data);
+    if (data?.settings) {
+      setApiBase(data.settings.apiBase ?? "https://api.clawheart.live");
+      setOcApiKey(data.settings.ocApiKey ?? "");
+      setLlmKey(data.settings.llmKey ?? "");
+    }
+  };
+
   const handleSave = async () => {
     setSaving(true);
     setMessage(null);
@@ -70,6 +108,19 @@ export function App() {
   const handleLoggedIn = (s: LocalStatus) => {
     setStatus(s);
     setActiveTab("overview");
+  };
+
+  const handleLogout = async () => {
+    try {
+      setError(null);
+      setMessage(null);
+      await fetch("http://127.0.0.1:19111/api/auth/logout", { method: "POST" });
+      await refreshStatus();
+      setActiveTab("overview");
+      setMessage("已退出登录。");
+    } catch (e: any) {
+      setError(e?.message ?? "退出登录失败");
+    }
   };
 
   const isConnected = !loading && !error && !!status?.settings?.apiBase;
@@ -106,6 +157,7 @@ export function App() {
           <NavButton label="本地管理" active={activeTab === "local"} onClick={() => setActiveTab("local")} />
           <NavButton label="危险指令库" active={activeTab === "danger"} onClick={() => setActiveTab("danger")} />
           <NavButton label="Skills 仓库" active={activeTab === "skills"} onClick={() => setActiveTab("skills")} />
+          <NavButton label="OpenClaw" active={activeTab === "openclaw"} onClick={() => setActiveTab("openclaw")} />
           <NavButton label="设置" active={activeTab === "settings"} onClick={() => setActiveTab("settings")} />
           <NavButton label="文档 / 使用说明" active={activeTab === "docs"} onClick={() => setActiveTab("docs")} />
         </div>
@@ -164,6 +216,26 @@ export function App() {
               登录
             </button>
           )}
+          {!!status?.auth?.email && (
+            <button
+              type="button"
+              onClick={handleLogout}
+              style={{
+                width: "100%",
+                padding: "6px 10px",
+                borderRadius: 999,
+                border: "1px solid #374151",
+                background: "transparent",
+                color: "#e5e7eb",
+                fontSize: 11,
+                fontWeight: 600,
+                cursor: "pointer",
+                marginTop: 6,
+              }}
+            >
+              退出登录
+            </button>
+          )}
         </div>
       </div>
 
@@ -195,6 +267,7 @@ export function App() {
         {activeTab === "local" && <LocalManagePanel status={status} />}
         {activeTab === "danger" && <DangerPanel />}
         {activeTab === "skills" && <SkillsPanel />}
+        {activeTab === "openclaw" && <OpenClawPanel />}
         {activeTab === "settings" && <SettingsPanel />}
         {activeTab === "docs" && <DocsPanel />}
         {activeTab === "auth" && <AuthPanel onLoggedIn={handleLoggedIn} />}

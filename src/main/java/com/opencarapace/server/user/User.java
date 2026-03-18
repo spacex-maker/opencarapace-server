@@ -45,8 +45,12 @@ public class User {
     @Column(name = "password_hash", length = 255)
     private String passwordHash;
 
+    @Column(name = "settings_version", nullable = false)
+    private Long settingsVersion = 0L;
+
     @CreationTimestamp
     private Instant createdAt;
+
 
     @UpdateTimestamp
     private Instant updatedAt;

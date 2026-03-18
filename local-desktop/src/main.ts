@@ -40,13 +40,13 @@ async function createWindow() {
 
   const isDev = process.env.ELECTRON_DEV === "true";
 
+  // 始终加载打包好的前端静态文件（简化开发流程）
+  const indexHtml = path.join(__dirname, "../frontend/dist/index.html");
+  await mainWindow.loadFile(indexHtml);
+
+  // 开发模式下自动打开开发者工具
   if (isDev) {
-    // 开发模式：加载 Vite dev server 提供的 React 前端
-    await mainWindow.loadURL("http://localhost:5173");
-  } else {
-    // 生产模式：加载打包好的前端静态文件
-    const indexHtml = path.join(__dirname, "../frontend/index.html");
-    await mainWindow.loadFile(indexHtml);
+    mainWindow.webContents.openDevTools();
   }
 
   mainWindow.on("closed", () => {

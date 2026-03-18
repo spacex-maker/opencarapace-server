@@ -80,6 +80,10 @@ public class UserSkillController {
         userSkill.setEnabled(enabled);
 
         UserSkill saved = userSkillRepository.save(userSkill);
+        
+        user.setSettingsVersion(user.getSettingsVersion() + 1);
+        userRepository.save(user);
+        
         return ResponseEntity.ok(UserSkillDto.fromEntity(saved));
     }
 

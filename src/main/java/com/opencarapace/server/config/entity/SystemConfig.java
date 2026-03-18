@@ -72,4 +72,9 @@ public class SystemConfig {
     public static final String KEY_CLAWHUB_SYNC_CRON = "clawhub.sync.cron";
     /** ClawHub 技能同步：上次执行时间（ISO-8601） */
     public static final String KEY_CLAWHUB_SYNC_LAST_RUN_AT = "clawhub.sync.last_run_at";
+
+    /** 系统数据版本号：Skills 数据版本（用于客户端轮询检测系统级变更） */
+    public static final String KEY_SKILLS_DATA_VERSION = "system.skills_data_version";
+    /** 系统数据版本号：危险指令数据版本（用于客户端轮询检测系统级变更） */
+    public static final String KEY_DANGER_COMMANDS_DATA_VERSION = "system.danger_commands_data_version";
 }

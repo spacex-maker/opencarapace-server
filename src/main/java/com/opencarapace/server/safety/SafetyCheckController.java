@@ -113,6 +113,51 @@ public class SafetyCheckController {
         return ResponseEntity.ok(response);
     }
 
+    @PostMapping("/log-block")
+    public ResponseEntity<Void> logBlock(
+            @RequestHeader(name = "X-OC-API-KEY", required = false) String apiKeyHeader,
+            @Valid @RequestBody LogBlockRequest request,
+            HttpServletRequest httpServletRequest
+    ) {
+        if (apiKeyHeader == null || apiKeyHeader.isBlank()) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        }
+        ApiKey apiKey = apiKeyService.authenticateByRawKey(apiKeyHeader);
+        if (apiKey == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        }
+
+        SafetyEvaluationRecord record = new SafetyEvaluationRecord();
+        record.setApiKey(apiKey);
+        record.setUser(apiKey.getUser());
+        record.setTool(null);
+        record.setInputType("llm_proxy_block");
+        record.setInputSummary(request.blockType());
+        record.setRawInput(request.prompt());
+        record.setVerdict("block");
+        
+        String riskLevel = "medium";
+        StringBuilder reasons = new StringBuilder();
+        
+        if ("skill_disabled".equals(request.blockType())) {
+            riskLevel = "low";
+            reasons.append("Disabled skills: ").append(String.join(", ", request.skills() != null ? request.skills() : new java.util.ArrayList<>()));
+        } else if ("danger_command".equals(request.blockType())) {
+            riskLevel = "high";
+            reasons.append("Danger command patterns: ").append(String.join(", ", request.patterns() != null ? request.patterns() : new java.util.ArrayList<>()));
+        }
+        
+        record.setRiskLevel(riskLevel);
+        record.setReasons(reasons.toString());
+        record.setPoliciesTriggered(null);
+        record.setLlmModel(null);
+        record.setLlmScore(null);
+        
+        safetyEvaluationRepository.save(record);
+
+        return ResponseEntity.ok().build();
+    }
+
     public record SafetyCheckRequest(
             @NotBlank String type,
             String toolName,
@@ -126,6 +171,16 @@ public class SafetyCheckController {
             String riskLevel,
             String reasons,
             String evaluationId
+    ) {
+    }
+    
+    public record LogBlockRequest(
+            @NotBlank String blockType,
+            java.util.List<String> skills,
+            java.util.List<Integer> ruleIds,
+            java.util.List<String> patterns,
+            String prompt,
+            String timestamp
     ) {
     }
 }

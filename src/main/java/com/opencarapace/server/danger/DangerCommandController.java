@@ -3,7 +3,6 @@ package com.opencarapace.server.danger;
 import com.opencarapace.server.danger.DangerCommand.DangerCategory;
 import com.opencarapace.server.danger.DangerCommand.RiskLevel;
 import com.opencarapace.server.danger.DangerCommand.SystemType;
-import com.opencarapace.server.user.User;
 import com.opencarapace.server.user.UserRepository;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
@@ -80,6 +79,39 @@ public class DangerCommandController {
                     userEnabled
             );
         }
+    }
+
+    /** 获取危险指令库元数据（枚举定义） */
+    @GetMapping("/meta")
+    public ResponseEntity<Map<String, List<String>>> getMeta() {
+        Map<String, List<String>> meta = new HashMap<>();
+        meta.put("systemTypes", List.of(
+                SystemType.LINUX.name(),
+                SystemType.WINDOWS.name(),
+                SystemType.DATABASE.name(),
+                SystemType.SHELL.name(),
+                SystemType.DOCKER.name(),
+                SystemType.KUBERNETES.name(),
+                SystemType.GIT.name(),
+                SystemType.OTHER.name()
+        ));
+        meta.put("categories", List.of(
+                DangerCategory.FILE_SYSTEM.name(),
+                DangerCategory.DATABASE.name(),
+                DangerCategory.NETWORK.name(),
+                DangerCategory.PROCESS.name(),
+                DangerCategory.PERMISSION.name(),
+                DangerCategory.CONTAINER.name(),
+                DangerCategory.VERSION_CONTROL.name(),
+                DangerCategory.OTHER.name()
+        ));
+        meta.put("riskLevels", List.of(
+                RiskLevel.CRITICAL.name(),
+                RiskLevel.HIGH.name(),
+                RiskLevel.MEDIUM.name(),
+                RiskLevel.LOW.name()
+        ));
+        return ResponseEntity.ok(meta);
     }
 
     /** 分页查询，支持按系统类型、分类、风险等级、关键词 + 用户级启用状态筛选（登录用户可见） */

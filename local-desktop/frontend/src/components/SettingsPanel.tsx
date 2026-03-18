@@ -20,6 +20,10 @@ export function SettingsPanel() {
   const [mappingTarget, setMappingTarget] = useState("");
   const [mappingLoading, setMappingLoading] = useState(false);
 
+  const [syncUserSkillsToCloud, setSyncUserSkillsToCloud] = useState(true);
+  const [syncUserDangersToCloud, setSyncUserDangersToCloud] = useState(true);
+  const [syncLoading, setSyncLoading] = useState(false);
+
   useEffect(() => {
     const loadMode = async () => {
       try {
@@ -53,8 +57,28 @@ export function SettingsPanel() {
       }
     };
 
+    const loadSyncSetting = async () => {
+      try {
+        const [skillsRes, dangersRes] = await Promise.all([
+          fetch("http://127.0.0.1:19111/api/user-settings/sync-user-skills-to-cloud"),
+          fetch("http://127.0.0.1:19111/api/user-settings/sync-user-dangers-to-cloud"),
+        ]);
+        const skillsData = await skillsRes.json();
+        const dangersData = await dangersRes.json();
+        if (skillsRes.ok && typeof skillsData?.syncUserSkillsToCloud === "boolean") {
+          setSyncUserSkillsToCloud(skillsData.syncUserSkillsToCloud);
+        }
+        if (dangersRes.ok && typeof dangersData?.syncUserDangersToCloud === "boolean") {
+          setSyncUserDangersToCloud(dangersData.syncUserDangersToCloud);
+        }
+      } catch {
+        // ignore
+      }
+    };
+
     loadMode();
     loadMappings();
+    loadSyncSetting();
   }, []);
 
   const handleSave = async (next: LlmRouteMode) => {
@@ -132,6 +156,56 @@ export function SettingsPanel() {
       setError(e?.message ?? "删除映射失败");
     } finally {
       setMappingLoading(false);
+    }
+  };
+
+  const handleToggleSyncUserSkills = async () => {
+    const nextValue = !syncUserSkillsToCloud;
+    setSyncLoading(true);
+    setError(null);
+    setMessage(null);
+    try {
+      const res = await fetch("http://127.0.0.1:19111/api/user-settings/sync-user-skills-to-cloud", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ syncUserSkillsToCloud: nextValue }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setError(data?.error?.message || "更新同步开关失败");
+      } else {
+        setSyncUserSkillsToCloud(nextValue);
+        setMessage(`已${nextValue ? "开启" : "关闭"} Skills 用户设置云端同步。`);
+      }
+    } catch (e: any) {
+      setError(e?.message ?? "更新同步开关失败");
+    } finally {
+      setSyncLoading(false);
+    }
+  };
+
+  const handleToggleSyncUserDangers = async () => {
+    const nextValue = !syncUserDangersToCloud;
+    setSyncLoading(true);
+    setError(null);
+    setMessage(null);
+    try {
+      const res = await fetch("http://127.0.0.1:19111/api/user-settings/sync-user-dangers-to-cloud", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ syncUserDangersToCloud: nextValue }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setError(data?.error?.message || "更新同步开关失败");
+      } else {
+        setSyncUserDangersToCloud(nextValue);
+        setMessage(`已${nextValue ? "开启" : "关闭"}危险指令用户设置云端同步。`);
+      }
+    } catch (e: any) {
+      setError(e?.message ?? "更新同步开关失败");
+    } finally {
+      setSyncLoading(false);
     }
   };
 
@@ -260,6 +334,80 @@ export function SettingsPanel() {
         {loading && (
           <div style={{ marginTop: 8, fontSize: 11, color: "#6b7280" }}>正在加载当前配置…</div>
         )}
+      </div>
+
+      <div
+        style={{
+          marginTop: 18,
+          paddingTop: 12,
+          borderTop: "1px solid #1f2937",
+        }}
+      >
+        <div style={{ fontSize: 13, fontWeight: 500, color: "#e5e7eb", marginBottom: 6 }}>Skills 用户设置同步</div>
+        <p style={{ margin: "0 0 10px", fontSize: 12, color: "#6b7280", lineHeight: 1.5 }}>
+          当你在本地客户端修改 Skill 的启用状态时，是否同步到云端。开启后，你的偏好设置将在多设备间保持一致。
+        </p>
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <button
+            type="button"
+            disabled={syncLoading}
+            onClick={handleToggleSyncUserSkills}
+            style={{
+              padding: "8px 14px",
+              borderRadius: 999,
+              border: syncUserSkillsToCloud ? "1px solid #22c55e" : "1px solid #1f2937",
+              background: syncUserSkillsToCloud
+                ? "linear-gradient(135deg, #064e3b, #022c22)"
+                : "rgba(15,23,42,0.85)",
+              cursor: syncLoading ? "not-allowed" : "pointer",
+              fontSize: 11,
+              fontWeight: 600,
+              color: syncUserSkillsToCloud ? "#bbf7d0" : "#e5e7eb",
+            }}
+          >
+            {syncUserSkillsToCloud ? "已开启" : "已关闭"}
+          </button>
+          <span style={{ fontSize: 11, color: "#9ca3af" }}>
+            {syncUserSkillsToCloud ? "修改 Skill 启用状态时会同步到云端" : "修改 Skill 启用状态时仅保存在本地"}
+          </span>
+        </div>
+      </div>
+
+      <div
+        style={{
+          marginTop: 18,
+          paddingTop: 12,
+          borderTop: "1px solid #1f2937",
+        }}
+      >
+        <div style={{ fontSize: 13, fontWeight: 500, color: "#e5e7eb", marginBottom: 6 }}>危险指令用户设置同步</div>
+        <p style={{ margin: "0 0 10px", fontSize: 12, color: "#6b7280", lineHeight: 1.5 }}>
+          当你在本地客户端修改危险指令的启用状态时，是否同步到云端。开启后，你的偏好设置将在多设备间保持一致。
+        </p>
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <button
+            type="button"
+            disabled={syncLoading}
+            onClick={handleToggleSyncUserDangers}
+            style={{
+              padding: "8px 14px",
+              borderRadius: 999,
+              border: syncUserDangersToCloud ? "1px solid #22c55e" : "1px solid #1f2937",
+              background: syncUserDangersToCloud
+                ? "linear-gradient(135deg, #064e3b, #022c22)"
+                : "rgba(15,23,42,0.85)",
+              cursor: syncLoading ? "not-allowed" : "pointer",
+              fontSize: 11,
+              fontWeight: 600,
+              color: syncUserDangersToCloud ? "#bbf7d0" : "#e5e7eb",
+            }}
+          >
+            {syncUserDangersToCloud ? "已开启" : "已关闭"}
+          </button>
+          <span style={{ fontSize: 11, color: "#9ca3af" }}>
+            {syncUserDangersToCloud ? "修改危险指令启用状态时会同步到云端" : "修改危险指令启用状态时仅保存在本地"}
+          </span>
+        </div>
       </div>
 
       <div

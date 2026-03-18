@@ -1,5 +1,6 @@
 package com.opencarapace.server.skill;
 
+import com.opencarapace.server.config.SystemDataVersionService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.dao.DataAccessException;
@@ -25,6 +26,7 @@ public class SkillSyncService {
     private final SkillSourceRepository sourceRepository;
     private final SkillRepository skillRepository;
     private final ClawhubApiClient clawhubApiClient;
+    private final SystemDataVersionService systemDataVersionService;
     private final int searchLimitPerQuery;
     private final List<String> seedQueries;
 
@@ -32,12 +34,14 @@ public class SkillSyncService {
             SkillSourceRepository sourceRepository,
             SkillRepository skillRepository,
             ClawhubApiClient clawhubApiClient,
+            SystemDataVersionService systemDataVersionService,
             @Value("${claw.skills.clawhub-search-limit-per-query:200}") int searchLimitPerQuery,
             @Value("${claw.skills.clawhub-search-queries:" + DEFAULT_SEED_QUERIES + "}") String seedQueriesCsv
     ) {
         this.sourceRepository = sourceRepository;
         this.skillRepository = skillRepository;
         this.clawhubApiClient = clawhubApiClient;
+        this.systemDataVersionService = systemDataVersionService;
         this.searchLimitPerQuery = searchLimitPerQuery;
         this.seedQueries = Stream.of(seedQueriesCsv.split(","))
                 .map(String::trim)
@@ -103,6 +107,12 @@ public class SkillSyncService {
         }
         log.info("ClawHub skills sync completed: success={}, failed={}, seedQueries={}, uniqueSlugs={}",
                 success, failed, seedQueries.size(), total);
+        
+        if (success > 0) {
+            systemDataVersionService.incrementSkillsDataVersion();
+            log.info("Skills data version incremented after sync");
+        }
+        
         return success;
     }
 

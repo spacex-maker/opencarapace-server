@@ -1,5 +1,6 @@
 package com.opencarapace.server.danger;
 
+import com.opencarapace.server.config.SystemDataVersionService;
 import com.opencarapace.server.danger.DangerCommand.DangerCategory;
 import com.opencarapace.server.danger.DangerCommand.RiskLevel;
 import com.opencarapace.server.danger.DangerCommand.SystemType;
@@ -17,6 +18,7 @@ import java.util.Optional;
 public class DangerCommandService {
 
     private final DangerCommandRepository repository;
+    private final SystemDataVersionService systemDataVersionService;
 
     @Transactional(readOnly = true)
     public Page<DangerCommand> search(SystemType systemType, DangerCategory category,
@@ -39,12 +41,14 @@ public class DangerCommandService {
 
     @Transactional
     public DangerCommand create(DangerCommand command) {
-        return repository.save(command);
+        DangerCommand saved = repository.save(command);
+        systemDataVersionService.incrementDangerCommandsDataVersion();
+        return saved;
     }
 
     @Transactional
     public Optional<DangerCommand> update(Long id, DangerCommand updates) {
-        return repository.findById(id)
+        Optional<DangerCommand> result = repository.findById(id)
                 .map(existing -> {
                     existing.setCommandPattern(updates.getCommandPattern());
                     existing.setSystemType(updates.getSystemType());
@@ -57,12 +61,17 @@ public class DangerCommandService {
                     existing.setEnabled(updates.isEnabled());
                     return repository.save(existing);
                 });
+        if (result.isPresent()) {
+            systemDataVersionService.incrementDangerCommandsDataVersion();
+        }
+        return result;
     }
 
     @Transactional
     public boolean deleteById(Long id) {
         if (!repository.existsById(id)) return false;
         repository.deleteById(id);
+        systemDataVersionService.incrementDangerCommandsDataVersion();
         return true;
     }
 }

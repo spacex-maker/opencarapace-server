@@ -86,6 +86,10 @@ public class UserDangerCommandController {
         entity.setEnabled(enabled);
 
         UserDangerCommand saved = userDangerCommandRepository.save(entity);
+        
+        user.setSettingsVersion(user.getSettingsVersion() + 1);
+        userRepository.save(user);
+        
         return ResponseEntity.ok(UserDangerCommandDto.fromEntity(saved));
     }
 

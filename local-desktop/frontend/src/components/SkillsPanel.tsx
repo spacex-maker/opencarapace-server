@@ -1,10 +1,104 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+
+function FilterSelect(props: {
+  value: string;
+  onChange: (v: string) => void;
+  options: { label: string; value: string }[];
+  placeholder: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    const onDoc = (e: MouseEvent) => {
+      if (!ref.current) return;
+      if (!ref.current.contains(e.target as any)) setOpen(false);
+    };
+    document.addEventListener("mousedown", onDoc);
+    return () => document.removeEventListener("mousedown", onDoc);
+  }, []);
+
+  const current = props.options.find((o) => o.value === props.value)?.label || props.placeholder;
+
+  return (
+    <div ref={ref} style={{ position: "relative", minWidth: 160 }}>
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        style={{
+          width: "100%",
+          padding: "6px 10px",
+          borderRadius: 999,
+          border: "1px solid #1f2937",
+          background: "#020617",
+          color: props.value ? "#e5e7eb" : "#6b7280",
+          fontSize: 11,
+          textAlign: "left",
+          cursor: "pointer",
+        }}
+      >
+        {current}
+        <span style={{ float: "right", color: "#6b7280" }}>{open ? "▲" : "▼"}</span>
+      </button>
+      {open && (
+        <div
+          style={{
+            position: "absolute",
+            zIndex: 10,
+            top: "calc(100% + 6px)",
+            left: 0,
+            right: 0,
+            maxHeight: 220,
+            overflowY: "auto",
+            borderRadius: 10,
+            border: "1px solid #1f2937",
+            background: "rgba(2,6,23,0.98)",
+            boxShadow: "0 12px 30px rgba(0,0,0,0.35)",
+          }}
+        >
+          {props.options.map((o) => (
+            <button
+              key={o.value || "__all"}
+              type="button"
+              onClick={() => {
+                props.onChange(o.value);
+                setOpen(false);
+              }}
+              style={{
+                width: "100%",
+                padding: "8px 10px",
+                border: "none",
+                background: o.value === props.value ? "rgba(34,197,94,0.12)" : "transparent",
+                color: o.value === props.value ? "#bbf7d0" : "#e5e7eb",
+                fontSize: 11,
+                textAlign: "left",
+                cursor: "pointer",
+              }}
+            >
+              {o.label}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
 
 export function SkillsPanel() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [message, setMessage] = useState<string | null>(null);
   const [skills, setSkills] = useState<
-    { id: number | null; slug: string; systemStatus: string; userEnabled: number | null }[]
+    {
+      id: number | null;
+      slug: string;
+      name: string | null;
+      type: string | null;
+      category: string | null;
+      systemStatus: string;
+      shortDesc: string | null;
+      userEnabled: number | null;
+      sourceName: string | null;
+    }[]
   >([]);
   const [sync, setSync] = useState<{ running: boolean; total: number; synced: number }>({
     running: false,
@@ -15,12 +109,24 @@ export function SkillsPanel() {
   const [detailLoading, setDetailLoading] = useState(false);
   const [detailError, setDetailError] = useState<string | null>(null);
 
-  const loadData = async () => {
+  const [keyword, setKeyword] = useState("");
+  const [systemStatus, setSystemStatus] = useState("");
+  const [userEnabled, setUserEnabled] = useState("");
+  const [updatingSlug, setUpdatingSlug] = useState<string | null>(null);
+
+  const loadData = async (withFilters = false) => {
     try {
       setLoading(true);
       setError(null);
+      const qs = new URLSearchParams();
+      if (withFilters) {
+        if (keyword.trim()) qs.set("keyword", keyword.trim());
+        if (systemStatus) qs.set("systemStatus", systemStatus);
+        if (userEnabled) qs.set("userEnabled", userEnabled);
+      }
+      const url = `http://127.0.0.1:19111/api/skills${qs.toString() ? `?${qs.toString()}` : ""}`;
       const [skillsRes, syncRes] = await Promise.all([
-        fetch("http://127.0.0.1:19111/api/skills"),
+        fetch(url),
         fetch("http://127.0.0.1:19111/api/sync-status?type=skills"),
       ]);
       const skillsData = await skillsRes.json();
@@ -35,7 +141,7 @@ export function SkillsPanel() {
   };
 
   useEffect(() => {
-    loadData();
+    loadData(false);
   }, []);
 
   useEffect(() => {
@@ -68,6 +174,40 @@ export function SkillsPanel() {
 
   const percent =
     sync.total > 0 ? Math.min(100, Math.round((sync.synced / sync.total) * 100)) : sync.running ? 0 : 100;
+
+  const runQuery = () => loadData(true);
+
+  const toggleUserEnabled = async (slug: string, currentEnabled: number | null) => {
+    if (updatingSlug !== null) return;
+
+    const nextEnabled = currentEnabled === 1 ? false : true;
+    setUpdatingSlug(slug);
+    setError(null);
+    setMessage(null);
+    try {
+      const res = await fetch(`http://127.0.0.1:19111/api/user-skills/${encodeURIComponent(slug)}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ enabled: nextEnabled }),
+      });
+      if (!res.ok) {
+        const data = await res.json();
+        setError(data?.error?.message || "更新用户技能失败");
+        setTimeout(() => setError(null), 3000);
+        return;
+      }
+      setSkills((prev) =>
+        prev.map((s) => (s.slug === slug ? { ...s, userEnabled: nextEnabled ? 1 : 0 } : s))
+      );
+      setMessage(`已${nextEnabled ? "启用" : "禁用"}该技能。`);
+      setTimeout(() => setMessage(null), 2000);
+    } catch (e: any) {
+      setError(e?.message ?? "更新用户技能失败");
+      setTimeout(() => setError(null), 3000);
+    } finally {
+      setUpdatingSlug(null);
+    }
+  };
 
   const openDetail = async (slug: string) => {
     setDetail(null);
@@ -185,7 +325,110 @@ export function SkillsPanel() {
       </div>
 
       {loading && <div style={{ color: "#9ca3af", marginBottom: 8 }}>加载中…</div>}
-      {error && <div style={{ color: "#f97373", marginBottom: 8 }}>{error}</div>}
+      {error && (
+        <div
+          style={{
+            marginBottom: 8,
+            padding: "8px 12px",
+            borderRadius: 10,
+            background: "rgba(239,68,68,0.1)",
+            border: "1px solid rgba(239,68,68,0.3)",
+            color: "#fca5a5",
+            fontSize: 11,
+          }}
+        >
+          {error}
+        </div>
+      )}
+      {message && (
+        <div
+          style={{
+            marginBottom: 8,
+            padding: "8px 12px",
+            borderRadius: 10,
+            background: "rgba(34,197,94,0.1)",
+            border: "1px solid rgba(34,197,94,0.3)",
+            color: "#bbf7d0",
+            fontSize: 11,
+          }}
+        >
+          {message}
+        </div>
+      )}
+
+      {/* 高级查询 */}
+      <div
+        style={{
+          display: "flex",
+          flexWrap: "wrap",
+          gap: 8,
+          alignItems: "center",
+          marginBottom: 12,
+        }}
+      >
+        <input
+          value={keyword}
+          onChange={(e) => setKeyword(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              e.preventDefault();
+              runQuery();
+            }
+          }}
+          placeholder="关键词（slug）"
+          style={{
+            flex: "1 1 260px",
+            minWidth: 240,
+            background: "#020617",
+            borderRadius: 999,
+            border: "1px solid #1f2937",
+            padding: "6px 10px",
+            fontSize: 11,
+            color: "#e5e7eb",
+            outline: "none",
+          }}
+        />
+
+        <FilterSelect
+          value={systemStatus}
+          onChange={setSystemStatus}
+          placeholder="系统状态（全部）"
+          options={[
+            { label: "系统状态（全部）", value: "" },
+            { label: "正常", value: "NORMAL" },
+            { label: "系统禁用", value: "DISABLED" },
+            { label: "系统不推荐", value: "DEPRECATED" },
+          ]}
+        />
+        <FilterSelect
+          value={userEnabled}
+          onChange={setUserEnabled}
+          placeholder="用户启用（全部）"
+          options={[
+            { label: "用户启用（全部）", value: "" },
+            { label: "启用", value: "1" },
+            { label: "禁用", value: "0" },
+          ]}
+        />
+
+        <button
+          type="button"
+          onClick={runQuery}
+          disabled={loading}
+          style={{
+            padding: "6px 12px",
+            borderRadius: 999,
+            border: "1px solid #1f2937",
+            background: loading ? "#111827" : "rgba(15,23,42,0.85)",
+            color: "#e5e7eb",
+            fontSize: 11,
+            fontWeight: 600,
+            cursor: loading ? "not-allowed" : "pointer",
+          }}
+        >
+          {loading ? "查询中…" : "查询"}
+        </button>
+      </div>
 
       <div
         style={{
@@ -197,40 +440,160 @@ export function SkillsPanel() {
         <table style={{ width: "100%", borderCollapse: "collapse" }}>
           <thead style={{ background: "#020617" }}>
             <tr>
-              <th style={{ padding: "6px 8px", borderBottom: "1px solid #1f2937", textAlign: "left" }}>Skill Slug</th>
-              <th style={{ padding: "6px 8px", borderBottom: "1px solid #1f2937", textAlign: "left" }}>系统状态</th>
-              <th style={{ padding: "6px 8px", borderBottom: "1px solid #1f2937", textAlign: "left" }}>用户启用</th>
-              <th style={{ padding: "6px 8px", borderBottom: "1px solid #1f2937" }} />
+              <th style={{ padding: "6px 8px", borderBottom: "1px solid #1f2937", textAlign: "left" }}>名称</th>
+              <th style={{ padding: "6px 8px", borderBottom: "1px solid #1f2937", textAlign: "left" }}>提供商</th>
+              <th style={{ padding: "6px 8px", borderBottom: "1px solid #1f2937", textAlign: "left" }}>状态</th>
+              <th style={{ padding: "6px 8px", borderBottom: "1px solid #1f2937", textAlign: "left" }}>简介</th>
+              <th style={{ padding: "6px 8px", borderBottom: "1px solid #1f2937", textAlign: "left", width: 80 }}>启用</th>
+              <th style={{ padding: "6px 8px", borderBottom: "1px solid #1f2937", width: 80 }} />
             </tr>
           </thead>
           <tbody>
             {skills.map((s) => (
               <tr key={s.slug} style={{ background: "#020617" }}>
+                <td style={{ padding: "6px 8px", borderBottom: "1px solid #111827", maxWidth: 280 }}>
+                  <div
+                    style={{
+                      color: "#e5e7eb",
+                      fontWeight: 500,
+                      fontSize: 12,
+                      whiteSpace: "nowrap",
+                      textOverflow: "ellipsis",
+                      overflow: "hidden",
+                    }}
+                    title={s.name || s.slug}
+                  >
+                    {s.name || s.slug}
+                  </div>
+                  <div
+                    style={{
+                      fontSize: 10,
+                      color: "#6b7280",
+                      marginTop: 3,
+                      fontFamily:
+                        'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
+                      whiteSpace: "nowrap",
+                      textOverflow: "ellipsis",
+                      overflow: "hidden",
+                    }}
+                    title={s.slug}
+                  >
+                    {s.slug}
+                  </div>
+                  <div style={{ marginTop: 4, display: "flex", gap: 4, flexWrap: "wrap" }}>
+                    {s.type && (
+                      <span
+                        style={{
+                          padding: "2px 6px",
+                          borderRadius: 999,
+                          fontSize: 9,
+                          fontWeight: 500,
+                          background: "rgba(59,130,246,0.12)",
+                          color: "#93c5fd",
+                          border: "1px solid rgba(59,130,246,0.3)",
+                          whiteSpace: "nowrap",
+                        }}
+                      >
+                        {s.type}
+                      </span>
+                    )}
+                    {s.category && (
+                      <span
+                        style={{
+                          padding: "2px 6px",
+                          borderRadius: 999,
+                          fontSize: 9,
+                          fontWeight: 500,
+                          background: "rgba(168,85,247,0.12)",
+                          color: "#c4b5fd",
+                          border: "1px solid rgba(168,85,247,0.3)",
+                          whiteSpace: "nowrap",
+                        }}
+                      >
+                        {s.category}
+                      </span>
+                    )}
+                  </div>
+                </td>
+                <td style={{ padding: "6px 8px", borderBottom: "1px solid #111827", color: "#9ca3af", fontSize: 11, whiteSpace: "nowrap" }}>
+                  {s.sourceName || "-"}
+                </td>
+                <td style={{ padding: "6px 8px", borderBottom: "1px solid #111827", whiteSpace: "nowrap" }}>
+                  <span
+                    style={{
+                      display: "inline-block",
+                      padding: "2px 6px",
+                      borderRadius: 4,
+                      border: "1px solid #374151",
+                      fontSize: 10,
+                      color: "#e5e7eb",
+                      whiteSpace: "nowrap",
+                    }}
+                  >
+                    {s.systemStatus === "DISABLED"
+                      ? "系统禁用"
+                      : s.systemStatus === "DEPRECATED"
+                      ? "系统不推荐"
+                      : "正常"}
+                  </span>
+                </td>
                 <td
                   style={{
                     padding: "6px 8px",
                     borderBottom: "1px solid #111827",
-                    color: "#e5e7eb",
-                    maxWidth: 420,
-                    whiteSpace: "nowrap",
-                    textOverflow: "ellipsis",
-                    overflow: "hidden",
-                    fontFamily:
-                      'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
+                    maxWidth: 260,
                   }}
-                  title={s.slug}
                 >
-                  {s.slug}
+                  <div
+                    style={{
+                      fontSize: 11,
+                      color: "#9ca3af",
+                      overflow: "hidden",
+                      textOverflow: "ellipsis",
+                      display: "-webkit-box",
+                      WebkitLineClamp: 2,
+                      WebkitBoxOrient: "vertical",
+                      lineHeight: 1.4,
+                    }}
+                    title={s.shortDesc || ""}
+                  >
+                    {s.shortDesc || "-"}
+                  </div>
                 </td>
-                <td style={{ padding: "6px 8px", borderBottom: "1px solid #111827", color: "#9ca3af" }}>
-                  {s.systemStatus === "DISABLED"
-                    ? "系统禁用"
-                    : s.systemStatus === "DEPRECATED"
-                    ? "系统不推荐"
-                    : "正常"}
-                </td>
-                <td style={{ padding: "6px 8px", borderBottom: "1px solid #111827", color: "#9ca3af" }}>
-                  {s.userEnabled === null ? "（未配置）" : s.userEnabled ? "启用" : "禁用"}
+                <td style={{ padding: "6px 8px", borderBottom: "1px solid #111827", whiteSpace: "nowrap" }}>
+                  {s.userEnabled === null ? (
+                    <div style={{ fontSize: 10, color: "#6b7280" }}>（未配置）</div>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => toggleUserEnabled(s.slug, s.userEnabled)}
+                      disabled={updatingSlug === s.slug}
+                      style={{
+                        position: "relative",
+                        width: 42,
+                        height: 20,
+                        borderRadius: 999,
+                        border: "none",
+                        background: s.userEnabled === 1 ? "#22c55e" : "#374151",
+                        cursor: updatingSlug === s.slug ? "not-allowed" : "pointer",
+                        opacity: updatingSlug === s.slug ? 0.6 : 1,
+                        transition: "background 0.2s, opacity 0.2s",
+                      }}
+                    >
+                      <span
+                        style={{
+                          position: "absolute",
+                          top: 2,
+                          left: s.userEnabled === 1 ? 24 : 2,
+                          width: 16,
+                          height: 16,
+                          borderRadius: "50%",
+                          background: "#fff",
+                          transition: "left 0.2s",
+                        }}
+                      />
+                    </button>
+                  )}
                 </td>
                 <td
                   style={{
@@ -277,39 +640,55 @@ export function SkillsPanel() {
           style={{
             position: "fixed",
             inset: 0,
-            background: "rgba(15,23,42,0.75)",
+            background: "rgba(0,0,0,0.65)",
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
-            zIndex: 40,
+            zIndex: 50,
+          }}
+          onClick={() => {
+            setDetail(null);
+            setDetailError(null);
+            setDetailLoading(false);
           }}
         >
           <div
             style={{
-              width: 520,
-              maxHeight: "80vh",
+              width: 640,
+              maxHeight: "85vh",
               background: "#020617",
               borderRadius: 16,
               border: "1px solid #1f2937",
-              boxShadow: "0 25px 60px rgba(15,23,42,0.9)",
-              padding: "18px 20px 16px",
-              boxSizing: "border-box",
-              overflowY: "auto",
-              fontSize: 12,
+              boxShadow: "0 25px 60px rgba(0,0,0,0.8)",
+              display: "flex",
+              flexDirection: "column",
+              overflow: "hidden",
             }}
+            onClick={(e) => e.stopPropagation()}
           >
+            {/* 头部 */}
             <div
               style={{
+                padding: "16px 20px",
+                borderBottom: "1px solid #1f2937",
                 display: "flex",
                 justifyContent: "space-between",
                 alignItems: "center",
-                marginBottom: 8,
+                flexShrink: 0,
               }}
             >
               <div>
-                <div style={{ fontSize: 14, fontWeight: 600, color: "#f9fafb" }}>Skill 详情</div>
+                <div style={{ fontSize: 16, fontWeight: 600, color: "#f9fafb" }}>技能详情</div>
                 {detail && (
-                  <div style={{ fontSize: 11, color: "#6b7280", marginTop: 2 }}>
+                  <div
+                    style={{
+                      fontSize: 10,
+                      color: "#6b7280",
+                      marginTop: 4,
+                      fontFamily:
+                        'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
+                    }}
+                  >
                     {detail.slug || "—"}
                   </div>
                 )}
@@ -322,10 +701,10 @@ export function SkillsPanel() {
                   setDetailLoading(false);
                 }}
                 style={{
-                  padding: "4px 10px",
+                  padding: "6px 12px",
                   borderRadius: 999,
                   border: "1px solid #374151",
-                  background: "#020617",
+                  background: "transparent",
                   color: "#e5e7eb",
                   fontSize: 11,
                   cursor: "pointer",
@@ -335,103 +714,176 @@ export function SkillsPanel() {
               </button>
             </div>
 
-            {detailLoading && <div style={{ fontSize: 12, color: "#9ca3af" }}>加载详情中…</div>}
-            {detailError && <div style={{ fontSize: 12, color: "#f97373" }}>{detailError}</div>}
+            {/* 内容区 */}
+            <div
+              style={{
+                flex: 1,
+                overflowY: "auto",
+                padding: "16px 20px",
+                fontSize: 12,
+              }}
+            >
+              {detailLoading && <div style={{ color: "#9ca3af" }}>加载详情中…</div>}
+              {detailError && <div style={{ color: "#f97373" }}>{detailError}</div>}
 
-            {detail && !detailLoading && !detailError && (
-              <div>
-                <div style={{ marginBottom: 6 }}>
-                  <span style={{ color: "#9ca3af" }}>名称：</span>
-                  <span style={{ color: "#e5e7eb" }}>{detail.name}</span>
-                </div>
-                <div style={{ marginBottom: 6 }}>
-                  <span style={{ color: "#9ca3af" }}>Slug：</span>
-                  <code
-                    style={{
-                      fontFamily:
-                        'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
-                      fontSize: 11,
-                      background: "#020617",
-                      padding: "1px 4px",
-                      borderRadius: 4,
-                      border: "1px solid #111827",
-                      color: "#e5e7eb",
-                    }}
-                  >
-                    {detail.slug}
-                  </code>
-                </div>
-                <div style={{ marginBottom: 6 }}>
-                  <span style={{ color: "#9ca3af" }}>类型：</span>
-                  <span style={{ color: "#e5e7eb" }}>{detail.type}</span>
-                  {detail.category && (
-                    <>
-                      <span style={{ color: "#6b7280", margin: "0 4px" }}>·</span>
-                      <span style={{ color: "#9ca3af" }}>{detail.category}</span>
-                    </>
+              {detail && !detailLoading && !detailError && (
+                <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                  <div>
+                    <div style={{ fontSize: 10, color: "#6b7280", marginBottom: 4, textTransform: "uppercase", letterSpacing: "0.05em" }}>
+                      名称
+                    </div>
+                    <div style={{ fontSize: 14, fontWeight: 600, color: "#f9fafb" }}>{detail.name || detail.slug}</div>
+                  </div>
+
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, fontSize: 11 }}>
+                    <div>
+                      <div style={{ fontSize: 10, color: "#6b7280", marginBottom: 3 }}>Slug</div>
+                      <code
+                        style={{
+                          fontFamily:
+                            'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
+                          fontSize: 10,
+                          background: "rgba(15,23,42,0.85)",
+                          padding: "4px 6px",
+                          borderRadius: 6,
+                          border: "1px solid #111827",
+                          color: "#e5e7eb",
+                          display: "block",
+                          wordBreak: "break-all",
+                        }}
+                      >
+                        {detail.slug}
+                      </code>
+                    </div>
+                    <div>
+                      <div style={{ fontSize: 10, color: "#6b7280", marginBottom: 3 }}>类型</div>
+                      <div style={{ color: "#e5e7eb" }}>{detail.type || "-"}</div>
+                    </div>
+                    <div>
+                      <div style={{ fontSize: 10, color: "#6b7280", marginBottom: 3 }}>分类</div>
+                      <div style={{ color: "#e5e7eb" }}>{detail.category || "-"}</div>
+                    </div>
+                    <div>
+                      <div style={{ fontSize: 10, color: "#6b7280", marginBottom: 3 }}>状态</div>
+                      <div style={{ color: "#e5e7eb" }}>{detail.status || "-"}</div>
+                    </div>
+                    <div>
+                      <div style={{ fontSize: 10, color: "#6b7280", marginBottom: 3 }}>来源</div>
+                      <div style={{ color: "#e5e7eb" }}>{detail.sourceName || "ClawHub"}</div>
+                    </div>
+                    {detail.version && (
+                      <div>
+                        <div style={{ fontSize: 10, color: "#6b7280", marginBottom: 3 }}>版本</div>
+                        <div style={{ color: "#e5e7eb" }}>v{detail.version}</div>
+                      </div>
+                    )}
+                  </div>
+
+                  {detail.shortDesc && (
+                    <div>
+                      <div style={{ fontSize: 10, color: "#6b7280", marginBottom: 4, textTransform: "uppercase", letterSpacing: "0.05em" }}>
+                        简介
+                      </div>
+                      <div style={{ fontSize: 12, color: "#d1d5db", lineHeight: 1.6 }}>{detail.shortDesc}</div>
+                    </div>
+                  )}
+
+                  {detail.longDesc && (
+                    <div>
+                      <div style={{ fontSize: 10, color: "#6b7280", marginBottom: 4, textTransform: "uppercase", letterSpacing: "0.05em" }}>
+                        详细说明
+                      </div>
+                      <div
+                        style={{
+                          fontSize: 11,
+                          color: "#d1d5db",
+                          lineHeight: 1.6,
+                          whiteSpace: "pre-wrap",
+                          background: "rgba(15,23,42,0.85)",
+                          padding: "10px 12px",
+                          borderRadius: 8,
+                          border: "1px solid #111827",
+                        }}
+                      >
+                        {detail.longDesc}
+                      </div>
+                    </div>
+                  )}
+
+                  {detail.tags && (
+                    <div>
+                      <div style={{ fontSize: 10, color: "#6b7280", marginBottom: 4, textTransform: "uppercase", letterSpacing: "0.05em" }}>
+                        标签
+                      </div>
+                      <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                        {detail.tags.split(/[,，\s]+/).filter(Boolean).map((t: string) => (
+                          <span
+                            key={t}
+                            style={{
+                              padding: "3px 8px",
+                              borderRadius: 999,
+                              fontSize: 10,
+                              fontWeight: 500,
+                              background: "rgba(34,197,94,0.12)",
+                              color: "#86efac",
+                              border: "1px solid rgba(34,197,94,0.3)",
+                            }}
+                          >
+                            {t}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {detail.installHint && (
+                    <div>
+                      <div style={{ fontSize: 10, color: "#6b7280", marginBottom: 4, textTransform: "uppercase", letterSpacing: "0.05em" }}>
+                        安装提示
+                      </div>
+                      <code
+                        style={{
+                          display: "block",
+                          fontFamily:
+                            'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
+                          fontSize: 10,
+                          background: "rgba(15,23,42,0.85)",
+                          padding: "8px 10px",
+                          borderRadius: 6,
+                          border: "1px solid #111827",
+                          color: "#e5e7eb",
+                          whiteSpace: "pre-wrap",
+                          wordBreak: "break-all",
+                        }}
+                      >
+                        {detail.installHint}
+                      </code>
+                    </div>
+                  )}
+
+                  {detail.homepageUrl && (
+                    <div>
+                      <div style={{ fontSize: 10, color: "#6b7280", marginBottom: 4, textTransform: "uppercase", letterSpacing: "0.05em" }}>
+                        主页
+                      </div>
+                      <a
+                        href={detail.homepageUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        style={{
+                          fontSize: 11,
+                          color: "#60a5fa",
+                          textDecoration: "underline",
+                          wordBreak: "break-all",
+                        }}
+                      >
+                        {detail.homepageUrl}
+                      </a>
+                    </div>
                   )}
                 </div>
-                <div style={{ marginBottom: 6 }}>
-                  <span style={{ color: "#9ca3af" }}>状态：</span>
-                  <span style={{ color: "#e5e7eb" }}>{detail.status}</span>
-                  {detail.version && (
-                    <>
-                      <span style={{ color: "#6b7280", margin: "0 4px" }}>·</span>
-                      <span style={{ color: "#9ca3af" }}>v{detail.version}</span>
-                    </>
-                  )}
-                </div>
-                {detail.shortDesc && (
-                  <div style={{ marginBottom: 6 }}>
-                    <span style={{ color: "#9ca3af" }}>简介：</span>
-                    <span style={{ color: "#e5e7eb" }}>{detail.shortDesc}</span>
-                  </div>
-                )}
-                {detail.longDesc && (
-                  <div style={{ marginBottom: 6 }}>
-                    <span style={{ color: "#9ca3af" }}>详细说明：</span>
-                    <span style={{ color: "#e5e7eb", whiteSpace: "pre-wrap" }}>{detail.longDesc}</span>
-                  </div>
-                )}
-                {detail.installHint && (
-                  <div style={{ marginBottom: 6 }}>
-                    <span style={{ color: "#9ca3af" }}>安装提示：</span>
-                    <code
-                      style={{
-                        fontFamily:
-                          'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
-                        fontSize: 11,
-                        background: "#020617",
-                        padding: "1px 4px",
-                        borderRadius: 4,
-                        border: "1px solid #111827",
-                        color: "#e5e7eb",
-                      }}
-                    >
-                      {detail.installHint}
-                    </code>
-                  </div>
-                )}
-                {detail.tags && (
-                  <div style={{ marginBottom: 6 }}>
-                    <span style={{ color: "#9ca3af" }}>标签：</span>
-                    <span style={{ color: "#e5e7eb" }}>{detail.tags}</span>
-                  </div>
-                )}
-                {detail.homepageUrl && (
-                  <div style={{ marginBottom: 6 }}>
-                    <span style={{ color: "#9ca3af" }}>主页：</span>
-                    <span style={{ color: "#60a5fa" }}>{detail.homepageUrl}</span>
-                  </div>
-                )}
-                {detail.sourceName && (
-                  <div style={{ marginBottom: 6 }}>
-                    <span style={{ color: "#9ca3af" }}>来源：</span>
-                    <span style={{ color: "#e5e7eb" }}>{detail.sourceName}</span>
-                  </div>
-                )}
-              </div>
-            )}
+              )}
+            </div>
           </div>
         </div>
       )}

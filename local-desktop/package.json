@@ -5,15 +5,57 @@
   "main": "src/main.js",
   "scripts": {
     "dev": "cross-env NODE_ENV=development ELECTRON_DEV=true electron src/main.js",
-    "start": "electron src/main.js"
+    "start": "electron src/main.js",
+    "postinstall": "node scripts/setup-openclaw.js",
+    "build": "node scripts/build.js",
+    "build:dir": "node scripts/build.js dir",
+    "pack": "node scripts/build.js dir"
   },
   "dependencies": {
     "axios": "^1.13.6",
     "electron": "^31.0.0",
     "express": "^5.2.1",
+    "openclaw": "^2026.3.13",
     "sqlite3": "^6.0.1"
   },
   "devDependencies": {
-    "cross-env": "^7.0.3"
+    "cross-env": "^7.0.3",
+    "electron-builder": "^25.1.8"
+  },
+  "build": {
+    "appId": "com.clawheart.desktop",
+    "productName": "ClawHeart Desktop",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "src/**/*",
+      "frontend/dist/**/*",
+      "scripts/**/*",
+      "node_modules/**/*",
+      "package.json"
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": ["x64"]
+        }
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "ClawHeart Desktop"
+    },
+    "extraResources": [
+      {
+        "from": "node_modules/openclaw",
+        "to": "openclaw",
+        "filter": ["**/*"]
+      }
+    ]
   }
 }

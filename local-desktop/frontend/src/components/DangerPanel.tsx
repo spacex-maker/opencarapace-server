@@ -5,7 +5,15 @@ export function DangerPanel() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [dangerCommands, setDangerCommands] = useState<
-    { id: number; command_pattern: string; system_type: string; category: string; risk_level: string; enabled: number }[]
+    {
+      id: number;
+      command_pattern: string;
+      system_type: string;
+      category: string;
+      risk_level: string;
+      enabled: number;
+      user_enabled: number | null;
+    }[]
   >([]);
   const [sync, setSync] = useState<{ running: boolean; total: number; synced: number }>({
     running: false,
@@ -153,7 +161,8 @@ export function DangerPanel() {
               <th style={{ padding: "6px 8px", borderBottom: "1px solid #1f2937", textAlign: "left" }}>系统</th>
               <th style={{ padding: "6px 8px", borderBottom: "1px solid #1f2937", textAlign: "left" }}>分类</th>
               <th style={{ padding: "6px 8px", borderBottom: "1px solid #1f2937", textAlign: "left" }}>风险等级</th>
-              <th style={{ padding: "6px 8px", borderBottom: "1px solid #1f2937", textAlign: "left" }}>启用</th>
+              <th style={{ padding: "6px 8px", borderBottom: "1px solid #1f2937", textAlign: "left" }}>系统启用</th>
+              <th style={{ padding: "6px 8px", borderBottom: "1px solid #1f2937", textAlign: "left" }}>用户启用</th>
             </tr>
           </thead>
           <tbody>
@@ -187,6 +196,9 @@ export function DangerPanel() {
                 </td>
                 <td style={{ padding: "6px 8px", borderBottom: "1px solid #111827", color: "#9ca3af" }}>
                   {r.enabled ? "是" : "否"}
+                </td>
+                <td style={{ padding: "6px 8px", borderBottom: "1px solid #111827", color: "#9ca3af" }}>
+                  {r.enabled ? (r.user_enabled === 0 ? "禁用" : "启用") : "（系统禁用）"}
                 </td>
               </tr>
             ))}

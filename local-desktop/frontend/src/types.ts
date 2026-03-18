@@ -10,5 +10,6 @@ export interface LocalStatus {
     ocApiKey: string;
     llmKey: string;
   } | null;
+  llmRouteMode?: "DIRECT" | "GATEWAY";
 }
 

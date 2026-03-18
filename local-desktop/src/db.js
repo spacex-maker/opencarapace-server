@@ -22,11 +22,13 @@ function getDb() {
         category TEXT NOT NULL,
         risk_level TEXT NOT NULL,
         enabled INTEGER NOT NULL,
-        created_at TEXT
+        created_at TEXT,
+        user_enabled INTEGER
       )`
     );
-    // 兼容老版本表结构，补充 created_at 列
+    // 兼容老版本表结构，补充 created_at / user_enabled 列
     db.run("ALTER TABLE danger_commands ADD COLUMN created_at TEXT", () => {});
+    db.run("ALTER TABLE danger_commands ADD COLUMN user_enabled INTEGER", () => {});
     db.run(
       `CREATE TABLE IF NOT EXISTS disabled_skills (
         slug TEXT PRIMARY KEY
@@ -43,6 +45,19 @@ function getDb() {
         api_base TEXT NOT NULL,
         oc_api_key TEXT NOT NULL,
         llm_key TEXT NOT NULL
+      )`
+    );
+    db.run(
+      `CREATE TABLE IF NOT EXISTS local_user_settings (
+        id INTEGER PRIMARY KEY CHECK (id = 1),
+        llm_route_mode TEXT NOT NULL DEFAULT 'GATEWAY'
+      )`
+    );
+    db.run(
+      `CREATE TABLE IF NOT EXISTS local_llm_mappings (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        prefix TEXT NOT NULL UNIQUE,
+        target_base TEXT NOT NULL
       )`
     );
     db.run(
@@ -79,12 +94,22 @@ function replaceDangerCommands(rows) {
     database.serialize(() => {
       database.run("DELETE FROM danger_commands");
       const stmt = database.prepare(
-        "INSERT INTO danger_commands (id, command_pattern, system_type, category, risk_level, enabled) VALUES (?, ?, ?, ?, ?, ?)"
+        "INSERT INTO danger_commands (id, command_pattern, system_type, category, risk_level, enabled, created_at, user_enabled) VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
       );
       for (const r of rows) {
-        stmt.run(r.id, r.command_pattern, r.system_type, r.category, r.risk_level, r.enabled, (err) => {
+        stmt.run(
+          r.id,
+          r.command_pattern,
+          r.system_type,
+          r.category,
+          r.risk_level,
+          r.enabled,
+          r.created_at || null,
+          r.user_enabled ?? null,
+          (err) => {
           if (err) reject(err);
-        });
+          }
+        );
       }
       stmt.finalize((err) => {
         if (err) reject(err);
@@ -99,15 +124,16 @@ function upsertDangerCommands(rows) {
   return new Promise((resolve, reject) => {
     database.serialize(() => {
       const stmt = database.prepare(
-        `INSERT INTO danger_commands (id, command_pattern, system_type, category, risk_level, enabled, created_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?)
+        `INSERT INTO danger_commands (id, command_pattern, system_type, category, risk_level, enabled, created_at, user_enabled)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)
          ON CONFLICT(id) DO UPDATE SET
            command_pattern = excluded.command_pattern,
            system_type = excluded.system_type,
            category = excluded.category,
            risk_level = excluded.risk_level,
            enabled = excluded.enabled,
-           created_at = excluded.created_at`
+           created_at = excluded.created_at,
+           user_enabled = COALESCE(excluded.user_enabled, danger_commands.user_enabled)`
       );
       for (const r of rows) {
         stmt.run(
@@ -122,6 +148,26 @@ function upsertDangerCommands(rows) {
             if (err) reject(err);
           }
         );
+      }
+      stmt.finalize((err) => {
+        if (err) reject(err);
+        else resolve();
+      });
+    });
+  });
+}
+
+function applyUserDangerPrefs(rows) {
+  const database = getDb();
+  return new Promise((resolve, reject) => {
+    database.serialize(() => {
+      const stmt = database.prepare(
+        `UPDATE danger_commands SET user_enabled = ? WHERE id = ?`
+      );
+      for (const r of rows) {
+        stmt.run(r.enabled, r.danger_command_id, (err) => {
+          if (err) reject(err);
+        });
       }
       stmt.finalize((err) => {
         if (err) reject(err);
@@ -251,6 +297,35 @@ function saveLocalSettings(settings) {
   });
 }
 
+function getLlmRouteMode() {
+  const database = getDb();
+  return new Promise((resolve) => {
+    database.get("SELECT llm_route_mode FROM local_user_settings WHERE id = 1", (err, row) => {
+      if (err || !row || !row.llm_route_mode) {
+        resolve("GATEWAY");
+      } else {
+        resolve(row.llm_route_mode);
+      }
+    });
+  });
+}
+
+function saveLlmRouteMode(mode) {
+  const database = getDb();
+  return new Promise((resolve, reject) => {
+    database.run(
+      `INSERT INTO local_user_settings (id, llm_route_mode)
+       VALUES (1, ?)
+       ON CONFLICT(id) DO UPDATE SET llm_route_mode = excluded.llm_route_mode`,
+      [mode || "GATEWAY"],
+      (err) => {
+        if (err) reject(err);
+        else resolve();
+      }
+    );
+  });
+}
+
 function replaceUserSkills(rows) {
   const database = getDb();
   return new Promise((resolve, reject) => {
@@ -286,6 +361,42 @@ function getLocalAuth() {
   });
 }
 
+function listLlmMappings() {
+  const database = getDb();
+  return new Promise((resolve) => {
+    database.all("SELECT id, prefix, target_base FROM local_llm_mappings ORDER BY id", (err, rows = []) => {
+      if (err) resolve([]);
+      else resolve(rows);
+    });
+  });
+}
+
+function upsertLlmMapping(mapping) {
+  const database = getDb();
+  return new Promise((resolve, reject) => {
+    database.run(
+      `INSERT INTO local_llm_mappings (prefix, target_base)
+       VALUES (?, ?)
+       ON CONFLICT(prefix) DO UPDATE SET target_base = excluded.target_base`,
+      [mapping.prefix, mapping.target_base],
+      (err) => {
+        if (err) reject(err);
+        else resolve();
+      }
+    );
+  });
+}
+
+function deleteLlmMapping(id) {
+  const database = getDb();
+  return new Promise((resolve, reject) => {
+    database.run("DELETE FROM local_llm_mappings WHERE id = ?", [id], (err) => {
+      if (err) reject(err);
+      else resolve();
+    });
+  });
+}
+
 function saveLocalAuth(auth) {
   const database = getDb();
   return new Promise((resolve, reject) => {
@@ -312,8 +423,14 @@ module.exports = {
   upsertSkills,
   getLocalSettings,
   saveLocalSettings,
+  getLlmRouteMode,
+  saveLlmRouteMode,
+  listLlmMappings,
+  upsertLlmMapping,
+  deleteLlmMapping,
   replaceUserSkills,
-   getLocalAuth,
-   saveLocalAuth,
+  getLocalAuth,
+  saveLocalAuth,
+  applyUserDangerPrefs,
 };
 

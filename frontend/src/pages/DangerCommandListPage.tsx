@@ -5,6 +5,7 @@ import {
   type DangerCommandPage,
   updateDangerCommand,
   type DangerCommandDto,
+  setMyDangerCommand,
 } from "../api/client";
 import { ShieldAlert, Search, ChevronLeft, ChevronRight, FileText, X, Edit3, Save } from "lucide-react";
 import { useAuth } from "../contexts/AuthContext";
@@ -521,6 +522,7 @@ export const DangerCommandListPage = ({ mode = "user" }: DangerCommandListPagePr
   const [category, setCategory] = useState("");
   const [riskLevel, setRiskLevel] = useState("");
   const [keyword, setKeyword] = useState("");
+  const [userEnabledFilter, setUserEnabledFilter] = useState<"" | "ENABLED" | "DISABLED">("");
   const [detailItem, setDetailItem] = useState<DangerCommandItem | null>(null);
   const [editItem, setEditItem] = useState<DangerCommandItem | null>(null);
 
@@ -534,6 +536,7 @@ export const DangerCommandListPage = ({ mode = "user" }: DangerCommandListPagePr
       category: category || undefined,
       riskLevel: riskLevel || undefined,
       keyword: keyword.trim() || undefined,
+      userEnabled: userEnabledFilter || undefined,
     })
       .then(setPage)
       .catch((err) => {
@@ -549,7 +552,7 @@ export const DangerCommandListPage = ({ mode = "user" }: DangerCommandListPagePr
 
   useEffect(() => {
     load();
-  }, [pageNumber, systemType, category, riskLevel]);
+  }, [pageNumber, systemType, category, riskLevel, userEnabledFilter]);
 
   const onSearch = (e: React.FormEvent) => {
     e.preventDefault();
@@ -562,15 +565,34 @@ export const DangerCommandListPage = ({ mode = "user" }: DangerCommandListPagePr
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center gap-2">
-        <div className="w-10 h-10 rounded-lg bg-amber-500/20 flex items-center justify-center">
-          <ShieldAlert className="w-5 h-5 text-amber-600 dark:text-amber-400" />
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center gap-2">
+          <div className="w-10 h-10 rounded-lg bg-amber-500/20 flex items-center justify-center">
+            <ShieldAlert className="w-5 h-5 text-amber-600 dark:text-amber-400" />
+          </div>
+          <div>
+            <h2 className="text-xl font-semibold text-slate-900 dark:text-white">危险指令库</h2>
+            <p className="text-sm text-slate-500 dark:text-slate-400">
+              {isAdmin ? "按系统类型、分类、风险等级筛选与维护危险指令" : "按系统类型、分类、风险等级筛选与查询"}
+            </p>
+          </div>
         </div>
-        <div>
-          <h2 className="text-xl font-semibold text-slate-900 dark:text-white">危险指令库</h2>
-          <p className="text-sm text-slate-500 dark:text-slate-400">
-            {isAdmin ? "按系统类型、分类、风险等级筛选与维护危险指令" : "按系统类型、分类、风险等级筛选与查询"}
-          </p>
+        <div className="relative group text-[11px] text-slate-500 dark:text-slate-400 select-none">
+          <button
+            type="button"
+            className="inline-flex items-center justify-center w-5 h-5 rounded-full border border-slate-300 dark:border-slate-600 bg-white/80 dark:bg-slate-900/80 text-slate-500 dark:text-slate-300 text-[11px] font-semibold"
+          >
+            ?
+          </button>
+          <div className="hidden group-hover:block absolute right-0 mt-2 w-64 text-[11px] leading-relaxed rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-xl px-3 py-2 z-20">
+            <div className="font-semibold text-slate-800 dark:text-slate-100 mb-1">系统启用 vs 用户启用</div>
+            <ul className="list-disc pl-4 space-y-0.5">
+              <li>系统启用 = 后台规则本身是否生效。</li>
+              <li>用户启用 = 在系统启用前提下，当前用户是否允许使用。</li>
+              <li>系统禁用时，无论用户如何配置，最终都不可用。</li>
+              <li>系统启用时，用户显式禁用优先于系统启用。</li>
+            </ul>
+          </div>
         </div>
       </div>
 
@@ -611,6 +633,17 @@ export const DangerCommandListPage = ({ mode = "user" }: DangerCommandListPagePr
           options={[{ value: "", label: "全部" }, ...RISK_LEVELS.map((r) => ({ value: r, label: r }))]}
           onChange={setRiskLevel}
         />
+        <FilterSelect
+          label="用户启用状态"
+          value={userEnabledFilter}
+          displayLabel="全部"
+          options={[
+            { value: "", label: "全部" },
+            { value: "ENABLED", label: "启用" },
+            { value: "DISABLED", label: "禁用" },
+          ]}
+          onChange={(v) => setUserEnabledFilter(v as typeof userEnabledFilter)}
+        />
         <button
           type="submit"
           className="px-3 py-1.5 rounded-lg bg-brand-500 hover:bg-brand-600 text-white text-xs font-medium"
@@ -641,7 +674,8 @@ export const DangerCommandListPage = ({ mode = "user" }: DangerCommandListPagePr
                     <th className="px-4 py-3 font-medium">指令/模式</th>
                     <th className="px-4 py-3 font-medium">风险</th>
                     <th className="px-4 py-3 font-medium">标题</th>
-                    <th className="px-4 py-3 font-medium">启用</th>
+                    <th className="px-4 py-3 font-medium w-24 text-center">系统启用</th>
+                    <th className="px-4 py-3 font-medium w-32 text-center">用户启用</th>
                     <th className="px-4 py-3 font-medium w-24">操作</th>
                   </tr>
                 </thead>
@@ -688,11 +722,80 @@ export const DangerCommandListPage = ({ mode = "user" }: DangerCommandListPagePr
                             </div>
                           )}
                         </td>
-                        <td className="px-4 py-2.5">
+                        {/* 系统启用：只读徽标 */}
+                        <td className="px-4 py-2.5 text-center align-middle">
                           {row.enabled ? (
-                            <span className="text-emerald-600 dark:text-emerald-400 text-xs">是</span>
+                            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium bg-emerald-500/15 text-emerald-600 dark:text-emerald-300 border border-emerald-500/40">
+                              启用
+                            </span>
                           ) : (
-                            <span className="text-slate-500 text-xs">否</span>
+                            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium bg-slate-500/10 text-slate-500 dark:text-slate-300 border border-slate-500/30">
+                              禁用
+                            </span>
+                          )}
+                        </td>
+                        {/* 用户启用：滑动开关，只有在系统启用时可操作 */}
+                        <td className="px-4 py-2.5 text-center align-middle">
+                          {user ? (
+                            row.enabled ? (
+                              <button
+                                type="button"
+                                onClick={async () => {
+                                  // 当前为显式禁用(false) → 启用(true)
+                                  // 当前为启用/未配置(null/true) → 显式禁用(false)
+                                  const next = row.userEnabled === false ? true : false;
+                                  const prev = row.userEnabled;
+                                  // 乐观更新
+                                  setPage((prevPage) =>
+                                    prevPage
+                                      ? {
+                                          ...prevPage,
+                                          content: prevPage.content.map((c) =>
+                                            c.id === row.id ? { ...c, userEnabled: next } : c
+                                          ),
+                                        }
+                                      : prevPage
+                                  );
+                                  try {
+                                    await setMyDangerCommand(row.id, next);
+                                  } catch {
+                                    // 回滚
+                                    setPage((prevPage) =>
+                                      prevPage
+                                        ? {
+                                            ...prevPage,
+                                            content: prevPage.content.map((c) =>
+                                              c.id === row.id ? { ...c, userEnabled: prev } : c
+                                            ),
+                                          }
+                                        : prevPage
+                                    );
+                                  }
+                                }}
+                                className="inline-flex items-center gap-2"
+                              >
+                                <span
+                                  className={`relative inline-flex h-5 w-9 rounded-full transition-colors ${
+                                    row.userEnabled === false
+                                      ? "bg-slate-500/80 dark:bg-slate-700"
+                                      : "bg-emerald-500 dark:bg-emerald-400"
+                                  }`}
+                                >
+                                  <span
+                                    className={`absolute left-[2px] top-1/2 h-4 w-4 rounded-full bg-white shadow transition-transform -translate-y-1/2 ${
+                                      row.userEnabled === false ? "translate-x-0" : "translate-x-[14px]"
+                                    }`}
+                                  />
+                                </span>
+                                <span className="text-[11px] text-slate-600 dark:text-slate-300">
+                                  {row.userEnabled === false ? "已禁用" : "已启用"}
+                                </span>
+                              </button>
+                            ) : (
+                              <span className="text-[11px] text-slate-400">系统禁用</span>
+                            )
+                          ) : (
+                            <span className="text-[11px] text-slate-400">需登录</span>
                           )}
                         </td>
                         <td className="px-4 py-2.5 whitespace-nowrap">

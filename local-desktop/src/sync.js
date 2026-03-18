@@ -221,9 +221,43 @@ async function syncUserSkillsFromServer(apiKey) {
   return rows.length;
 }
 
+async function syncUserDangerCommandsFromServer(apiKey) {
+  const settings = await getLocalSettings();
+  const apiBase = (settings && settings.apiBase) || "https://api.clawheart.live";
+  const auth = await getLocalAuth();
+  const headers = {
+    "Content-Type": "application/json",
+    "X-OC-API-KEY": apiKey,
+  };
+  if (auth && auth.token) {
+    headers.Authorization = `Bearer ${auth.token}`;
+  }
+
+  const url = `${apiBase}/api/user-danger-commands/me?onlyDisabled=true`;
+  const res = await axios.get(url, { headers, validateStatus: () => true });
+  if (res.status !== 200 || !Array.isArray(res.data)) {
+    return 0;
+  }
+
+  const rows = res.data.map((u) => ({
+    danger_command_id: u.dangerCommandId,
+    enabled: u.enabled ? 1 : 0,
+  }));
+
+  // 只记录显式禁用；未出现在列表里的规则视为默认启用（user_enabled=null）
+  const db = getDb();
+  await new Promise((resolve) => {
+    db.run("UPDATE danger_commands SET user_enabled = NULL", () => resolve());
+  });
+  await require("./db").applyUserDangerPrefs(rows);
+
+  return rows.length;
+}
+
 module.exports = {
   syncDangerCommandsFromServer,
   syncSystemSkillsStatusFromServer,
   syncUserSkillsFromServer,
+  syncUserDangerCommandsFromServer,
 };
 

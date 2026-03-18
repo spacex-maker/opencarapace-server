@@ -63,6 +63,21 @@ CREATE TABLE IF NOT EXISTS oc_danger_commands (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='云端危险指令库';
 
 -- -----------------------------------------------------------------------------
+-- 3.1 用户级危险指令配置表（用户个性化启用/禁用）
+-- -----------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS oc_user_danger_commands (
+    id                 BIGINT      NOT NULL AUTO_INCREMENT PRIMARY KEY,
+    user_id            BIGINT      NOT NULL COMMENT 'oc_users.id',
+    danger_command_id  BIGINT      NOT NULL COMMENT 'oc_danger_commands.id',
+    enabled            TINYINT(1)  NOT NULL DEFAULT 1 COMMENT '用户是否启用该危险指令',
+    created_at         DATETIME(6) DEFAULT NULL,
+    updated_at         DATETIME(6) DEFAULT NULL,
+    UNIQUE KEY uk_user_danger (user_id, danger_command_id),
+    CONSTRAINT fk_oc_user_danger_user FOREIGN KEY (user_id) REFERENCES oc_users (id),
+    CONSTRAINT fk_oc_user_danger_command FOREIGN KEY (danger_command_id) REFERENCES oc_danger_commands (id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='用户自定义危险指令启用设置';
+
+-- -----------------------------------------------------------------------------
 -- 4. API Key 表（依赖 oc_users）
 -- -----------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS oc_api_keys (

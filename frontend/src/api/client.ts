@@ -85,6 +85,8 @@ export interface DangerCommandItem {
   mitigation: string | null;
   tags: string | null;
   enabled: boolean;
+  /** 用户级启用状态；null 表示未配置（默认启用） */
+  userEnabled?: boolean | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -107,6 +109,7 @@ export function fetchDangerCommands(params: {
   category?: string;
   riskLevel?: string;
   keyword?: string;
+  userEnabled?: "ENABLED" | "DISABLED";
 }): Promise<DangerCommandPage> {
   const search = new URLSearchParams();
   if (params.page != null) search.set("page", String(params.page));
@@ -115,6 +118,7 @@ export function fetchDangerCommands(params: {
   if (params.category) search.set("category", params.category);
   if (params.riskLevel) search.set("riskLevel", params.riskLevel);
   if (params.keyword) search.set("keyword", params.keyword);
+   if (params.userEnabled) search.set("userEnabled", params.userEnabled);
   return api
     .get<DangerCommandPage>(`/api/danger-commands?${search.toString()}`)
     .then((r) => r.data);
@@ -130,6 +134,19 @@ export interface DangerCommandDto {
   mitigation?: string | null;
   tags?: string | null;
   enabled?: boolean | null;
+}
+
+// 用户级危险指令偏好
+export interface UserDangerCommandPref {
+  dangerCommandId: number;
+  enabled: boolean;
+}
+
+export async function setMyDangerCommand(id: number, enabled: boolean): Promise<UserDangerCommandPref> {
+  const { data } = await api.put<UserDangerCommandPref>(`/api/user-danger-commands/me/${id}`, {
+    enabled,
+  });
+  return data;
 }
 
 export async function updateDangerCommand(id: number, payload: DangerCommandDto): Promise<DangerCommandItem> {

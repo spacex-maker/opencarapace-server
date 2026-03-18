@@ -6,6 +6,8 @@ import { LocalManagePanel } from "./components/LocalManagePanel";
 import { DangerPanel } from "./components/DangerPanel";
 import { SkillsPanel } from "./components/SkillsPanel";
 import { AuthPanel } from "./components/AuthPanel";
+import { SettingsPanel } from "./components/SettingsPanel";
+import { DocsPanel } from "./components/DocsPanel";
 
 export function App() {
   const [status, setStatus] = useState<LocalStatus | null>(null);
@@ -13,7 +15,9 @@ export function App() {
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<"overview" | "local" | "danger" | "skills" | "auth">("overview");
+  const [activeTab, setActiveTab] = useState<
+    "overview" | "local" | "danger" | "skills" | "settings" | "docs" | "auth"
+  >("overview");
 
   const [apiBase, setApiBase] = useState("https://api.clawheart.live");
   const [ocApiKey, setOcApiKey] = useState("");
@@ -102,6 +106,8 @@ export function App() {
           <NavButton label="本地管理" active={activeTab === "local"} onClick={() => setActiveTab("local")} />
           <NavButton label="危险指令库" active={activeTab === "danger"} onClick={() => setActiveTab("danger")} />
           <NavButton label="Skills 仓库" active={activeTab === "skills"} onClick={() => setActiveTab("skills")} />
+          <NavButton label="设置" active={activeTab === "settings"} onClick={() => setActiveTab("settings")} />
+          <NavButton label="文档 / 使用说明" active={activeTab === "docs"} onClick={() => setActiveTab("docs")} />
         </div>
 
         {/* 左下角账户信息 + 登录入口 */}
@@ -189,6 +195,8 @@ export function App() {
         {activeTab === "local" && <LocalManagePanel status={status} />}
         {activeTab === "danger" && <DangerPanel />}
         {activeTab === "skills" && <SkillsPanel />}
+        {activeTab === "settings" && <SettingsPanel />}
+        {activeTab === "docs" && <DocsPanel />}
         {activeTab === "auth" && <AuthPanel onLoggedIn={handleLoggedIn} />}
       </div>
 

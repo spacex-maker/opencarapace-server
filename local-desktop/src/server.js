@@ -1,11 +1,23 @@
 const express = require("express");
 const axios = require("axios");
 const os = require("os");
-const { getDb, getLocalSettings, saveLocalSettings, getLocalAuth, saveLocalAuth } = require("./db.js");
+const {
+  getDb,
+  getLocalSettings,
+  saveLocalSettings,
+  getLocalAuth,
+  saveLocalAuth,
+  saveLlmRouteMode,
+  getLlmRouteMode,
+  listLlmMappings,
+  upsertLlmMapping,
+  deleteLlmMapping,
+} = require("./db.js");
 const {
   syncDangerCommandsFromServer,
   syncSystemSkillsStatusFromServer,
   syncUserSkillsFromServer,
+  syncUserDangerCommandsFromServer,
 } = require("./sync.js");
 
 // 避开 Ollama 等常用端口（例如 11434），使用自定义端口
@@ -71,7 +83,8 @@ async function getLocalStatus() {
     });
   });
   const auth = await getLocalAuth();
-  return { ...counts, auth };
+  const llmRouteMode = await getLlmRouteMode();
+  return { ...counts, auth, llmRouteMode };
 }
 
 async function forwardChatCompletions(req, res) {
@@ -193,21 +206,62 @@ async function forwardChatCompletions(req, res) {
       }
     }
 
-    const upstreamUrl = `${settings.apiBase}/api/llm/v1/chat/completions`;
-    const upstreamRes = await axios.post(
-      upstreamUrl,
-      req.body,
-      {
-        headers: {
+    // 解析路径与前缀，用于自定义转发映射；不强行限定具体 path
+    const originalPath = req.path || "/";
+    const segments = originalPath.split("/").filter(Boolean);
+
+    const llmRouteMode = await getLlmRouteMode();
+
+    let upstreamUrl;
+    let headers;
+
+    // 先尝试命中自定义前缀映射（例如 /deepseek/...）
+    if (segments.length > 0) {
+      const mappings = await listLlmMappings();
+      const hit = mappings.find((m) => m.prefix === segments[0]);
+      if (hit) {
+        const base = String(hit.target_base || "").replace(/\/+$/, "");
+        const restPath = "/" + segments.slice(1).join("/");
+        const tail = restPath === "/" ? "/" : restPath; // 保持用户自定义 path，不做强制限制
+        upstreamUrl = base + tail;
+        headers = {
+          "Content-Type": "application/json",
+          Authorization: settings.llmKey.startsWith("Bearer ")
+            ? settings.llmKey
+            : `Bearer ${settings.llmKey}`,
+        };
+      }
+    }
+
+    if (!upstreamUrl) {
+      if (llmRouteMode === "DIRECT") {
+        // 直接连接上游 LLM：使用 API Base + 上游 LLM Key，path 完全由用户决定
+        const base = String(settings.apiBase || "").replace(/\/+$/, "");
+        const tail = originalPath || "/";
+        upstreamUrl = base + tail;
+        headers = {
+          "Content-Type": "application/json",
+          Authorization: settings.llmKey.startsWith("Bearer ")
+            ? settings.llmKey
+            : `Bearer ${settings.llmKey}`,
+        };
+      } else {
+        // 默认：走云端 ClawHeart 网关（此处仍使用固定后端路径）
+        upstreamUrl = `${settings.apiBase}/api/llm/v1/chat/completions`;
+        headers = {
           "Content-Type": "application/json",
           "X-OC-API-KEY": settings.ocApiKey,
           Authorization: settings.llmKey.startsWith("Bearer ")
             ? settings.llmKey
             : `Bearer ${settings.llmKey}`,
-        },
-        validateStatus: () => true,
+        };
       }
-    );
+    }
+
+    const upstreamRes = await axios.post(upstreamUrl, req.body, {
+      headers,
+      validateStatus: () => true,
+    });
     res.status(upstreamRes.status).set("Content-Type", "application/json").send(upstreamRes.data);
   } catch (e) {
     console.error("local desktop proxy error", e);
@@ -237,7 +291,7 @@ async function startServer() {
 
   app.get("/api/status", async (_req, res) => {
     try {
-      const { danger, disabled, deprecated, auth } = await getLocalStatus();
+      const { danger, disabled, deprecated, auth, llmRouteMode } = await getLocalStatus();
       const settings = await getLocalSettings();
       res.status(200).json({
         danger,
@@ -245,6 +299,7 @@ async function startServer() {
         deprecated,
         auth,
         settings,
+        llmRouteMode,
       });
     } catch (e) {
       res.status(500).json({ error: { message: e?.message ?? "读取本地状态失败" } });
@@ -257,11 +312,100 @@ async function startServer() {
     res.status(200).json(syncState[type]);
   });
 
+  // 用户级 LLM 路由模式：本地读取
+  app.get("/api/user-settings/llm-route-mode", async (_req, res) => {
+    try {
+      const mode = await getLlmRouteMode();
+      res.status(200).json({ llmRouteMode: mode });
+    } catch (e) {
+      res.status(500).json({ error: { message: e?.message ?? "读取 LLM 路由模式失败" } });
+    }
+  });
+
+  // 用户级 LLM 路由模式：本地更新 + 尝试同步到云端
+  app.post("/api/user-settings/llm-route-mode", async (req, res) => {
+    try {
+      const { llmRouteMode } = req.body || {};
+      if (llmRouteMode !== "DIRECT" && llmRouteMode !== "GATEWAY") {
+        res.status(400).json({ error: { message: "llmRouteMode 必须是 DIRECT 或 GATEWAY" } });
+        return;
+      }
+      await saveLlmRouteMode(llmRouteMode);
+
+      // 尝试同步到云端用户设置（忽略失败）
+      try {
+        const settings = await getLocalSettings();
+        const auth = await getLocalAuth();
+        const apiBase = (settings && settings.apiBase) || "http://localhost:8080";
+        if (auth && auth.token) {
+          await axios.put(
+            `${apiBase}/api/user-settings/me/llm-route-mode`,
+            { llmRouteMode },
+            {
+              headers: { Authorization: `Bearer ${auth.token}` },
+              validateStatus: () => true,
+            }
+          );
+        }
+      } catch {
+        // ignore sync failure
+      }
+
+      res.status(200).json({ llmRouteMode });
+    } catch (e) {
+      res.status(500).json({ error: { message: e?.message ?? "更新 LLM 路由模式失败" } });
+    }
+  });
+
+  // LLM 映射配置：列出所有映射
+  app.get("/api/llm-mappings", async (_req, res) => {
+    try {
+      const rows = await listLlmMappings();
+      res.status(200).json({ items: rows });
+    } catch (e) {
+      res.status(500).json({ error: { message: e?.message ?? "读取 LLM 映射配置失败" } });
+    }
+  });
+
+  // LLM 映射配置：新增或更新（按 prefix 去重）
+  app.post("/api/llm-mappings", async (req, res) => {
+    try {
+      const { prefix, targetBase } = req.body || {};
+      const p = (prefix || "").trim();
+      const t = (targetBase || "").trim();
+      if (!p || !t) {
+        res.status(400).json({ error: { message: "prefix 与 targetBase 均为必填项" } });
+        return;
+      }
+      await upsertLlmMapping({ prefix: p, target_base: t });
+      const rows = await listLlmMappings();
+      res.status(200).json({ items: rows });
+    } catch (e) {
+      res.status(500).json({ error: { message: e?.message ?? "保存 LLM 映射配置失败" } });
+    }
+  });
+
+  // LLM 映射配置：删除
+  app.delete("/api/llm-mappings/:id", async (req, res) => {
+    try {
+      const id = Number(req.params.id);
+      if (!id || Number.isNaN(id)) {
+        res.status(400).json({ error: { message: "id 无效" } });
+        return;
+      }
+      await deleteLlmMapping(id);
+      const rows = await listLlmMappings();
+      res.status(200).json({ items: rows });
+    } catch (e) {
+      res.status(500).json({ error: { message: e?.message ?? "删除 LLM 映射配置失败" } });
+    }
+  });
+
   // 危险指令库列表
   app.get("/api/danger-commands", (_req, res) => {
     const db = getDb();
     db.all(
-      "SELECT id, command_pattern, system_type, category, risk_level, enabled FROM danger_commands ORDER BY id",
+      "SELECT id, command_pattern, system_type, category, risk_level, enabled, user_enabled FROM danger_commands ORDER BY id",
       (err, rows = []) => {
         if (err) {
           res.status(500).json({ error: { message: err.message || "读取危险指令库失败" } });
@@ -345,11 +489,7 @@ async function startServer() {
       }
       // 登录目前统一走本机 Spring Boot，端口 8080
       const url = "http://localhost:8080/api/auth/login";
-      const upstreamRes = await axios.post(
-        url,
-        { email, password },
-        { validateStatus: () => true }
-      );
+      const upstreamRes = await axios.post(url, { email, password }, { validateStatus: () => true });
       if (upstreamRes.status !== 200) {
         res.status(upstreamRes.status).json(upstreamRes.data || { error: { message: "登录失败" } });
         return;
@@ -364,6 +504,26 @@ async function startServer() {
         token: data.token,
       });
 
+      // 同步用户级 LLM 路由模式
+      try {
+        const settings = await getLocalSettings();
+        const apiBase = (settings && settings.apiBase) || "http://localhost:8080";
+        const routeRes = await axios.get(`${apiBase}/api/user-settings/me`, {
+          headers: {
+            Authorization: `Bearer ${data.token}`,
+          },
+          validateStatus: () => true,
+        });
+        if (routeRes.status === 200 && routeRes.data && routeRes.data.llmRouteMode) {
+          await saveLlmRouteMode(routeRes.data.llmRouteMode);
+        } else {
+          // 接口不可用或未配置时，回退为 GATEWAY
+          await saveLlmRouteMode("GATEWAY");
+        }
+      } catch {
+        // 忽略路由模式同步失败
+      }
+
       // 登录成功后，根据当前配置触发一次增量同步
       try {
         const settings = await getLocalSettings();
@@ -371,7 +531,14 @@ async function startServer() {
         if (apiKey) {
           syncState.danger = { running: true, total: 0, synced: 0 };
           syncDangerCommandsFromServer(String(apiKey), updateDangerProgress)
-            .then((p) => finishDangerProgress(p))
+            .then(async (p) => {
+              try {
+                await syncUserDangerCommandsFromServer(String(apiKey));
+              } catch {
+                // ignore
+              }
+              finishDangerProgress(p);
+            })
             .catch(() => finishDangerProgress({ total: syncState.danger.total, synced: syncState.danger.synced }));
 
           startSkillsProgress();
@@ -425,7 +592,14 @@ async function startServer() {
       }
       syncState.danger = { running: true, total: 0, synced: 0 };
       syncDangerCommandsFromServer(String(apiKey), updateDangerProgress)
-        .then((p) => finishDangerProgress(p))
+        .then(async (p) => {
+          try {
+            await syncUserDangerCommandsFromServer(String(apiKey));
+          } catch {
+            // ignore
+          }
+          finishDangerProgress(p);
+        })
         .catch(() => finishDangerProgress({ total: syncState.danger.total, synced: syncState.danger.synced }));
       res.status(202).json({ accepted: true });
     } catch (e) {
@@ -482,7 +656,8 @@ async function startServer() {
     }
   });
 
-  app.post("/v1/chat/completions", forwardChatCompletions);
+  // 非 /api 开头的 POST 请求，统一视为 LLM 转发入口，由 forwardChatCompletions 处理
+  app.post(/^(?!\/api\/).+$/, forwardChatCompletions);
 
   app.listen(PORT, () => {
     console.log(`ClawHeart local desktop proxy listening at http://127.0.0.1:${PORT}`);

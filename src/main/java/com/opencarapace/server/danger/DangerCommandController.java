@@ -3,16 +3,21 @@ package com.opencarapace.server.danger;
 import com.opencarapace.server.danger.DangerCommand.DangerCategory;
 import com.opencarapace.server.danger.DangerCommand.RiskLevel;
 import com.opencarapace.server.danger.DangerCommand.SystemType;
+import com.opencarapace.server.user.User;
+import com.opencarapace.server.user.UserRepository;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.web.PageableDefault;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -25,6 +30,9 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.time.Instant;
 import java.time.format.DateTimeParseException;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
 /**
  * 云端危险指令库 API。
@@ -37,16 +45,87 @@ import java.time.format.DateTimeParseException;
 public class DangerCommandController {
 
     private final DangerCommandService dangerCommandService;
+    private final UserDangerCommandRepository userDangerCommandRepository;
+    private final UserRepository userRepository;
 
-    /** 分页查询，支持按系统类型、分类、风险等级、关键词筛选（登录用户可见） */
+    public record DangerCommandViewDto(
+            Long id,
+            String commandPattern,
+            String systemType,
+            String category,
+            String riskLevel,
+            String title,
+            String description,
+            String mitigation,
+            String tags,
+            boolean enabled,
+            /**
+             * 用户级启用状态：
+             * true/false = 用户有显式配置；null = 未配置（默认启用）
+             */
+            Boolean userEnabled
+    ) {
+        static DangerCommandViewDto from(DangerCommand d, Boolean userEnabled) {
+            return new DangerCommandViewDto(
+                    d.getId(),
+                    d.getCommandPattern(),
+                    d.getSystemType().name(),
+                    d.getCategory().name(),
+                    d.getRiskLevel().name(),
+                    d.getTitle(),
+                    d.getDescription(),
+                    d.getMitigation(),
+                    d.getTags(),
+                    d.isEnabled(),
+                    userEnabled
+            );
+        }
+    }
+
+    /** 分页查询，支持按系统类型、分类、风险等级、关键词 + 用户级启用状态筛选（登录用户可见） */
     @GetMapping
-    public Page<DangerCommand> search(
+    public Page<DangerCommandViewDto> search(
             @RequestParam(name = "systemType", required = false) SystemType systemType,
             @RequestParam(name = "category", required = false) DangerCategory category,
             @RequestParam(name = "riskLevel", required = false) RiskLevel riskLevel,
             @RequestParam(name = "keyword", required = false) String keyword,
+            @RequestParam(name = "userEnabled", required = false) String userEnabled,
             @PageableDefault(size = 20, sort = "createdAt") Pageable pageable) {
-        return dangerCommandService.search(systemType, category, riskLevel, keyword, pageable);
+        Page<DangerCommand> page = dangerCommandService.search(systemType, category, riskLevel, keyword, pageable);
+
+        Long userId = getCurrentUserId();
+        Map<Long, Boolean> userMap = new HashMap<>();
+        if (userId != null) {
+            List<UserDangerCommand> list = userDangerCommandRepository.findByUserId(userId);
+            for (UserDangerCommand udc : list) {
+                if (udc.getDangerCommand() != null) {
+                    userMap.put(udc.getDangerCommand().getId(), udc.isEnabled());
+                }
+            }
+        }
+        String ueFilter = (userEnabled == null || userEnabled.isBlank()) ? null : userEnabled;
+
+        List<DangerCommandViewDto> dtos = page.getContent().stream()
+                .map(d -> {
+                    Boolean ue = userMap.get(d.getId());
+                    return DangerCommandViewDto.from(d, ue);
+                })
+                .filter(dto -> {
+                    if (ueFilter == null) return true;
+                    Boolean ue = dto.userEnabled();
+                    if ("ENABLED".equalsIgnoreCase(ueFilter)) {
+                        // 启用：显式启用或未配置（默认启用）
+                        return ue == null || ue;
+                    }
+                    if ("DISABLED".equalsIgnoreCase(ueFilter)) {
+                        // 禁用：仅显式禁用
+                        return Boolean.FALSE.equals(ue);
+                    }
+                    return true;
+                })
+                .toList();
+
+        return new PageImpl<>(dtos, pageable, page.getTotalElements());
     }
 
     /**
@@ -72,10 +151,33 @@ public class DangerCommandController {
 
     /** 按 ID 查询单条（登录用户可见） */
     @GetMapping("/{id}")
-    public ResponseEntity<DangerCommand> getById(@PathVariable Long id) {
+    public ResponseEntity<DangerCommandViewDto> getById(@PathVariable Long id) {
+        Long userId = getCurrentUserId();
+        Map<Long, Boolean> userMap = new HashMap<>();
+        if (userId != null) {
+            List<UserDangerCommand> list = userDangerCommandRepository.findByUserId(userId);
+            for (UserDangerCommand udc : list) {
+                if (udc.getDangerCommand() != null) {
+                    userMap.put(udc.getDangerCommand().getId(), udc.isEnabled());
+                }
+            }
+        }
         return dangerCommandService.findById(id)
+                .map(d -> DangerCommandViewDto.from(d, userMap.get(d.getId())))
                 .map(ResponseEntity::ok)
                 .orElse(ResponseEntity.notFound().build());
+    }
+
+    private Long getCurrentUserId() {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        if (auth == null || auth.getName() == null) {
+            return null;
+        }
+        try {
+            return Long.parseLong(auth.getName());
+        } catch (NumberFormatException ex) {
+            return null;
+        }
     }
 
     /** 新增危险指令（仅管理员） */

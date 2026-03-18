@@ -18,5 +18,25 @@ public interface SkillRepository extends JpaRepository<Skill, Long> {
     List<String> findSlugsByStatus(@Param("status") String status);
 
     Page<Skill> findByUpdatedAtAfterOrderByUpdatedAtAsc(Instant updatedAt, Pageable pageable);
+
+    @Query("""
+            select s from Skill s
+            where (:status is null or s.status = :status)
+              and (:type is null or lower(s.type) like lower(concat('%', :type, '%')))
+              and (:category is null or lower(s.category) like lower(concat('%', :category, '%')))
+              and (
+                    :keyword is null
+                 or lower(s.name) like lower(concat('%', :keyword, '%'))
+                 or lower(s.slug) like lower(concat('%', :keyword, '%'))
+                 or lower(coalesce(s.shortDesc, '')) like lower(concat('%', :keyword, '%'))
+              )
+            """)
+    Page<Skill> search(
+            @Param("status") String status,
+            @Param("type") String type,
+            @Param("category") String category,
+            @Param("keyword") String keyword,
+            Pageable pageable
+    );
 }
 

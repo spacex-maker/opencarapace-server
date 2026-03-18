@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import {
   fetchDangerCommands,
   type DangerCommandItem,
@@ -192,6 +192,73 @@ function DetailModal({
           </section>
         </div>
       </div>
+    </div>
+  );
+}
+
+function FilterSelect({
+  label,
+  value,
+  options,
+  displayLabel,
+  onChange,
+  widthClass = "w-40",
+}: {
+  label: string;
+  value: string;
+  options: { value: string; label: string }[];
+  displayLabel: string;
+  onChange: (v: string) => void;
+  widthClass?: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement | null>(null);
+  const current = options.find((o) => o.value === value);
+
+  useEffect(() => {
+    if (!open) return;
+    const handler = (e: MouseEvent) => {
+      if (!ref.current) return;
+      if (!ref.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    };
+    window.addEventListener("mousedown", handler);
+    return () => window.removeEventListener("mousedown", handler);
+  }, [open]);
+
+  return (
+    <div className={`${widthClass} relative`} ref={ref}>
+      <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1">{label}</label>
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        className="w-full inline-flex items-center justify-between rounded-lg bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 px-2.5 py-1.5 text-xs text-slate-900 dark:text-slate-100 hover:border-amber-500/60"
+      >
+        <span className="truncate">{current ? current.label : displayLabel}</span>
+        <span className="ml-1 text-[10px] text-slate-400 dark:text-slate-500">{open ? "▲" : "▼"}</span>
+      </button>
+      {open && (
+        <div className="absolute z-20 mt-1 w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-lg max-h-52 overflow-y-auto text-xs">
+          {options.map((opt) => (
+            <button
+              key={opt.value}
+              type="button"
+              onClick={() => {
+                onChange(opt.value);
+                setOpen(false);
+              }}
+              className={`w-full text-left px-2.5 py-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 ${
+                opt.value === value
+                  ? "text-amber-600 dark:text-amber-300 font-medium"
+                  : "text-slate-700 dark:text-slate-200"
+              }`}
+            >
+              {opt.label}
+            </button>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
@@ -491,7 +558,7 @@ export const DangerCommandListPage = ({ mode = "user" }: DangerCommandListPagePr
   };
 
   const inputClass =
-    "rounded-lg bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 px-3 py-2 text-sm text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-brand-500/50";
+    "rounded-lg bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 px-2.5 py-1.5 text-xs text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-brand-500/50";
 
   return (
     <div className="space-y-6">
@@ -519,52 +586,34 @@ export const DangerCommandListPage = ({ mode = "user" }: DangerCommandListPagePr
               value={keyword}
               onChange={(e) => setKeyword(e.target.value)}
               placeholder="指令、标题、描述..."
-              className={`w-full pl-8 pr-3 py-2 ${inputClass}`}
+              className={`w-full pl-8 pr-3 ${inputClass}`}
             />
           </div>
         </div>
-        <div>
-          <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1">
-            系统类型
-          </label>
-          <select value={systemType} onChange={(e) => setSystemType(e.target.value)} className={inputClass}>
-            <option value="">全部</option>
-            {SYSTEM_TYPES.map((t) => (
-              <option key={t} value={t}>
-                {t}
-              </option>
-            ))}
-          </select>
-        </div>
-        <div>
-          <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1">
-            分类
-          </label>
-          <select value={category} onChange={(e) => setCategory(e.target.value)} className={inputClass}>
-            <option value="">全部</option>
-            {CATEGORIES.map((c) => (
-              <option key={c} value={c}>
-                {c}
-              </option>
-            ))}
-          </select>
-        </div>
-        <div>
-          <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1">
-            风险等级
-          </label>
-          <select value={riskLevel} onChange={(e) => setRiskLevel(e.target.value)} className={inputClass}>
-            <option value="">全部</option>
-            {RISK_LEVELS.map((r) => (
-              <option key={r} value={r}>
-                {r}
-              </option>
-            ))}
-          </select>
-        </div>
+        <FilterSelect
+          label="系统类型"
+          value={systemType}
+          displayLabel="全部"
+          options={[{ value: "", label: "全部" }, ...SYSTEM_TYPES.map((t) => ({ value: t, label: t }))]}
+          onChange={setSystemType}
+        />
+        <FilterSelect
+          label="分类"
+          value={category}
+          displayLabel="全部"
+          options={[{ value: "", label: "全部" }, ...CATEGORIES.map((c) => ({ value: c, label: c }))]}
+          onChange={setCategory}
+        />
+        <FilterSelect
+          label="风险等级"
+          value={riskLevel}
+          displayLabel="全部"
+          options={[{ value: "", label: "全部" }, ...RISK_LEVELS.map((r) => ({ value: r, label: r }))]}
+          onChange={setRiskLevel}
+        />
         <button
           type="submit"
-          className="px-4 py-2 rounded-lg bg-brand-500 hover:bg-brand-600 text-white text-sm font-medium"
+          className="px-3 py-1.5 rounded-lg bg-brand-500 hover:bg-brand-600 text-white text-xs font-medium"
         >
           查询
         </button>

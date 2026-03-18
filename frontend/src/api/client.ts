@@ -167,10 +167,23 @@ export interface SkillPage {
   last: boolean;
 }
 
-export function fetchSkills(params: { page?: number; size?: number }): Promise<SkillPage> {
+export function fetchSkills(params: {
+  page?: number;
+  size?: number;
+  status?: string;
+  type?: string;
+  category?: string;
+  keyword?: string;
+  userEnabled?: "ENABLED" | "DISABLED";
+}): Promise<SkillPage> {
   const search = new URLSearchParams();
   if (params.page != null) search.set("page", String(params.page));
   if (params.size != null) search.set("size", String(params.size));
+  if (params.status) search.set("status", params.status);
+  if (params.type) search.set("type", params.type);
+  if (params.category) search.set("category", params.category);
+  if (params.keyword) search.set("keyword", params.keyword);
+  if (params.userEnabled) search.set("userEnabled", params.userEnabled);
   return api.get<SkillPage>(`/api/skills?${search.toString()}`).then((r) => r.data);
 }
 

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import {
   fetchSkills,
   updateSkill,
@@ -121,6 +121,73 @@ function SkillDetailModal({ item, onClose }: { item: SkillItem; onClose: () => v
           )}
         </div>
       </div>
+    </div>
+  );
+}
+
+function FilterSelect({
+  label,
+  value,
+  displayLabel,
+  options,
+  onChange,
+}: {
+  label: string;
+  value: string;
+  displayLabel: string;
+  options: { value: string; label: string }[];
+  onChange: (v: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement | null>(null);
+  const current = options.find((o) => o.value === value);
+
+  useEffect(() => {
+    if (!open) return;
+    const handler = (e: MouseEvent) => {
+      if (!ref.current) return;
+      if (!ref.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    };
+    window.addEventListener("mousedown", handler);
+    return () => window.removeEventListener("mousedown", handler);
+  }, [open]);
+
+  return (
+    <div className="w-40 relative" ref={ref}>
+      <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1">{label}</label>
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        className="w-full inline-flex items-center justify-between rounded-lg bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 px-2.5 py-1.5 text-xs text-slate-900 dark:text-slate-100 hover:border-brand-500/60"
+      >
+        <span className="truncate">
+          {current ? current.label : displayLabel}
+        </span>
+        <span className="ml-1 text-[10px] text-slate-400 dark:text-slate-500">
+          {open ? "▲" : "▼"}
+        </span>
+      </button>
+      {open && (
+        <div className="absolute z-20 mt-1 w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-lg max-h-52 overflow-y-auto text-xs">
+          {options.map((opt) => (
+            <button
+              key={opt.value}
+              type="button"
+              onClick={() => {
+                onChange(opt.value);
+                setOpen(false);
+              }}
+              className={`w-full text-left px-2.5 py-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 ${
+                opt.value === value ? "text-brand-600 dark:text-brand-400 font-medium" : "text-slate-700 dark:text-slate-200"
+              }`}
+            >
+              {opt.label}
+            </button>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
@@ -317,7 +384,7 @@ export const SkillsListPage = ({ mode = "user" }: SkillsListPageProps) => {
   const [statusFilter, setStatusFilter] = useState<"" | "ACTIVE" | "DEPRECATED" | "DISABLED">("");
   const [typeFilter, setTypeFilter] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("");
-  const [userEnabledFilter, setUserEnabledFilter] = useState<"" | "ENABLED" | "DISABLED" | "DEFAULT">("");
+  const [userEnabledFilter, setUserEnabledFilter] = useState<"" | "ENABLED" | "DISABLED">("");
   const [detailItem, setDetailItem] = useState<SkillItem | null>(null);
   const [editItem, setEditItem] = useState<SkillItem | null>(null);
   const [syncing, setSyncing] = useState(false);
@@ -326,7 +393,20 @@ export const SkillsListPage = ({ mode = "user" }: SkillsListPageProps) => {
   const load = () => {
     setLoading(true);
     setError("");
-    fetchSkills({ page: pageNumber, size: pageSize })
+    const statusParam = statusFilter || undefined;
+    const typeParam = typeFilter.trim() || undefined;
+    const categoryParam = categoryFilter.trim() || undefined;
+    const keywordParam = keyword.trim() || undefined;
+    const userEnabledParam = userEnabledFilter || undefined;
+    fetchSkills({
+      page: pageNumber,
+      size: pageSize,
+      status: statusParam,
+      type: typeParam,
+      category: categoryParam,
+      keyword: keywordParam,
+      userEnabled: userEnabledParam,
+    })
       .then(setPage)
       .catch((err) => {
         setError(err?.response?.data?.message || "加载失败");
@@ -338,6 +418,15 @@ export const SkillsListPage = ({ mode = "user" }: SkillsListPageProps) => {
   useEffect(() => {
     load();
   }, [pageNumber]);
+
+  const handleSearch = () => {
+    // 搜索时回到第一页并触发重新请求
+    if (pageNumber !== 0) {
+      setPageNumber(0);
+    } else {
+      load();
+    }
+  };
 
   const handleFullSync = async () => {
     setSyncing(true);
@@ -354,28 +443,6 @@ export const SkillsListPage = ({ mode = "user" }: SkillsListPageProps) => {
       setSyncing(false);
     }
   };
-
-  const filteredContent = page?.content.filter((s) => {
-    const k = keyword.trim().toLowerCase();
-    if (k) {
-      const hitText =
-        s.name.toLowerCase().includes(k) ||
-        (s.slug && s.slug.toLowerCase().includes(k)) ||
-        (s.shortDesc && s.shortDesc.toLowerCase().includes(k));
-      if (!hitText) return false;
-    }
-    if (statusFilter && s.status !== statusFilter) return false;
-    if (typeFilter.trim() && !s.type.toLowerCase().includes(typeFilter.trim().toLowerCase())) return false;
-    if (categoryFilter.trim() && !(s.category || "").toLowerCase().includes(categoryFilter.trim().toLowerCase()))
-      return false;
-    if (userEnabledFilter) {
-      const ue = s.userEnabled;
-      if (userEnabledFilter === "ENABLED" && ue === false) return false;
-      if (userEnabledFilter === "DISABLED" && ue !== false) return false;
-      if (userEnabledFilter === "DEFAULT" && ue !== null && ue !== undefined) return false;
-    }
-    return true;
-  });
 
   return (
     <div className="space-y-6">
@@ -413,23 +480,22 @@ export const SkillsListPage = ({ mode = "user" }: SkillsListPageProps) => {
               value={keyword}
               onChange={(e) => setKeyword(e.target.value)}
               placeholder="按名称 / slug / 简介搜索"
-              className="w-full rounded-lg bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 pl-8 pr-3 py-2 text-sm text-slate-900 dark:text-slate-100 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-brand-500/50"
+              className="w-full rounded-lg bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 pl-8 pr-3 py-1.5 text-xs text-slate-900 dark:text-slate-100 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-brand-500/50"
             />
           </div>
         </div>
-        <div className="w-40">
-          <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1">系统状态</label>
-          <select
-            value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value as typeof statusFilter)}
-            className="w-full rounded-lg bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 px-2 py-1.5 text-xs text-slate-900 dark:text-slate-100"
-          >
-            <option value="">全部</option>
-            <option value="ACTIVE">ACTIVE（正常）</option>
-            <option value="DEPRECATED">DEPRECATED（不推荐）</option>
-            <option value="DISABLED">DISABLED（禁用）</option>
-          </select>
-        </div>
+        <FilterSelect
+          label="系统状态"
+          value={statusFilter}
+          displayLabel="全部"
+          options={[
+            { value: "", label: "全部" },
+            { value: "ACTIVE", label: "ACTIVE（正常）" },
+            { value: "DEPRECATED", label: "DEPRECATED（不推荐）" },
+            { value: "DISABLED", label: "DISABLED（禁用）" },
+          ]}
+          onChange={(v) => setStatusFilter(v as typeof statusFilter)}
+        />
         <div className="w-36">
           <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1">类型</label>
           <input
@@ -448,18 +514,26 @@ export const SkillsListPage = ({ mode = "user" }: SkillsListPageProps) => {
             className="w-full rounded-lg bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 px-2 py-1.5 text-xs text-slate-900 dark:text-slate-100"
           />
         </div>
-        <div className="w-40">
-          <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1">用户启用状态</label>
-          <select
-            value={userEnabledFilter}
-            onChange={(e) => setUserEnabledFilter(e.target.value as typeof userEnabledFilter)}
-            className="w-full rounded-lg bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 px-2 py-1.5 text-xs text-slate-900 dark:text-slate-100"
+        <FilterSelect
+          label="用户启用状态"
+          value={userEnabledFilter}
+          displayLabel="全部"
+          options={[
+            { value: "", label: "全部" },
+            { value: "ENABLED", label: "启用" },
+            { value: "DISABLED", label: "禁用" },
+          ]}
+          onChange={(v) => setUserEnabledFilter(v as typeof userEnabledFilter)}
+        />
+        <div className="flex items-end pb-[2px]">
+          <button
+            type="button"
+            onClick={handleSearch}
+            disabled={loading}
+            className="px-3 py-1.5 rounded-lg bg-brand-500 hover:bg-brand-600 disabled:opacity-60 disabled:cursor-not-allowed text-white text-xs font-medium"
           >
-            <option value="">全部</option>
-            <option value="ENABLED">显式启用</option>
-            <option value="DISABLED">显式禁用</option>
-            <option value="DEFAULT">默认启用（未配置）</option>
-          </select>
+            {loading ? "查询中…" : "查询"}
+          </button>
         </div>
       </div>
 
@@ -490,19 +564,19 @@ export const SkillsListPage = ({ mode = "user" }: SkillsListPageProps) => {
                     <th className="px-4 py-3 font-medium">类型/分类</th>
                     <th className="px-4 py-3 font-medium">状态</th>
                     <th className="px-4 py-3 font-medium">简介</th>
-                    <th className="px-4 py-3 font-medium w-24">启用</th>
+                    <th className="px-4 py-3 font-medium w-32">启用</th>
                     <th className="px-4 py-3 font-medium w-32">操作</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {!filteredContent || filteredContent.length === 0 ? (
+                  {!page.content || page.content.length === 0 ? (
                     <tr>
                       <td colSpan={5} className="px-4 py-8 text-center text-slate-500 dark:text-slate-400">
                         暂无数据
                       </td>
                     </tr>
                   ) : (
-                    filteredContent.map((row) => (
+                    page.content.map((row) => (
                       <tr
                         key={row.id}
                         className="border-t border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/40"
@@ -515,7 +589,7 @@ export const SkillsListPage = ({ mode = "user" }: SkillsListPageProps) => {
                             {row.slug}
                           </div>
                         </td>
-                        <td className="px-4 py-2.5">
+                        <td className="px-4 py-2.5 whitespace-nowrap">
                           <div className="text-xs text-slate-700 dark:text-slate-200">{row.type}</div>
                           <div className="text-xs text-slate-500 dark:text-slate-400">{row.category || "—"}</div>
                         </td>

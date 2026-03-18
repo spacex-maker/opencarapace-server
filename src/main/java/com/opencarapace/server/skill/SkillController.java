@@ -5,6 +5,7 @@ import com.opencarapace.server.user.UserRepository;
 import com.opencarapace.server.user.UserSkill;
 import com.opencarapace.server.user.UserSkillRepository;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.web.PageableDefault;
 import org.springframework.http.ResponseEntity;
@@ -128,7 +129,14 @@ public class SkillController {
 
     @GetMapping
     @Transactional(readOnly = true)
-    public Page<SkillDto> list(@PageableDefault(size = 20, sort = "name") Pageable pageable) {
+    public Page<SkillDto> list(
+            @RequestParam(name = "status", required = false) String status,
+            @RequestParam(name = "type", required = false) String type,
+            @RequestParam(name = "category", required = false) String category,
+            @RequestParam(name = "keyword", required = false) String keyword,
+            @RequestParam(name = "userEnabled", required = false) String userEnabled,
+            @PageableDefault(size = 20, sort = "name") Pageable pageable
+    ) {
         Long userId = getCurrentUserId();
         java.util.Map<String, Boolean> userMap = java.util.Collections.emptyMap();
         if (userId != null) {
@@ -140,8 +148,34 @@ public class SkillController {
         }
         java.util.Map<String, Boolean> finalUserMap = userMap;
 
-        return skillRepository.findAll(pageable)
-                .map(s -> SkillDto.fromEntity(s, finalUserMap.get(s.getSlug())));
+        String normalizedStatus = (status == null || status.isBlank()) ? null : status;
+        String normalizedType = (type == null || type.isBlank()) ? null : type;
+        String normalizedCategory = (category == null || category.isBlank()) ? null : category;
+        String normalizedKeyword = (keyword == null || keyword.isBlank()) ? null : keyword;
+        String ueFilter = (userEnabled == null || userEnabled.isBlank()) ? null : userEnabled;
+
+        Page<Skill> page = skillRepository.search(normalizedStatus, normalizedType, normalizedCategory, normalizedKeyword, pageable);
+        java.util.List<SkillDto> dtos = page.getContent().stream()
+                .map(s -> {
+                    Boolean ue = finalUserMap.get(s.getSlug());
+                    return SkillDto.fromEntity(s, ue);
+                })
+                .filter(dto -> {
+                    if (ueFilter == null) return true;
+                    Boolean ue = dto.userEnabled();
+                    if ("ENABLED".equalsIgnoreCase(ueFilter)) {
+                        // 启用：显式启用或未配置（默认启用）
+                        return ue == null || ue;
+                    }
+                    if ("DISABLED".equalsIgnoreCase(ueFilter)) {
+                        // 禁用：仅显式禁用
+                        return Boolean.FALSE.equals(ue);
+                    }
+                    return true;
+                })
+                .toList();
+
+        return new PageImpl<>(dtos, pageable, page.getTotalElements());
     }
 
     /**

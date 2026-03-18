@@ -97,6 +97,8 @@ export function App() {
         setError(data?.error?.message || "保存失败");
       } else {
         setMessage("保存成功，已在后台触发规则同步。");
+        // 刷新状态以更新连接状态显示
+        await refreshStatus();
       }
     } catch (e: any) {
       setError(e?.message ?? "保存失败");

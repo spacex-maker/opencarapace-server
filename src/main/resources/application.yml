@@ -8,7 +8,7 @@ spring:
       # 定时任务时区，凌晨执行按此时区
       zone: Asia/Shanghai
   datasource:
-    url: jdbc:mysql://170.106.195.25:3306/opencarapace?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai&useSSL=false&allowPublicKeyRetrieval=true
+    url: jdbc:mysql://127.0.0.1:3306/opencarapace?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai&useSSL=false&allowPublicKeyRetrieval=true
     username: claw2026
     password: AgPanopticon!2026#Db
     driver-class-name: com.mysql.cj.jdbc.Driver

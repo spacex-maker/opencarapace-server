@@ -198,7 +198,13 @@ async function forwardChatCompletions(req, res) {
       const matchedRules = dangerRows.filter((r) => {
         const p = (r.command_pattern || "").trim();
         if (!p) return false;
-        return textLower.includes(p.toLowerCase());
+        const matched = textLower.includes(p.toLowerCase());
+        if (matched) {
+          console.log(`[LLM Proxy] 规则 ${r.id} (${r.command_pattern}) 匹配到文本片段:`, 
+            textLower.substring(Math.max(0, textLower.indexOf(p.toLowerCase()) - 20), 
+                                textLower.indexOf(p.toLowerCase()) + p.length + 20));
+        }
+        return matched;
       });
 
       console.log("[LLM Proxy] 匹配到的危险指令规则:", matchedRules.map((r) => ({

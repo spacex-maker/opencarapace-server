@@ -165,6 +165,9 @@ async function syncSystemSkillsStatusFromServer(apiKey, onProgress) {
           short_desc: s.shortDesc || null,
           updated_at: s.updatedAt || null,
           source_name: s.sourceName || null,
+          safe_mark_count: s.safeMarkCount || 0,
+          unsafe_mark_count: s.unsafeMarkCount || 0,
+          user_safety_label: s.userSafetyLabel || null,
         }))
       );
     } else {
@@ -179,6 +182,9 @@ async function syncSystemSkillsStatusFromServer(apiKey, onProgress) {
           short_desc: s.shortDesc || null,
           updated_at: s.updatedAt || null,
           source_name: s.sourceName || null,
+          safe_mark_count: s.safeMarkCount || 0,
+          unsafe_mark_count: s.unsafeMarkCount || 0,
+          user_safety_label: s.userSafetyLabel || null,
         }))
       );
     }

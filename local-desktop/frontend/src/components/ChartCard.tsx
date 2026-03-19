@@ -36,18 +36,21 @@ export function ChartCard({ title, option, height = 300, loading = false }: Prop
         <div
           style={{
             height,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            color: "#64748b",
-            fontSize: 12,
+            background: "linear-gradient(90deg, #0f172a 25%, #1e293b 50%, #0f172a 75%)",
+            backgroundSize: "200% 100%",
+            animation: "shimmer 1.5s infinite",
+            borderRadius: 8,
           }}
-        >
-          加载中...
-        </div>
+        />
       ) : (
         <ReactECharts option={option} style={{ height, width: "100%" }} opts={{ renderer: "canvas" }} />
       )}
+      <style>{`
+        @keyframes shimmer {
+          0% { background-position: 200% 0; }
+          100% { background-position: -200% 0; }
+        }
+      `}</style>
     </div>
   );
 }

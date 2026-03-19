@@ -98,6 +98,9 @@ export function SkillsPanel() {
       shortDesc: string | null;
       userEnabled: number | null;
       sourceName: string | null;
+      safeMarkCount: number;
+      unsafeMarkCount: number;
+      userSafetyLabel: "SAFE" | "UNSAFE" | null;
     }[]
   >([]);
   const [sync, setSync] = useState<{ running: boolean; total: number; synced: number }>({
@@ -221,6 +224,55 @@ export function SkillsPanel() {
       setTimeout(() => setError(null), 3000);
     } finally {
       setUpdatingSlug(null);
+    }
+  };
+
+  const setSafetyLabel = async (slug: string, label: "SAFE" | "UNSAFE") => {
+    setError(null);
+    setMessage(null);
+    try {
+      const target = skills.find((s) => s.slug === slug);
+      if (!target) return;
+      if (target.userSafetyLabel === label) return;
+      const prev = target.userSafetyLabel;
+      setSkills((prevSkills) =>
+        prevSkills.map((s) =>
+          s.slug === slug
+            ? {
+                ...s,
+                userSafetyLabel: label,
+                safeMarkCount: Math.max(0, s.safeMarkCount + (label === "SAFE" ? 1 : 0) - (prev === "SAFE" ? 1 : 0)),
+                unsafeMarkCount: Math.max(0, s.unsafeMarkCount + (label === "UNSAFE" ? 1 : 0) - (prev === "UNSAFE" ? 1 : 0)),
+              }
+            : s,
+        ),
+      );
+      const res = await fetch(`http://127.0.0.1:19111/api/user-skills/${encodeURIComponent(slug)}/safety-label`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ label }),
+      });
+      if (!res.ok) {
+        setSkills((prevSkills) =>
+          prevSkills.map((s) =>
+            s.slug === slug
+              ? {
+                  ...s,
+                  userSafetyLabel: prev,
+                  safeMarkCount: Math.max(0, s.safeMarkCount + (prev === "SAFE" ? 1 : 0) - (label === "SAFE" ? 1 : 0)),
+                  unsafeMarkCount: Math.max(0, s.unsafeMarkCount + (prev === "UNSAFE" ? 1 : 0) - (label === "UNSAFE" ? 1 : 0)),
+                }
+              : s,
+          ),
+        );
+        const data = await res.json().catch(() => ({}));
+        setError(data?.error?.message || "更新技能打标失败");
+        return;
+      }
+      setMessage(`已标记为${label === "SAFE" ? "安全" : "不安全"}`);
+      setTimeout(() => setMessage(null), 2000);
+    } catch (e: any) {
+      setError(e?.message ?? "更新技能打标失败");
     }
   };
 
@@ -458,6 +510,7 @@ export function SkillsPanel() {
               <th style={{ padding: "6px 8px", borderBottom: "1px solid #1f2937", textAlign: "left" }}>名称</th>
               <th style={{ padding: "6px 8px", borderBottom: "1px solid #1f2937", textAlign: "left" }}>提供商</th>
               <th style={{ padding: "6px 8px", borderBottom: "1px solid #1f2937", textAlign: "left" }}>状态</th>
+              <th style={{ padding: "6px 8px", borderBottom: "1px solid #1f2937", textAlign: "left" }}>打标</th>
               <th style={{ padding: "6px 8px", borderBottom: "1px solid #1f2937", textAlign: "left" }}>简介</th>
               <th style={{ padding: "6px 8px", borderBottom: "1px solid #1f2937", textAlign: "left", width: 80 }}>启用</th>
               <th style={{ padding: "6px 8px", borderBottom: "1px solid #1f2937", width: 80 }} />
@@ -552,6 +605,43 @@ export function SkillsPanel() {
                       : "正常"}
                   </span>
                 </td>
+                <td style={{ padding: "6px 8px", borderBottom: "1px solid #111827", whiteSpace: "nowrap" }}>
+                  <div style={{ display: "flex", gap: 4, marginBottom: 4 }}>
+                    <button
+                      type="button"
+                      onClick={() => setSafetyLabel(s.slug, "SAFE")}
+                      style={{
+                        padding: "2px 8px",
+                        borderRadius: 999,
+                        border: s.userSafetyLabel === "SAFE" ? "1px solid rgba(34,197,94,0.5)" : "1px solid #374151",
+                        background: s.userSafetyLabel === "SAFE" ? "rgba(34,197,94,0.15)" : "transparent",
+                        color: s.userSafetyLabel === "SAFE" ? "#86efac" : "#9ca3af",
+                        fontSize: 10,
+                        cursor: "pointer",
+                      }}
+                    >
+                      安全
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setSafetyLabel(s.slug, "UNSAFE")}
+                      style={{
+                        padding: "2px 8px",
+                        borderRadius: 999,
+                        border: s.userSafetyLabel === "UNSAFE" ? "1px solid rgba(239,68,68,0.5)" : "1px solid #374151",
+                        background: s.userSafetyLabel === "UNSAFE" ? "rgba(239,68,68,0.15)" : "transparent",
+                        color: s.userSafetyLabel === "UNSAFE" ? "#fca5a5" : "#9ca3af",
+                        fontSize: 10,
+                        cursor: "pointer",
+                      }}
+                    >
+                      不安全
+                    </button>
+                  </div>
+                  <div style={{ fontSize: 10, color: "#6b7280" }}>
+                    安全 {s.safeMarkCount || 0} / 不安全 {s.unsafeMarkCount || 0}
+                  </div>
+                </td>
                 <td
                   style={{
                     padding: "6px 8px",
@@ -638,7 +728,7 @@ export function SkillsPanel() {
             {skills.length === 0 && !loading && (
               <tr>
                 <td
-                  colSpan={3}
+                  colSpan={7}
                   style={{ padding: "8px 10px", textAlign: "center", color: "#6b7280", background: "#020617" }}
                 >
                   当前本地还没有任何技能状态数据（系统禁用 / 不推荐 / 用户自定义）。

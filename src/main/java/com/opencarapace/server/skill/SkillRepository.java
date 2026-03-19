@@ -13,6 +13,7 @@ import java.util.Optional;
 public interface SkillRepository extends JpaRepository<Skill, Long> {
 
     Optional<Skill> findBySourceIdAndExternalId(Long sourceId, String externalId);
+    Optional<Skill> findBySlug(String slug);
 
     @Query("select s.slug from Skill s where s.status = :status")
     List<String> findSlugsByStatus(@Param("status") String status);

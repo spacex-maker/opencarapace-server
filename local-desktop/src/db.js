@@ -71,6 +71,12 @@ function getDb() {
       )`
     );
     db.run(
+      `CREATE TABLE IF NOT EXISTS user_skill_safety_labels (
+        slug TEXT PRIMARY KEY,
+        label TEXT NOT NULL
+      )`
+    );
+    db.run(
       `CREATE TABLE IF NOT EXISTS local_auth (
         id INTEGER PRIMARY KEY CHECK (id = 1),
         email TEXT NOT NULL,
@@ -114,6 +120,9 @@ function getDb() {
     db.run("ALTER TABLE skills ADD COLUMN type TEXT", () => {});
     db.run("ALTER TABLE skills ADD COLUMN category TEXT", () => {});
     db.run("ALTER TABLE skills ADD COLUMN short_desc TEXT", () => {});
+    db.run("ALTER TABLE skills ADD COLUMN safe_mark_count INTEGER NOT NULL DEFAULT 0", () => {});
+    db.run("ALTER TABLE skills ADD COLUMN unsafe_mark_count INTEGER NOT NULL DEFAULT 0", () => {});
+    db.run("ALTER TABLE skills ADD COLUMN user_safety_label TEXT", () => {});
   });
   return db;
 }
@@ -360,7 +369,7 @@ function replaceSkills(rows) {
     database.serialize(() => {
       database.run("DELETE FROM skills");
       const stmt = database.prepare(
-        "INSERT INTO skills (id, slug, name, type, category, status, short_desc, updated_at, source_name) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)"
+        "INSERT INTO skills (id, slug, name, type, category, status, short_desc, updated_at, source_name, safe_mark_count, unsafe_mark_count, user_safety_label) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
       );
       for (const r of rows) {
         stmt.run(
@@ -373,6 +382,9 @@ function replaceSkills(rows) {
           r.short_desc || null,
           r.updated_at || null,
           r.source_name || null,
+          r.safe_mark_count || 0,
+          r.unsafe_mark_count || 0,
+          r.user_safety_label || null,
           (err) => {
             if (err) reject(err);
           }
@@ -391,8 +403,8 @@ function upsertSkills(rows) {
   return new Promise((resolve, reject) => {
     database.serialize(() => {
       const stmt = database.prepare(
-        `INSERT INTO skills (id, slug, name, type, category, status, short_desc, updated_at, source_name)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `INSERT INTO skills (id, slug, name, type, category, status, short_desc, updated_at, source_name, safe_mark_count, unsafe_mark_count, user_safety_label)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
          ON CONFLICT(slug) DO UPDATE SET
            id = excluded.id,
            name = excluded.name,
@@ -401,7 +413,10 @@ function upsertSkills(rows) {
            status = excluded.status,
            short_desc = excluded.short_desc,
            updated_at = excluded.updated_at,
-           source_name = excluded.source_name`
+           source_name = excluded.source_name,
+           safe_mark_count = excluded.safe_mark_count,
+           unsafe_mark_count = excluded.unsafe_mark_count,
+           user_safety_label = excluded.user_safety_label`
       );
       for (const r of rows) {
         stmt.run(
@@ -414,6 +429,9 @@ function upsertSkills(rows) {
           r.short_desc || null,
           r.updated_at || null,
           r.source_name || null,
+          r.safe_mark_count || 0,
+          r.unsafe_mark_count || 0,
+          r.user_safety_label || null,
           (err) => {
             if (err) reject(err);
           }
@@ -521,6 +539,22 @@ function upsertUserSkill(slug, enabled) {
        VALUES (?, ?)
        ON CONFLICT(slug) DO UPDATE SET enabled = excluded.enabled`,
       [slug, enabled ? 1 : 0],
+      (err) => {
+        if (err) reject(err);
+        else resolve();
+      }
+    );
+  });
+}
+
+function upsertUserSkillSafetyLabel(slug, label) {
+  const database = getDb();
+  return new Promise((resolve, reject) => {
+    database.run(
+      `INSERT INTO user_skill_safety_labels (slug, label)
+       VALUES (?, ?)
+       ON CONFLICT(slug) DO UPDATE SET label = excluded.label`,
+      [slug, String(label || "").toUpperCase()],
       (err) => {
         if (err) reject(err);
         else resolve();
@@ -693,6 +727,7 @@ module.exports = {
   ensureDefaultLlmMappings,
   replaceUserSkills,
   upsertUserSkill,
+  upsertUserSkillSafetyLabel,
   getSyncUserSkillsToCloud,
   saveSyncUserSkillsToCloud,
   getLocalAuth,

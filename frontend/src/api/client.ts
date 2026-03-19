@@ -172,6 +172,12 @@ export interface SkillItem {
   updatedAt?: string;
   /** 用户级启用状态；null 表示未配置（默认启用） */
   userEnabled?: boolean | null;
+  /** 该技能被用户打上“安全”标签的总数 */
+  safeMarkCount?: number;
+  /** 该技能被用户打上“不安全”标签的总数 */
+  unsafeMarkCount?: number;
+  /** 当前用户对该技能的打标状态：SAFE / UNSAFE / null */
+  userSafetyLabel?: "SAFE" | "UNSAFE" | null;
 }
 
 export interface SkillPage {
@@ -233,6 +239,21 @@ export async function fetchMyUserSkills(): Promise<UserSkillPref[]> {
 export async function setMyUserSkill(slug: string, enabled: boolean): Promise<UserSkillPref> {
   const { data } = await api.put<UserSkillPref>(`/api/user-skills/me/${encodeURIComponent(slug)}`, {
     enabled,
+  });
+  return data;
+}
+
+export interface UserSkillSafetyLabelPref {
+  slug: string;
+  label: "SAFE" | "UNSAFE";
+}
+
+export async function setMySkillSafetyLabel(
+  slug: string,
+  label: "SAFE" | "UNSAFE",
+): Promise<UserSkillSafetyLabelPref> {
+  const { data } = await api.put<UserSkillSafetyLabelPref>(`/api/user-skills/me/${encodeURIComponent(slug)}/safety-label`, {
+    label,
   });
   return data;
 }

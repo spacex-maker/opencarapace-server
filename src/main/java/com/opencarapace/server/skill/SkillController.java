@@ -1,8 +1,8 @@
 package com.opencarapace.server.skill;
 
-import com.opencarapace.server.user.User;
-import com.opencarapace.server.user.UserRepository;
 import com.opencarapace.server.user.UserSkill;
+import com.opencarapace.server.user.UserSkillSafetyLabel;
+import com.opencarapace.server.user.UserSkillSafetyLabelRepository;
 import com.opencarapace.server.user.UserSkillRepository;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
@@ -30,14 +30,14 @@ public class SkillController {
 
     private final SkillRepository skillRepository;
     private final UserSkillRepository userSkillRepository;
-    private final UserRepository userRepository;
+    private final UserSkillSafetyLabelRepository userSkillSafetyLabelRepository;
 
     public SkillController(SkillRepository skillRepository,
                            UserSkillRepository userSkillRepository,
-                           UserRepository userRepository) {
+                           UserSkillSafetyLabelRepository userSkillSafetyLabelRepository) {
         this.skillRepository = skillRepository;
         this.userSkillRepository = userSkillRepository;
-        this.userRepository = userRepository;
+        this.userSkillSafetyLabelRepository = userSkillSafetyLabelRepository;
     }
 
     public record SkillDto(
@@ -56,6 +56,9 @@ public class SkillController {
             String lastSyncAt,
             String createdAt,
             String updatedAt,
+            Long safeMarkCount,
+            Long unsafeMarkCount,
+            String userSafetyLabel,
             /**
              * 当前登录用户是否启用该 skill：
              * - true/false：有显式用户配置
@@ -63,7 +66,7 @@ public class SkillController {
              */
             Boolean userEnabled
     ) {
-        static SkillDto fromEntity(Skill s, Boolean userEnabled) {
+        static SkillDto fromEntity(Skill s, Boolean userEnabled, String userSafetyLabel) {
             String sourceName = null;
             if (s.getSource() != null) {
                 sourceName = s.getSource().getName();
@@ -84,6 +87,9 @@ public class SkillController {
                     s.getLastSyncAt() != null ? s.getLastSyncAt().toString() : null,
                     s.getCreatedAt() != null ? s.getCreatedAt().toString() : null,
                     s.getUpdatedAt() != null ? s.getUpdatedAt().toString() : null,
+                    s.getSafeMarkCount() != null ? s.getSafeMarkCount() : 0L,
+                    s.getUnsafeMarkCount() != null ? s.getUnsafeMarkCount() : 0L,
+                    userSafetyLabel,
                     userEnabled
             );
         }
@@ -102,9 +108,12 @@ public class SkillController {
             String installHint,
             String sourceName,
             String version,
+            Long safeMarkCount,
+            Long unsafeMarkCount,
+            String userSafetyLabel,
             Boolean userEnabled
     ) {
-        static MergedSkillDto from(Skill s, Boolean userEnabled) {
+        static MergedSkillDto from(Skill s, Boolean userEnabled, String userSafetyLabel) {
             String sourceName = null;
             if (s.getSource() != null) {
                 sourceName = s.getSource().getName();
@@ -122,6 +131,9 @@ public class SkillController {
                     s.getInstallHint(),
                     sourceName,
                     s.getVersion(),
+                    s.getSafeMarkCount() != null ? s.getSafeMarkCount() : 0L,
+                    s.getUnsafeMarkCount() != null ? s.getUnsafeMarkCount() : 0L,
+                    userSafetyLabel,
                     userEnabled
             );
         }
@@ -147,6 +159,15 @@ public class SkillController {
             }
         }
         java.util.Map<String, Boolean> finalUserMap = userMap;
+        java.util.Map<String, String> userSafetyLabelMap = java.util.Collections.emptyMap();
+        if (userId != null) {
+            java.util.List<UserSkillSafetyLabel> labels = userSkillSafetyLabelRepository.findByUserId(userId);
+            userSafetyLabelMap = new java.util.HashMap<>();
+            for (UserSkillSafetyLabel label : labels) {
+                userSafetyLabelMap.put(label.getSkillSlug(), label.getLabel());
+            }
+        }
+        java.util.Map<String, String> finalUserSafetyLabelMap = userSafetyLabelMap;
 
         String normalizedStatus = (status == null || status.isBlank()) ? null : status;
         String normalizedType = (type == null || type.isBlank()) ? null : type;
@@ -158,7 +179,8 @@ public class SkillController {
         java.util.List<SkillDto> dtos = page.getContent().stream()
                 .map(s -> {
                     Boolean ue = finalUserMap.get(s.getSlug());
-                    return SkillDto.fromEntity(s, ue);
+                    String label = finalUserSafetyLabelMap.get(s.getSlug());
+                    return SkillDto.fromEntity(s, ue, label);
                 })
                 .filter(dto -> {
                     if (ueFilter == null) return true;
@@ -196,10 +218,20 @@ public class SkillController {
             }
         }
         java.util.Map<String, Boolean> finalUserMap = userMap;
+        java.util.Map<String, String> userSafetyLabelMap = java.util.Collections.emptyMap();
+        if (userId != null) {
+            java.util.List<UserSkillSafetyLabel> labels = userSkillSafetyLabelRepository.findByUserId(userId);
+            userSafetyLabelMap = new java.util.HashMap<>();
+            for (UserSkillSafetyLabel label : labels) {
+                userSafetyLabelMap.put(label.getSkillSlug(), label.getLabel());
+            }
+        }
+        java.util.Map<String, String> finalUserSafetyLabelMap = userSafetyLabelMap;
         return skillRepository.findAll(pageable)
                 .map(s -> {
                     Boolean ue = finalUserMap.get(s.getSlug());
-                    return MergedSkillDto.from(s, ue);
+                    String label = finalUserSafetyLabelMap.get(s.getSlug());
+                    return MergedSkillDto.from(s, ue, label);
                 });
     }
 
@@ -223,6 +255,15 @@ public class SkillController {
             }
         }
         java.util.Map<String, Boolean> finalUserMap = userMap;
+        java.util.Map<String, String> userSafetyLabelMap = java.util.Collections.emptyMap();
+        if (userId != null) {
+            java.util.List<UserSkillSafetyLabel> labels = userSkillSafetyLabelRepository.findByUserId(userId);
+            userSafetyLabelMap = new java.util.HashMap<>();
+            for (UserSkillSafetyLabel label : labels) {
+                userSafetyLabelMap.put(label.getSkillSlug(), label.getLabel());
+            }
+        }
+        java.util.Map<String, String> finalUserSafetyLabelMap = userSafetyLabelMap;
 
         Instant instant = null;
         if (updatedAfter != null && !updatedAfter.isBlank()) {
@@ -242,7 +283,8 @@ public class SkillController {
 
         return page.map(s -> {
             Boolean ue = finalUserMap.get(s.getSlug());
-            return MergedSkillDto.from(s, ue);
+            String label = finalUserSafetyLabelMap.get(s.getSlug());
+            return MergedSkillDto.from(s, ue, label);
         });
     }
 
@@ -277,9 +319,18 @@ public class SkillController {
             }
         }
         java.util.Map<String, Boolean> finalUserMap = userMap;
+        java.util.Map<String, String> userSafetyLabelMap = java.util.Collections.emptyMap();
+        if (userId != null) {
+            java.util.List<UserSkillSafetyLabel> labels = userSkillSafetyLabelRepository.findByUserId(userId);
+            userSafetyLabelMap = new java.util.HashMap<>();
+            for (UserSkillSafetyLabel label : labels) {
+                userSafetyLabelMap.put(label.getSkillSlug(), label.getLabel());
+            }
+        }
+        java.util.Map<String, String> finalUserSafetyLabelMap = userSafetyLabelMap;
 
         return skillRepository.findById(id)
-                .map(s -> SkillDto.fromEntity(s, finalUserMap.get(s.getSlug())))
+                .map(s -> SkillDto.fromEntity(s, finalUserMap.get(s.getSlug()), finalUserSafetyLabelMap.get(s.getSlug())))
                 .map(ResponseEntity::ok)
                 .orElse(ResponseEntity.notFound().build());
     }

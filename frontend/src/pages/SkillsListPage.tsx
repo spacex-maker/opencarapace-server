@@ -4,6 +4,7 @@ import {
   updateSkill,
   manualFullSyncClawhubSkills,
   setMyUserSkill,
+  setMySkillSafetyLabel,
   type SkillItem,
   type SkillPage,
   type UpdateSkillDto,
@@ -562,7 +563,7 @@ export const SkillsListPage = ({ mode = "user" }: SkillsListPageProps) => {
                   <tr className="bg-slate-100 dark:bg-slate-800/80 text-slate-700 dark:text-slate-300 text-left">
                     <th className="px-4 py-3 font-medium">名称</th>
                     <th className="px-4 py-3 font-medium">类型/分类</th>
-                    <th className="px-4 py-3 font-medium">状态</th>
+                    <th className="px-4 py-3 font-medium">状态 / 打标</th>
                     <th className="px-4 py-3 font-medium">简介</th>
                     <th className="px-4 py-3 font-medium w-32">启用</th>
                     <th className="px-4 py-3 font-medium w-32">操作</th>
@@ -594,9 +595,134 @@ export const SkillsListPage = ({ mode = "user" }: SkillsListPageProps) => {
                           <div className="text-xs text-slate-500 dark:text-slate-400">{row.category || "—"}</div>
                         </td>
                         <td className="px-4 py-2.5">
-                          <span className="inline-flex items-center px-2 py-0.5 rounded border border-slate-300 dark:border-slate-600 text-xs text-slate-700 dark:text-slate-200">
-                            {row.status}
-                          </span>
+                          <div className="space-y-1.5">
+                            <span className="inline-flex items-center px-2 py-0.5 rounded border border-slate-300 dark:border-slate-600 text-xs text-slate-700 dark:text-slate-200">
+                              {row.status}
+                            </span>
+                            <div className="text-[11px] text-slate-500 dark:text-slate-400">
+                              安全 {row.safeMarkCount ?? 0} / 不安全 {row.unsafeMarkCount ?? 0}
+                            </div>
+                            {user ? (
+                              <div className="inline-flex items-center gap-1">
+                                <button
+                                  type="button"
+                                  onClick={async () => {
+                                    const prev = row.userSafetyLabel ?? null;
+                                    const prevSafeCount = row.safeMarkCount ?? 0;
+                                    const prevUnsafeCount = row.unsafeMarkCount ?? 0;
+                                    const next: "SAFE" | "UNSAFE" = "SAFE";
+                                    if (prev === next) return;
+                                    setPage((p) =>
+                                      p
+                                        ? {
+                                            ...p,
+                                            content: p.content.map((s) =>
+                                              s.id === row.id
+                                                ? {
+                                                    ...s,
+                                                    userSafetyLabel: next,
+                                                    safeMarkCount:
+                                                      (s.safeMarkCount ?? 0) + (next === "SAFE" ? 1 : prev === "SAFE" ? -1 : 0),
+                                                    unsafeMarkCount:
+                                                      (s.unsafeMarkCount ?? 0) + (next === "UNSAFE" ? 1 : prev === "UNSAFE" ? -1 : 0),
+                                                  }
+                                                : s,
+                                            ),
+                                          }
+                                        : p,
+                                    );
+                                    try {
+                                      await setMySkillSafetyLabel(row.slug, next);
+                                    } catch {
+                                      setPage((p) =>
+                                        p
+                                          ? {
+                                              ...p,
+                                              content: p.content.map((s) =>
+                                                s.id === row.id
+                                                  ? {
+                                                      ...s,
+                                                      userSafetyLabel: prev,
+                                                      safeMarkCount: prevSafeCount,
+                                                      unsafeMarkCount: prevUnsafeCount,
+                                                    }
+                                                  : s,
+                                              ),
+                                            }
+                                          : p,
+                                      );
+                                    }
+                                  }}
+                                  className={`px-2 py-0.5 rounded text-[11px] border ${
+                                    row.userSafetyLabel === "SAFE"
+                                      ? "bg-emerald-500/15 text-emerald-600 dark:text-emerald-300 border-emerald-500/40"
+                                      : "bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 border-slate-300 dark:border-slate-600"
+                                  }`}
+                                >
+                                  安全
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={async () => {
+                                    const prev = row.userSafetyLabel ?? null;
+                                    const prevSafeCount = row.safeMarkCount ?? 0;
+                                    const prevUnsafeCount = row.unsafeMarkCount ?? 0;
+                                    const next: "SAFE" | "UNSAFE" = "UNSAFE";
+                                    if (prev === next) return;
+                                    setPage((p) =>
+                                      p
+                                        ? {
+                                            ...p,
+                                            content: p.content.map((s) =>
+                                              s.id === row.id
+                                                ? {
+                                                    ...s,
+                                                    userSafetyLabel: next,
+                                                    safeMarkCount:
+                                                      (s.safeMarkCount ?? 0) + (next === "SAFE" ? 1 : prev === "SAFE" ? -1 : 0),
+                                                    unsafeMarkCount:
+                                                      (s.unsafeMarkCount ?? 0) + (next === "UNSAFE" ? 1 : prev === "UNSAFE" ? -1 : 0),
+                                                  }
+                                                : s,
+                                            ),
+                                          }
+                                        : p,
+                                    );
+                                    try {
+                                      await setMySkillSafetyLabel(row.slug, next);
+                                    } catch {
+                                      setPage((p) =>
+                                        p
+                                          ? {
+                                              ...p,
+                                              content: p.content.map((s) =>
+                                                s.id === row.id
+                                                  ? {
+                                                      ...s,
+                                                      userSafetyLabel: prev,
+                                                      safeMarkCount: prevSafeCount,
+                                                      unsafeMarkCount: prevUnsafeCount,
+                                                    }
+                                                  : s,
+                                              ),
+                                            }
+                                          : p,
+                                      );
+                                    }
+                                  }}
+                                  className={`px-2 py-0.5 rounded text-[11px] border ${
+                                    row.userSafetyLabel === "UNSAFE"
+                                      ? "bg-red-500/15 text-red-600 dark:text-red-300 border-red-500/40"
+                                      : "bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 border-slate-300 dark:border-slate-600"
+                                  }`}
+                                >
+                                  不安全
+                                </button>
+                              </div>
+                            ) : (
+                              <div className="text-[11px] text-slate-400">登录后可打标</div>
+                            )}
+                          </div>
                         </td>
                         <td className="px-4 py-2.5 max-w-[260px]">
                           <div

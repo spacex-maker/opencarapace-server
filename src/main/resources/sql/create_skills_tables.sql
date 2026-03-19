@@ -23,6 +23,8 @@ CREATE TABLE IF NOT EXISTS oc_skills (
     tags          TEXT         NULL COMMENT '标签',
     homepage_url  TEXT         NULL COMMENT '详情/文档地址',
     install_hint  TEXT         NULL COMMENT '安装提示，如 npx @clawheart/xxx',
+    safe_mark_count BIGINT     NOT NULL DEFAULT 0 COMMENT '用户标记为安全的总数',
+    unsafe_mark_count BIGINT   NOT NULL DEFAULT 0 COMMENT '用户标记为不安全的总数',
     manifest_json JSON         NULL COMMENT '原始 manifest（JSON）',
     last_sync_at  DATETIME(6)  NULL COMMENT '最近同步时间',
     created_at    DATETIME(6)  NULL,
@@ -43,4 +45,16 @@ CREATE TABLE IF NOT EXISTS oc_user_skills (
     CONSTRAINT fk_oc_user_skills_user FOREIGN KEY (user_id) REFERENCES oc_users (id),
     CONSTRAINT fk_oc_user_skills_skill_slug FOREIGN KEY (skill_slug) REFERENCES oc_skills (slug)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='用户自定义技能启用设置';
+
+CREATE TABLE IF NOT EXISTS oc_user_skill_safety_labels (
+    id         BIGINT       NOT NULL AUTO_INCREMENT PRIMARY KEY,
+    user_id    BIGINT       NOT NULL COMMENT 'oc_users.id',
+    skill_slug VARCHAR(255) NOT NULL COMMENT 'oc_skills.slug',
+    label      VARCHAR(16)  NOT NULL COMMENT 'SAFE 或 UNSAFE',
+    created_at DATETIME(6)  NULL,
+    updated_at DATETIME(6)  NULL,
+    UNIQUE KEY uk_user_skill_label (user_id, skill_slug),
+    CONSTRAINT fk_oc_user_skill_labels_user FOREIGN KEY (user_id) REFERENCES oc_users (id),
+    CONSTRAINT fk_oc_user_skill_labels_skill_slug FOREIGN KEY (skill_slug) REFERENCES oc_skills (slug)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='用户技能安全打标记录';
 

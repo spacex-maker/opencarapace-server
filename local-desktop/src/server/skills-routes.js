@@ -1,5 +1,5 @@
 const axios = require("axios");
-const { getDb, getLocalSettings, getLocalAuth, upsertUserSkill, getSyncUserSkillsToCloud } = require("../db.js");
+const { getDb, getLocalSettings, getLocalAuth, upsertUserSkill, upsertUserSkillSafetyLabel, getSyncUserSkillsToCloud } = require("../db.js");
 const { syncSystemSkillsStatusFromServer, syncUserSkillsFromServer, syncDangerCommandsFromServer, syncUserDangerCommandsFromServer } = require("../sync.js");
 const { syncState, startSkillsProgress, finishSkillsProgress, updateDangerProgress, finishDangerProgress } = require("./sync-state.js");
 
@@ -8,7 +8,7 @@ function registerSkillsRoutes(app) {
     const { keyword, systemStatus, userEnabled } = req.query || {};
     const db = getDb();
     db.serialize(() => {
-      db.all("SELECT id, slug, name, type, category, status, short_desc, source_name FROM skills", (err0, skillRows = []) => {
+      db.all("SELECT id, slug, name, type, category, status, short_desc, source_name, safe_mark_count, unsafe_mark_count, user_safety_label FROM skills", (err0, skillRows = []) => {
         if (err0) {
           res.status(500).json({ error: { message: err0.message || "读取 skills 失败" } });
           return;
@@ -34,6 +34,9 @@ function registerSkillsRoutes(app) {
               shortDesc: r.short_desc || null,
               userEnabled,
               sourceName: r.source_name || null,
+              safeMarkCount: Number(r.safe_mark_count || 0),
+              unsafeMarkCount: Number(r.unsafe_mark_count || 0),
+              userSafetyLabel: r.user_safety_label || null,
             };
           });
 
@@ -123,6 +126,7 @@ function registerSkillsRoutes(app) {
         db.serialize(() => {
           db.run("DELETE FROM skills");
           db.run("DELETE FROM user_skills");
+          db.run("DELETE FROM user_skill_safety_labels");
           db.run("DELETE FROM disabled_skills");
           db.run("DELETE FROM deprecated_skills", (err) => {
             if (err) reject(err);
@@ -172,6 +176,65 @@ function registerSkillsRoutes(app) {
       res.status(200).json({ ok: true });
     } catch (e) {
       res.status(500).json({ error: { message: e?.message ?? "更新用户技能失败" } });
+    }
+  });
+
+  app.put("/api/user-skills/:slug/safety-label", async (req, res) => {
+    try {
+      const slug = req.params.slug;
+      const { label } = req.body || {};
+      if (label !== "SAFE" && label !== "UNSAFE") {
+        res.status(400).json({ error: { message: "label 必须是 SAFE 或 UNSAFE" } });
+        return;
+      }
+
+      const db = getDb();
+      const current = await new Promise((resolve) => {
+        db.get("SELECT user_safety_label, safe_mark_count, unsafe_mark_count FROM skills WHERE slug = ?", [slug], (_e, row) => resolve(row || null));
+      });
+      if (!current) {
+        res.status(404).json({ error: { message: "技能不存在" } });
+        return;
+      }
+
+      const prev = current.user_safety_label || null;
+      const safe = Number(current.safe_mark_count || 0);
+      const unsafe = Number(current.unsafe_mark_count || 0);
+      const nextSafe = safe + (label === "SAFE" ? 1 : 0) - (prev === "SAFE" ? 1 : 0);
+      const nextUnsafe = unsafe + (label === "UNSAFE" ? 1 : 0) - (prev === "UNSAFE" ? 1 : 0);
+      await new Promise((resolve, reject) => {
+        db.run(
+          "UPDATE skills SET user_safety_label = ?, safe_mark_count = ?, unsafe_mark_count = ? WHERE slug = ?",
+          [label, Math.max(0, nextSafe), Math.max(0, nextUnsafe), slug],
+          (err) => (err ? reject(err) : resolve())
+        );
+      });
+      await upsertUserSkillSafetyLabel(slug, label);
+
+      const syncToCloud = await getSyncUserSkillsToCloud();
+      if (syncToCloud === 1) {
+        try {
+          const settings = await getLocalSettings();
+          const auth = await getLocalAuth();
+          const apiBase = (settings && settings.apiBase) || "https://api.clawheart.live";
+          if (auth && auth.token) {
+            await axios.put(
+              `${apiBase}/api/user-skills/me/${encodeURIComponent(slug)}/safety-label`,
+              { label },
+              {
+                headers: { Authorization: `Bearer ${auth.token}` },
+                validateStatus: () => true,
+              }
+            );
+          }
+        } catch {
+          // ignore cloud sync failure
+        }
+      }
+
+      res.status(200).json({ ok: true });
+    } catch (e) {
+      res.status(500).json({ error: { message: e?.message ?? "更新用户技能打标失败" } });
     }
   });
 

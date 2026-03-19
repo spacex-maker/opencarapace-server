@@ -58,6 +58,12 @@ public class Skill {
     @Column(name = "install_hint", columnDefinition = "TEXT")
     private String installHint;
 
+    @Column(name = "safe_mark_count", nullable = false)
+    private Long safeMarkCount = 0L;
+
+    @Column(name = "unsafe_mark_count", nullable = false)
+    private Long unsafeMarkCount = 0L;
+
     @Column(name = "manifest_json", columnDefinition = "JSON")
     private String manifestJson;
 

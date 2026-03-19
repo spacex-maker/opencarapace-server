@@ -52,8 +52,8 @@ public class DashboardController {
     @GetMapping("/token-usage-timeline")
     public ResponseEntity<?> getTokenUsageTimeline(
             @RequestHeader(value = "Authorization", required = false) String authHeader,
-            @RequestParam(defaultValue = "24h") String range,
-            @RequestParam(defaultValue = "hour") String granularity) {
+            @RequestParam(name = "range", defaultValue = "24h") String range,
+            @RequestParam(name = "granularity", defaultValue = "hour") String granularity) {
         User user = getUserFromAuth(authHeader);
         if (user == null) {
             return ResponseEntity.status(401).body(Map.of("error", "未授权"));
@@ -64,8 +64,8 @@ public class DashboardController {
     @GetMapping("/intercept-timeline")
     public ResponseEntity<?> getInterceptTimeline(
             @RequestHeader(value = "Authorization", required = false) String authHeader,
-            @RequestParam(defaultValue = "24h") String range,
-            @RequestParam(defaultValue = "hour") String granularity) {
+            @RequestParam(name = "range", defaultValue = "24h") String range,
+            @RequestParam(name = "granularity", defaultValue = "hour") String granularity) {
         User user = getUserFromAuth(authHeader);
         if (user == null) {
             return ResponseEntity.status(401).body(Map.of("error", "未授权"));

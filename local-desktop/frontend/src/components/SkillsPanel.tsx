@@ -6,6 +6,7 @@ function FilterSelect(props: {
   options: { label: string; value: string }[];
   placeholder: string;
 }) {
+  const controlHeight = 36;
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement | null>(null);
   useEffect(() => {
@@ -26,18 +27,23 @@ function FilterSelect(props: {
         onClick={() => setOpen((v) => !v)}
         style={{
           width: "100%",
-          padding: "6px 10px",
+          height: controlHeight,
+          padding: "0 12px",
           borderRadius: 999,
-          border: "1px solid #1f2937",
-          background: "#020617",
+          border: "1px solid #334155",
+          background: "rgba(2,6,23,0.86)",
           color: props.value ? "#e5e7eb" : "#6b7280",
-          fontSize: 11,
-          textAlign: "left",
+          fontSize: 12,
+          fontWeight: 500,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
           cursor: "pointer",
+          boxSizing: "border-box",
         }}
       >
-        {current}
-        <span style={{ float: "right", color: "#6b7280" }}>{open ? "▲" : "▼"}</span>
+        <span style={{ lineHeight: 1 }}>{current}</span>
+        <span style={{ color: "#6b7280", lineHeight: 1 }}>{open ? "▲" : "▼"}</span>
       </button>
       {open && (
         <div
@@ -281,13 +287,47 @@ export function SkillsPanel() {
     setDetailError(null);
     setDetailLoading(true);
     try {
-      const res = await fetch(`http://127.0.0.1:19111/api/skills/detail/${encodeURIComponent(slug)}`);
-      const data = await res.json();
-      if (!res.ok) {
-        setDetailError(data?.error?.message || "加载详情失败");
-      } else {
-        setDetail(data);
+      // 详情直连云端：使用用户配置的 apiBase + 本地保存的 token
+      const statusRes = await fetch("http://127.0.0.1:19111/api/status");
+      const statusJson = await statusRes.json().catch(() => ({}));
+      const apiBaseRaw = statusJson?.settings?.apiBase || "https://api.clawheart.live";
+      const apiBase = String(apiBaseRaw).replace(/\/+$/, "");
+      const token = statusJson?.auth?.token ? String(statusJson.auth.token) : null;
+
+      if (!token) {
+        setDetailError("请先登录（缺少本地 token）");
+        return;
       }
+
+      // 先用 slug 在云端搜索到 skill id（云端详情接口按 id 查询）
+      const search = new URLSearchParams();
+      search.set("page", "0");
+      search.set("size", "1");
+      search.set("keyword", slug);
+      const searchRes = await fetch(`${apiBase}/api/skills?${search.toString()}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const searchData = await searchRes.json().catch(() => ({}));
+      if (!searchRes.ok) {
+        setDetailError(searchData?.error?.message || searchData?.message || "云端查询详情失败");
+        return;
+      }
+      const hit = Array.isArray(searchData?.content) ? searchData.content[0] : null;
+      const id = hit?.id;
+      if (!id) {
+        setDetailError("云端未找到该 skill（可能尚未同步或 slug 不匹配）");
+        return;
+      }
+
+      const res = await fetch(`${apiBase}/api/skills/${encodeURIComponent(String(id))}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setDetailError(data?.error?.message || data?.message || "加载详情失败");
+        return;
+      }
+      setDetail(data);
     } catch (e: any) {
       setDetailError(e?.message ?? "加载详情失败");
     } finally {
@@ -310,14 +350,16 @@ export function SkillsPanel() {
   return (
     <div
       style={{
-        maxWidth: 960,
+        width: "100%",
+        maxWidth: 1280,
         margin: "0 auto",
         background: "#020617",
         borderRadius: 16,
-        padding: "24px 28px",
+        padding: "clamp(12px, 2vw, 24px)",
         border: "1px solid #1f2937",
         boxShadow: "0 20px 40px rgba(15,23,42,0.6)",
         fontSize: 12,
+        boxSizing: "border-box",
       }}
     >
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
@@ -428,9 +470,14 @@ export function SkillsPanel() {
         style={{
           display: "flex",
           flexWrap: "wrap",
-          gap: 8,
+          gap: 10,
           alignItems: "center",
-          marginBottom: 12,
+          marginBottom: 14,
+          padding: "12px",
+          borderRadius: 12,
+          background: "linear-gradient(135deg, rgba(15,23,42,0.92), rgba(2,6,23,0.92))",
+          border: "1px solid #1e293b",
+          boxShadow: "inset 0 1px 0 rgba(148,163,184,0.08), 0 8px 24px rgba(2,6,23,0.28)",
         }}
       >
         <input
@@ -445,14 +492,17 @@ export function SkillsPanel() {
           placeholder="关键词（slug）"
           style={{
             flex: "1 1 260px",
-            minWidth: 240,
-            background: "#020617",
+            minWidth: 280,
+            height: 36,
+            background: "rgba(2,6,23,0.86)",
             borderRadius: 999,
-            border: "1px solid #1f2937",
-            padding: "6px 10px",
-            fontSize: 11,
-            color: "#e5e7eb",
+            border: "1px solid #334155",
+            padding: "0 14px",
+            fontSize: 12,
+            fontWeight: 500,
+            color: "#f1f5f9",
             outline: "none",
+            boxShadow: "inset 0 1px 2px rgba(0,0,0,0.45)",
           }}
         />
 
@@ -483,14 +533,21 @@ export function SkillsPanel() {
           onClick={runQuery}
           disabled={loading}
           style={{
-            padding: "6px 12px",
+            height: 36,
+            padding: "0 16px",
             borderRadius: 999,
-            border: "1px solid #1f2937",
-            background: loading ? "#111827" : "rgba(15,23,42,0.85)",
-            color: "#e5e7eb",
-            fontSize: 11,
-            fontWeight: 600,
+            border: "1px solid #334155",
+            background: loading
+              ? "linear-gradient(135deg, #111827, #0b1220)"
+              : "linear-gradient(135deg, #2563eb, #1d4ed8)",
+            color: "#f8fafc",
+            fontSize: 12,
+            fontWeight: 700,
+            boxSizing: "border-box",
             cursor: loading ? "not-allowed" : "pointer",
+            letterSpacing: "0.01em",
+            boxShadow: loading ? "none" : "0 8px 18px rgba(37,99,235,0.35)",
+            transition: "all 0.2s ease",
           }}
         >
           {loading ? "查询中…" : "查询"}
@@ -504,16 +561,55 @@ export function SkillsPanel() {
           overflow: "hidden",
         }}
       >
-        <table style={{ width: "100%", borderCollapse: "collapse" }}>
-          <thead style={{ background: "#020617" }}>
+        <div
+          className="skills-table-scroll"
+          style={{
+            height: "calc(100vh - 290px)",
+            minHeight: 320,
+            overflowY: "auto",
+            overflowX: "auto",
+            scrollbarWidth: "thin",
+            scrollbarColor: "#475569 #0b1220",
+          }}
+        >
+        <table style={{ width: "100%", minWidth: 1200, borderCollapse: "collapse" }}>
+          <thead style={{ background: "#020617", position: "sticky", top: 0, zIndex: 1 }}>
             <tr>
               <th style={{ padding: "6px 8px", borderBottom: "1px solid #1f2937", textAlign: "left" }}>名称</th>
               <th style={{ padding: "6px 8px", borderBottom: "1px solid #1f2937", textAlign: "left" }}>提供商</th>
               <th style={{ padding: "6px 8px", borderBottom: "1px solid #1f2937", textAlign: "left" }}>状态</th>
-              <th style={{ padding: "6px 8px", borderBottom: "1px solid #1f2937", textAlign: "left" }}>打标</th>
               <th style={{ padding: "6px 8px", borderBottom: "1px solid #1f2937", textAlign: "left" }}>简介</th>
-              <th style={{ padding: "6px 8px", borderBottom: "1px solid #1f2937", textAlign: "left", width: 80 }}>启用</th>
-              <th style={{ padding: "6px 8px", borderBottom: "1px solid #1f2937", width: 80 }} />
+              <th
+                style={{
+                  padding: "6px 8px",
+                  borderBottom: "1px solid #1f2937",
+                  textAlign: "center",
+                  width: 84,
+                  minWidth: 84,
+                  boxSizing: "border-box",
+                  position: "sticky",
+                  right: 84,
+                  zIndex: 3,
+                  background: "#0b1220",
+                  boxShadow: "-1px 0 0 #1f2937, -8px 0 16px rgba(2,6,23,0.28)",
+                }}
+              >
+                启用
+              </th>
+              <th
+                style={{
+                  padding: "6px 8px",
+                  width: 84,
+                  minWidth: 84,
+                  boxSizing: "border-box",
+                  borderBottom: "1px solid #1f2937",
+                  position: "sticky",
+                  right: 0,
+                  zIndex: 4,
+                  background: "#0b1220",
+                  boxShadow: "-1px 0 0 #1f2937, -8px 0 16px rgba(2,6,23,0.28)",
+                }}
+              />
             </tr>
           </thead>
           <tbody>
@@ -552,9 +648,9 @@ export function SkillsPanel() {
                     {s.type && (
                       <span
                         style={{
-                          padding: "2px 6px",
+                          padding: "3px 8px",
                           borderRadius: 999,
-                          fontSize: 9,
+                          fontSize: 10,
                           fontWeight: 500,
                           background: "rgba(59,130,246,0.12)",
                           color: "#93c5fd",
@@ -568,9 +664,9 @@ export function SkillsPanel() {
                     {s.category && (
                       <span
                         style={{
-                          padding: "2px 6px",
+                          padding: "3px 8px",
                           borderRadius: 999,
-                          fontSize: 9,
+                          fontSize: 10,
                           fontWeight: 500,
                           background: "rgba(168,85,247,0.12)",
                           color: "#c4b5fd",
@@ -581,6 +677,34 @@ export function SkillsPanel() {
                         {s.category}
                       </span>
                     )}
+                    <span
+                      style={{
+                        padding: "3px 8px",
+                        borderRadius: 999,
+                        fontSize: 10,
+                        fontWeight: 600,
+                        background: "rgba(16,185,129,0.1)",
+                        color: "#a7f3d0",
+                        border: "1px solid rgba(16,185,129,0.28)",
+                        whiteSpace: "nowrap",
+                      }}
+                    >
+                      安全 {s.safeMarkCount || 0}
+                    </span>
+                    <span
+                      style={{
+                        padding: "3px 8px",
+                        borderRadius: 999,
+                        fontSize: 10,
+                        fontWeight: 600,
+                        background: "rgba(239,68,68,0.1)",
+                        color: "#fecaca",
+                        border: "1px solid rgba(239,68,68,0.28)",
+                        whiteSpace: "nowrap",
+                      }}
+                    >
+                      不安全 {s.unsafeMarkCount || 0}
+                    </span>
                   </div>
                 </td>
                 <td style={{ padding: "6px 8px", borderBottom: "1px solid #111827", color: "#9ca3af", fontSize: 11, whiteSpace: "nowrap" }}>
@@ -590,10 +714,11 @@ export function SkillsPanel() {
                   <span
                     style={{
                       display: "inline-block",
-                      padding: "2px 6px",
-                      borderRadius: 4,
+                      padding: "3px 10px",
+                      borderRadius: 6,
                       border: "1px solid #374151",
-                      fontSize: 10,
+                      fontSize: 11,
+                      fontWeight: 600,
                       color: "#e5e7eb",
                       whiteSpace: "nowrap",
                     }}
@@ -604,43 +729,6 @@ export function SkillsPanel() {
                       ? "系统不推荐"
                       : "正常"}
                   </span>
-                </td>
-                <td style={{ padding: "6px 8px", borderBottom: "1px solid #111827", whiteSpace: "nowrap" }}>
-                  <div style={{ display: "flex", gap: 4, marginBottom: 4 }}>
-                    <button
-                      type="button"
-                      onClick={() => setSafetyLabel(s.slug, "SAFE")}
-                      style={{
-                        padding: "2px 8px",
-                        borderRadius: 999,
-                        border: s.userSafetyLabel === "SAFE" ? "1px solid rgba(34,197,94,0.5)" : "1px solid #374151",
-                        background: s.userSafetyLabel === "SAFE" ? "rgba(34,197,94,0.15)" : "transparent",
-                        color: s.userSafetyLabel === "SAFE" ? "#86efac" : "#9ca3af",
-                        fontSize: 10,
-                        cursor: "pointer",
-                      }}
-                    >
-                      安全
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setSafetyLabel(s.slug, "UNSAFE")}
-                      style={{
-                        padding: "2px 8px",
-                        borderRadius: 999,
-                        border: s.userSafetyLabel === "UNSAFE" ? "1px solid rgba(239,68,68,0.5)" : "1px solid #374151",
-                        background: s.userSafetyLabel === "UNSAFE" ? "rgba(239,68,68,0.15)" : "transparent",
-                        color: s.userSafetyLabel === "UNSAFE" ? "#fca5a5" : "#9ca3af",
-                        fontSize: 10,
-                        cursor: "pointer",
-                      }}
-                    >
-                      不安全
-                    </button>
-                  </div>
-                  <div style={{ fontSize: 10, color: "#6b7280" }}>
-                    安全 {s.safeMarkCount || 0} / 不安全 {s.unsafeMarkCount || 0}
-                  </div>
                 </td>
                 <td
                   style={{
@@ -665,7 +753,22 @@ export function SkillsPanel() {
                     {s.shortDesc || "-"}
                   </div>
                 </td>
-                <td style={{ padding: "6px 8px", borderBottom: "1px solid #111827", whiteSpace: "nowrap" }}>
+                <td
+                  style={{
+                    padding: "6px 8px",
+                    borderBottom: "1px solid #111827",
+                    whiteSpace: "nowrap",
+                    position: "sticky",
+                    right: 84,
+                    zIndex: 2,
+                    background: "#0b1220",
+                    boxShadow: "-1px 0 0 #111827, -8px 0 16px rgba(2,6,23,0.22)",
+                    width: 84,
+                    minWidth: 84,
+                    boxSizing: "border-box",
+                    textAlign: "center",
+                  }}
+                >
                   {s.userEnabled === null ? (
                     <div style={{ fontSize: 10, color: "#6b7280" }}>（未配置）</div>
                   ) : (
@@ -676,7 +779,7 @@ export function SkillsPanel() {
                       style={{
                         position: "relative",
                         width: 42,
-                        height: 20,
+                        height: 22,
                         borderRadius: 999,
                         border: "none",
                         background: s.userEnabled === 1 ? "#22c55e" : "#374151",
@@ -690,8 +793,8 @@ export function SkillsPanel() {
                           position: "absolute",
                           top: 2,
                           left: s.userEnabled === 1 ? 24 : 2,
-                          width: 16,
-                          height: 16,
+                          width: 18,
+                          height: 18,
                           borderRadius: "50%",
                           background: "#fff",
                           transition: "left 0.2s",
@@ -704,19 +807,35 @@ export function SkillsPanel() {
                   style={{
                     padding: "6px 8px",
                     borderBottom: "1px solid #111827",
-                    textAlign: "right",
+                    textAlign: "center",
+                    position: "sticky",
+                    right: 0,
+                    zIndex: 3,
+                    background: "#0b1220",
+                    boxShadow: "-1px 0 0 #111827, -8px 0 16px rgba(2,6,23,0.22)",
+                    width: 84,
+                    minWidth: 84,
+                    boxSizing: "border-box",
                   }}
                 >
                   <button
                     type="button"
                     onClick={() => openDetail(s.slug)}
                     style={{
-                      padding: "4px 10px",
+                      height: 24,
+                      minWidth: 64,
+                      padding: "0 12px",
                       borderRadius: 999,
                       border: "1px solid #1f2937",
-                      background: "#020617",
+                      background: "rgba(2,6,23,0.9)",
                       color: "#e5e7eb",
                       fontSize: 11,
+                      fontWeight: 600,
+                      boxSizing: "border-box",
+                      display: "inline-flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      lineHeight: 1,
                       cursor: "pointer",
                     }}
                   >
@@ -728,7 +847,7 @@ export function SkillsPanel() {
             {skills.length === 0 && !loading && (
               <tr>
                 <td
-                  colSpan={7}
+                  colSpan={6}
                   style={{ padding: "8px 10px", textAlign: "center", color: "#6b7280", background: "#020617" }}
                 >
                   当前本地还没有任何技能状态数据（系统禁用 / 不推荐 / 用户自定义）。
@@ -737,6 +856,7 @@ export function SkillsPanel() {
             )}
           </tbody>
         </table>
+        </div>
       </div>
 
       {/* 详情弹窗 */}
@@ -992,6 +1112,27 @@ export function SkillsPanel() {
           </div>
         </div>
       )}
+      <style>{`
+        .skills-table-scroll::-webkit-scrollbar {
+          width: 10px;
+          height: 10px;
+        }
+        .skills-table-scroll::-webkit-scrollbar-track {
+          background: #0b1220;
+          border-radius: 999px;
+        }
+        .skills-table-scroll::-webkit-scrollbar-thumb {
+          background: linear-gradient(180deg, #64748b, #475569);
+          border-radius: 999px;
+          border: 2px solid #0b1220;
+        }
+        .skills-table-scroll::-webkit-scrollbar-thumb:hover {
+          background: linear-gradient(180deg, #94a3b8, #64748b);
+        }
+        .skills-table-scroll::-webkit-scrollbar-corner {
+          background: #0b1220;
+        }
+      `}</style>
     </div>
   );
 }

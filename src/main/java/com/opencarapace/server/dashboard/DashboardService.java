@@ -245,6 +245,10 @@ public class DashboardService {
                 .withZone(ZoneId.systemDefault());
         
         Map<String, Long> timelineMap = new LinkedHashMap<>();
+        // 先补齐完整时间轴，再叠加真实数据，保证空桶显示为 0
+        for (Instant bucket : buildBuckets(startTime, now, normalizedGranularity)) {
+            timelineMap.put(formatter.format(bucket), 0L);
+        }
         for (Object[] row : rawData) {
             Instant timestamp = (Instant) row[0];
             Long tokens = ((Number) row[1]).longValue();
@@ -300,6 +304,10 @@ public class DashboardService {
                 .withZone(ZoneId.systemDefault());
         
         Map<String, Long> timelineMap = new LinkedHashMap<>();
+        // 先补齐完整时间轴，再叠加真实数据，保证空桶显示为 0
+        for (Instant bucket : buildBuckets(startTime, now, normalizedGranularity)) {
+            timelineMap.put(formatter.format(bucket), 0L);
+        }
         for (Object[] row : rawData) {
             Instant timestamp = (Instant) row[0];
             Long count = ((Number) row[1]).longValue();
@@ -393,5 +401,35 @@ public class DashboardService {
                 break;
         }
         return zdt.toInstant();
+    }
+
+    private List<Instant> buildBuckets(Instant start, Instant end, String granularity) {
+        Instant from = bucketStart(start, granularity);
+        Instant to = bucketStart(end, granularity);
+        List<Instant> buckets = new ArrayList<>();
+        Instant cursor = from;
+        while (!cursor.isAfter(to)) {
+            buckets.add(cursor);
+            cursor = nextBucket(cursor, granularity);
+        }
+        return buckets;
+    }
+
+    private Instant nextBucket(Instant ts, String granularity) {
+        ZonedDateTime zdt = ts.atZone(ZoneId.systemDefault());
+        switch (granularity) {
+            case "minute":
+                return zdt.plusMinutes(1).toInstant();
+            case "hour":
+                return zdt.plusHours(1).toInstant();
+            case "day":
+                return zdt.plusDays(1).toInstant();
+            case "week":
+                return zdt.plusWeeks(1).toInstant();
+            case "month":
+                return zdt.plusMonths(1).toInstant();
+            default:
+                return zdt.plusHours(1).toInstant();
+        }
     }
 }

@@ -183,7 +183,7 @@ public class DangerCommandController {
 
     /** 按 ID 查询单条（登录用户可见） */
     @GetMapping("/{id}")
-    public ResponseEntity<DangerCommandViewDto> getById(@PathVariable Long id) {
+    public ResponseEntity<DangerCommandViewDto> getById(@PathVariable("id") Long id) {
         Long userId = getCurrentUserId();
         Map<Long, Boolean> userMap = new HashMap<>();
         if (userId != null) {
@@ -223,7 +223,7 @@ public class DangerCommandController {
     /** 更新危险指令（仅管理员） */
     @PutMapping("/{id}")
     @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<DangerCommand> update(@PathVariable Long id, @Valid @RequestBody DangerCommandDto dto) {
+    public ResponseEntity<DangerCommand> update(@PathVariable("id") Long id, @Valid @RequestBody DangerCommandDto dto) {
         DangerCommand entity = toEntity(dto);
         return dangerCommandService.update(id, entity)
                 .map(ResponseEntity::ok)
@@ -233,7 +233,7 @@ public class DangerCommandController {
     /** 删除危险指令（仅管理员） */
     @DeleteMapping("/{id}")
     @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<Void> delete(@PathVariable Long id) {
+    public ResponseEntity<Void> delete(@PathVariable("id") Long id) {
         return dangerCommandService.deleteById(id)
                 ? ResponseEntity.noContent().build()
                 : ResponseEntity.notFound().build();

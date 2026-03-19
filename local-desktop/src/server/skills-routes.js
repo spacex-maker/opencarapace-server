@@ -70,7 +70,9 @@ function registerSkillsRoutes(app) {
           else resolve(r);
         });
       });
-      if (!row || !row.id) {
+      const rawId = row && row.id;
+      const idNum = typeof rawId === "number" ? rawId : Number(String(rawId || "").trim());
+      if (!row || !Number.isFinite(idNum) || idNum <= 0) {
         res.status(404).json({ error: { message: "本地未找到该 skill" } });
         return;
       }
@@ -84,7 +86,7 @@ function registerSkillsRoutes(app) {
       if (auth && auth.token) {
         headers.Authorization = `Bearer ${auth.token}`;
       }
-      const url = `${apiBase}/api/skills/${row.id}`;
+      const url = `${apiBase}/api/skills/${idNum}`;
       const upstreamRes = await axios.get(url, { headers, validateStatus: () => true });
       res.status(upstreamRes.status).json(upstreamRes.data);
     } catch (e) {

@@ -49,7 +49,7 @@ public class SkillAdminController {
      */
     @PutMapping("/{id}")
     @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<Skill> update(@PathVariable Long id, @RequestBody UpdateSkillRequest req) {
+    public ResponseEntity<Skill> update(@PathVariable("id") Long id, @RequestBody UpdateSkillRequest req) {
         return skillRepository.findById(id)
                 .map(skill -> {
                     if (req.name() != null) skill.setName(req.name());

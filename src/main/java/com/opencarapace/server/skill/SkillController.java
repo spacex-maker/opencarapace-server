@@ -308,7 +308,7 @@ public class SkillController {
 
     @GetMapping("/{id}")
     @Transactional(readOnly = true)
-    public ResponseEntity<SkillDto> getById(@PathVariable Long id) {
+    public ResponseEntity<SkillDto> getById(@PathVariable("id") Long id) {
         Long userId = getCurrentUserId();
         java.util.Map<String, Boolean> userMap = java.util.Collections.emptyMap();
         if (userId != null) {

@@ -38,13 +38,13 @@ public class ApiKeyController {
     }
 
     @DeleteMapping("/{id}")
-    public ResponseEntity<Void> revoke(@PathVariable Long id) {
+    public ResponseEntity<Void> revoke(@PathVariable("id") Long id) {
         apiKeyService.revokeKey(id);
         return ResponseEntity.noContent().build();
     }
 
     @PatchMapping("/{id}")
-    public ResponseEntity<ApiKeyDto> update(@PathVariable Long id, @RequestBody UpdateKeyRequest request) {
+    public ResponseEntity<ApiKeyDto> update(@PathVariable("id") Long id, @RequestBody UpdateKeyRequest request) {
         ApiKey updated = apiKeyService.updateKey(id, request.label(), request.scopes());
         return ResponseEntity.ok(ApiKeyDto.from(updated));
     }

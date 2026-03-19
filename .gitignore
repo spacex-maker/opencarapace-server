@@ -36,6 +36,8 @@ frontend/.pnpm-debug.log*
 local-desktop/node_modules/
 local-desktop/dist/
 local-desktop/out/
+local-desktop/release/
+local-desktop/build-output/
 local-desktop/.vite/
 local-desktop/.turbo/
 local-desktop/.env

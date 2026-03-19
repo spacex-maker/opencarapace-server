@@ -15,6 +15,7 @@ import { MyInterceptLogsPage } from "./pages/MyInterceptLogsPage";
 import { SettingsPage } from "./pages/SettingsPage";
 import { ApiKeysPage } from "./pages/ApiKeysPage";
 import { OfficialIntroPage } from "./pages/OfficialIntroPage";
+import { TokenUsagesPage } from "./pages/TokenUsagesPage";
 import { ProtectedRoute } from "./components/ProtectedRoute";
 import { AdminRoute } from "./components/AdminRoute";
 import { ConfirmProvider } from "./contexts/ConfirmContext";
@@ -63,6 +64,14 @@ function App() {
                   element={
                     <ProtectedRoute>
                       <MyInterceptLogsPage />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/my/token-usages"
+                  element={
+                    <ProtectedRoute>
+                      <TokenUsagesPage />
                     </ProtectedRoute>
                   }
                 />

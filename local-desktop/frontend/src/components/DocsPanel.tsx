@@ -16,19 +16,20 @@ export function DocsPanel() {
     >
       <h1 style={{ fontSize: 20, margin: "0 0 6px", color: "#f9fafb" }}>本地网关使用说明</h1>
       <p style={{ margin: "0 0 14px", fontSize: 12, color: "#9ca3af" }}>
-        本页介绍如何请求本地 LLM 网关，以及在开启「直接连接 LLM」模式时，如何配置上游模型地址。
+        本页介绍如何请求本地代理（OpenAI 兼容），以及如何通过「LLM 映射」把不同厂商的 Base URL 统一接入。
       </p>
 
       <section style={{ marginTop: 12, paddingTop: 8, borderTop: "1px solid #1f2937" }}>
         <h2 style={{ fontSize: 14, margin: "0 0 6px", color: "#e5e7eb" }}>1. 本地网关基础地址</h2>
         <p style={{ margin: "0 0 8px", fontSize: 12, color: "#9ca3af" }}>
-          本地客户端在 <code style={codeStyle}>127.0.0.1:19111</code> 暴露了一个 OpenAI 兼容的
-          <code style={codeStyle}>/v1/chat/completions</code> 接口，你可以将任何兼容 OpenAI 的 SDK / 工具指向这里。
+          本地客户端在 <code style={codeStyle}>127.0.0.1:19111</code> 暴露了 OpenAI 兼容接口。推荐把 SDK 的 Base URL
+          配置为 <code style={codeStyle}>http://127.0.0.1:19111/v1</code>，其余路径由 SDK 自行拼接（例如
+          <code style={codeStyle}>/chat/completions</code>）。
         </p>
         <ul style={ulStyle}>
           <li>
             <span style={bulletTitle}>HTTP Base URL：</span>
-            <code style={codeStyle}>http://127.0.0.1:19111/v1/chat/completions</code>
+            <code style={codeStyle}>http://127.0.0.1:19111/v1</code>
           </li>
           <li>
             <span style={bulletTitle}>协议：</span>HTTP（无需 HTTPS，所有转发由本地客户端处理）
@@ -72,34 +73,29 @@ const client = new OpenAI({
           </li>
           <li>
             <span style={bulletTitle}>直接连接 LLM（仅本地校验）：</span>
-            本地客户端在本机完成危险指令校验后，直接连接你在「概览 / 连接配置」中设置的上游 LLM 地址。
+            本地客户端在本机完成危险指令校验后，直接连接你在「设置」中配置的上游 LLM 地址。
           </li>
         </ul>
       </section>
 
       <section style={{ marginTop: 16, paddingTop: 8, borderTop: "1px solid #1f2937" }}>
-        <h2 style={{ fontSize: 14, margin: "0 0 6px", color: "#e5e7eb" }}>4. 直连模式下的上游域名配置</h2>
+        <h2 style={{ fontSize: 14, margin: "0 0 6px", color: "#e5e7eb" }}>4. 通过 LLM 映射对接不同厂商</h2>
         <p style={{ margin: "0 0 8px", fontSize: 12, color: "#9ca3af" }}>
-          当你选择「直接连接 LLM」模式时，本地客户端会使用「概览 / 连接配置」中的
-          <span style={{ color: "#e5e7eb" }}> 上游 LLM Key</span>
-          所对应的上游服务作为转发目标：
+          你可以在「设置 → LLM 映射配置」里创建前缀，将本地请求转发到任意上游（包括 OpenClaw 的 provider baseUrl
+          指向本地前缀的场景）。
         </p>
         <ul style={ulStyle}>
           <li>
-            <span style={bulletTitle}>API Base：</span>
-            使用「连接配置」中的 <code style={codeStyle}>API Base</code>{" "}
-            <span style={{ color: "#6b7280" }}>(例如你的自建 OpenAI 兼容服务域名)</span>
+            <span style={bulletTitle}>例子：</span>
+            配置前缀 <code style={codeStyle}>minimax</code> → 目标基地址 <code style={codeStyle}>https://api.minimaxi.com/anthropic</code>
           </li>
           <li>
-            <span style={bulletTitle}>鉴权：</span>
-            使用配置中的 <code style={codeStyle}>上游 LLM Key</code> 作为
-            <code style={codeStyle}>Authorization</code> 头发送给上游。
+            <span style={bulletTitle}>使用方式：</span>
+            Base URL 设为 <code style={codeStyle}>http://127.0.0.1:19111/minimax</code>（第三方 SDK 会自行拼 path）。
           </li>
         </ul>
         <p style={{ margin: "6px 0 0", fontSize: 12, color: "#6b7280" }}>
-          换句话说，当路由模式设为「直接连接 LLM」时，你只需要在连接配置中填写好
-          <code style={codeStyle}>API Base</code> 与 <code style={codeStyle}>上游 LLM Key</code>，本地网关就会将
-          所有 <code style={codeStyle}>/v1/chat/completions</code> 请求安全地转发到该域名。
+          注意：鉴权 header 会尽量按原样透传到上游；不同厂商需要的 header 可能不同（如 `Authorization`、`x-api-key` 等）。
         </p>
       </section>
     </div>

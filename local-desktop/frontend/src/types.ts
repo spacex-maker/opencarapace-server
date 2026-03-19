@@ -4,11 +4,12 @@ export interface LocalStatus {
   deprecated: number;
   auth?: {
     email: string;
+    token: string;
   } | null;
   settings: {
     apiBase: string;
     ocApiKey: string;
-    llmKey: string;
+    llmKey?: string;
   } | null;
   llmRouteMode?: "DIRECT" | "GATEWAY";
 }

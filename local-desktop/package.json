@@ -4,11 +4,14 @@
   "private": true,
   "main": "src/main.js",
   "scripts": {
-    "dev": "cross-env NODE_ENV=development ELECTRON_DEV=true electron src/main.js",
+    "dev:renderer": "npm run dev --prefix frontend -- --port 5199 --strictPort",
+    "dev:electron": "cross-env NODE_ENV=development ELECTRON_DEV=true electron src/main.js",
+    "dev": "concurrently -k -n renderer,electron -c cyan,green \"npm run dev:renderer\" \"npm run dev:electron\"",
     "start": "electron src/main.js",
     "postinstall": "node scripts/setup-openclaw.js",
     "build": "node scripts/build.js",
     "build:dir": "node scripts/build.js dir",
+    "build:mac": "node scripts/build.js mac",
     "pack": "node scripts/build.js dir"
   },
   "description": "ClawHeart Desktop Client",
@@ -20,6 +23,7 @@
     "sqlite3": "^6.0.1"
   },
   "devDependencies": {
+    "concurrently": "^9.2.1",
     "cross-env": "^7.0.3",
     "electron": "^31.0.0",
     "electron-builder": "^25.1.8"
@@ -44,6 +48,15 @@
           "arch": ["x64"]
         }
       ]
+    },
+    "mac": {
+      "target": [
+        { "target": "dmg", "arch": ["x64", "arm64"] },
+        { "target": "zip", "arch": ["x64", "arm64"] }
+      ],
+      "category": "public.app-category.utilities",
+      "hardenedRuntime": true,
+      "gatekeeperAssess": false
     },
     "nsis": {
       "oneClick": false,

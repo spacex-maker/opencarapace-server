@@ -55,7 +55,7 @@ function registerDangerRoutes(app) {
   app.get("/api/danger-commands/meta", async (_req, res) => {
     try {
       const settings = await getLocalSettings();
-      const apiBase = (settings && settings.apiBase) || "http://localhost:8080";
+      const apiBase = (settings && settings.apiBase) || "https://api.clawheart.live";
       const url = `${apiBase}/api/danger-commands/meta`;
       const auth = await getLocalAuth();
       const headers = {};
@@ -144,7 +144,7 @@ function registerDangerRoutes(app) {
         try {
           const settings = await getLocalSettings();
           const auth = await getLocalAuth();
-          const apiBase = (settings && settings.apiBase) || "http://localhost:8080";
+          const apiBase = (settings && settings.apiBase) || "https://api.clawheart.live";
           if (auth && auth.token) {
             await axios.put(
               `${apiBase}/api/user-danger-commands/me/${id}`,

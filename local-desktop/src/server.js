@@ -8,6 +8,8 @@ const { registerSettingsRoutes } = require("./server/settings-routes.js");
 const { registerDangerRoutes } = require("./server/danger-routes.js");
 const { forwardChatCompletions } = require("./server/llm-proxy.js");
 const { registerSkillsRoutes } = require("./server/skills-routes.js");
+const { registerInterceptLogsRoutes } = require("./server/intercept-logs-routes.js");
+const { registerTokenUsageRoutes } = require("./server/token-usage-routes.js");
 
 const PORT = 19111;
 
@@ -88,6 +90,8 @@ async function startServer() {
   registerSettingsRoutes(app);
   registerDangerRoutes(app);
   registerSkillsRoutes(app);
+  registerInterceptLogsRoutes(app);
+  registerTokenUsageRoutes(app);
 
   app.post(/^(?!\/api\/).+$/, forwardChatCompletions);
 

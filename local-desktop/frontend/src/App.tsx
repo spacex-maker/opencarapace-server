@@ -2,13 +2,24 @@ import { useEffect, useState } from "react";
 import { LocalStatus } from "./types";
 import { NavButton } from "./components/Common";
 import { OverviewPanel } from "./components/OverviewPanel";
-import { LocalManagePanel } from "./components/LocalManagePanel";
 import { DangerPanel } from "./components/DangerPanel";
 import { SkillsPanel } from "./components/SkillsPanel";
 import { AuthPanel } from "./components/AuthPanel";
 import { SettingsPanel } from "./components/SettingsPanel";
 import { DocsPanel } from "./components/DocsPanel";
 import { OpenClawPanel } from "./components/OpenClawPanel";
+import { InterceptLogsPanel } from "./components/InterceptLogsPanel";
+import { TokenBillPanel } from "./components/TokenBillPanel";
+import { 
+  MdDashboard, 
+  MdWarning, 
+  MdExtension, 
+  MdBlock, 
+  MdAttachMoney, 
+  MdSettings, 
+  MdDescription,
+  MdApps
+} from "react-icons/md";
 
 export function App() {
   const [status, setStatus] = useState<LocalStatus | null>(null);
@@ -17,27 +28,30 @@ export function App() {
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<
-    "overview" | "local" | "danger" | "skills" | "openclaw" | "settings" | "docs" | "auth"
+    "overview" | "danger" | "skills" | "interceptLogs" | "tokenBill" | "openclaw" | "settings" | "docs" | "auth"
   >("overview");
 
   const [apiBase, setApiBase] = useState("https://api.clawheart.live");
   const [ocApiKey, setOcApiKey] = useState("");
-  const [llmKey, setLlmKey] = useState("");
+  const [latency, setLatency] = useState<number | null>(null);
 
   useEffect(() => {
     const load = async () => {
       try {
         setLoading(true);
+        const start = performance.now();
         const res = await fetch("http://127.0.0.1:19111/api/status");
         const data = await res.json();
+        const elapsed = Math.round(performance.now() - start);
+        setLatency(elapsed);
         setStatus(data);
         if (data?.settings) {
           setApiBase(data.settings.apiBase ?? "https://api.clawheart.live");
           setOcApiKey(data.settings.ocApiKey ?? "");
-          setLlmKey(data.settings.llmKey ?? "");
         }
       } catch (e: any) {
         setError(e?.message ?? "加载本地状态失败");
+        setLatency(null);
       } finally {
         setLoading(false);
       }
@@ -72,13 +86,15 @@ export function App() {
   }, []);
 
   const refreshStatus = async () => {
+    const start = performance.now();
     const res = await fetch("http://127.0.0.1:19111/api/status");
     const data = await res.json();
+    const elapsed = Math.round(performance.now() - start);
+    setLatency(elapsed);
     setStatus(data);
     if (data?.settings) {
       setApiBase(data.settings.apiBase ?? "https://api.clawheart.live");
       setOcApiKey(data.settings.ocApiKey ?? "");
-      setLlmKey(data.settings.llmKey ?? "");
     }
   };
 
@@ -90,7 +106,7 @@ export function App() {
       const res = await fetch("http://127.0.0.1:19111/api/settings", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ apiBase: apiBase.trim(), ocApiKey: ocApiKey.trim(), llmKey: llmKey.trim() }),
+        body: JSON.stringify({ apiBase: apiBase.trim(), ocApiKey: ocApiKey.trim() }),
       });
       const data = await res.json();
       if (!res.ok) {
@@ -155,13 +171,14 @@ export function App() {
       >
         <div>
           <div style={{ fontWeight: 600, marginBottom: 12 }}>ClawHeart</div>
-          <NavButton label="概览 / 连接配置" active={activeTab === "overview"} onClick={() => setActiveTab("overview")} />
-          <NavButton label="本地管理" active={activeTab === "local"} onClick={() => setActiveTab("local")} />
-          <NavButton label="危险指令库" active={activeTab === "danger"} onClick={() => setActiveTab("danger")} />
-          <NavButton label="Skills 仓库" active={activeTab === "skills"} onClick={() => setActiveTab("skills")} />
-          <NavButton label="OpenClaw" active={activeTab === "openclaw"} onClick={() => setActiveTab("openclaw")} />
-          <NavButton label="设置" active={activeTab === "settings"} onClick={() => setActiveTab("settings")} />
-          <NavButton label="文档 / 使用说明" active={activeTab === "docs"} onClick={() => setActiveTab("docs")} />
+          <NavButton label="概览" active={activeTab === "overview"} onClick={() => setActiveTab("overview")} icon={<MdDashboard />} />
+          <NavButton label="危险指令库" active={activeTab === "danger"} onClick={() => setActiveTab("danger")} icon={<MdWarning />} />
+          <NavButton label="Skills 仓库" active={activeTab === "skills"} onClick={() => setActiveTab("skills")} icon={<MdExtension />} />
+          <NavButton label="拦截日志" active={activeTab === "interceptLogs"} onClick={() => setActiveTab("interceptLogs")} icon={<MdBlock />} />
+          <NavButton label="Token 账单" active={activeTab === "tokenBill"} onClick={() => setActiveTab("tokenBill")} icon={<MdAttachMoney />} />
+          <NavButton label="OpenClaw" active={activeTab === "openclaw"} onClick={() => setActiveTab("openclaw")} icon={<MdApps />} />
+          <NavButton label="设置" active={activeTab === "settings"} onClick={() => setActiveTab("settings")} icon={<MdSettings />} />
+          <NavButton label="文档 / 使用说明" active={activeTab === "docs"} onClick={() => setActiveTab("docs")} icon={<MdDescription />} />
         </div>
 
         {/* 左下角账户信息 + 登录入口 */}
@@ -254,23 +271,14 @@ export function App() {
           <OverviewPanel
             status={status}
             loading={loading}
-            apiBase={apiBase}
-            ocApiKey={ocApiKey}
-            llmKey={llmKey}
-            setApiBase={setApiBase}
-            setOcApiKey={setOcApiKey}
-            setLlmKey={setLlmKey}
-            saving={saving}
-            message={message}
-            error={error}
-            onSave={handleSave}
           />
         )}
-        {activeTab === "local" && <LocalManagePanel status={status} />}
         {activeTab === "danger" && <DangerPanel />}
         {activeTab === "skills" && <SkillsPanel />}
+        {activeTab === "interceptLogs" && <InterceptLogsPanel />}
+        {activeTab === "tokenBill" && <TokenBillPanel />}
         {activeTab === "openclaw" && <OpenClawPanel />}
-        {activeTab === "settings" && <SettingsPanel />}
+        {activeTab === "settings" && <SettingsPanel onApiBaseChanged={refreshStatus} status={status} />}
         {activeTab === "docs" && <DocsPanel />}
         {activeTab === "auth" && <AuthPanel onLoggedIn={handleLoggedIn} />}
       </div>
@@ -303,6 +311,11 @@ export function App() {
           }}
         />
         <span>{connectionLabel}</span>
+        {latency !== null && isConnected && (
+          <span style={{ color: "#6b7280", fontSize: 10 }}>
+            {latency}ms
+          </span>
+        )}
         {status?.settings?.apiBase && (
           <span
             style={{

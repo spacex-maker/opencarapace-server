@@ -1,5 +1,34 @@
 const axios = require("axios");
-const { getDb, getLocalSettings, getLlmRouteMode, listLlmMappings } = require("../db.js");
+const os = require("os");
+const { getDb, getLocalSettings, getLlmRouteMode, listLlmMappings, getLocalAuth } = require("../db.js");
+
+function estimateTokensFromString(s) {
+  if (!s) return 0;
+  const bytes = Buffer.byteLength(String(s), "utf8");
+  return Math.ceil(bytes / 4);
+}
+
+function extractUsage(responseData) {
+  try {
+    const root = typeof responseData === "string" ? JSON.parse(responseData) : responseData;
+    const usage = root?.usage;
+    if (usage) {
+      const promptTokens = usage.prompt_tokens ?? usage.input_tokens;
+      const completionTokens = usage.completion_tokens ?? usage.output_tokens;
+      const totalTokens = usage.total_tokens ?? (typeof promptTokens === "number" && typeof completionTokens === "number" ? promptTokens + completionTokens : undefined);
+      return {
+        promptTokens: typeof promptTokens === "number" ? promptTokens : null,
+        completionTokens: typeof completionTokens === "number" ? completionTokens : null,
+        totalTokens: typeof totalTokens === "number" ? totalTokens : null,
+        model: typeof root?.model === "string" ? root.model : null,
+        estimated: false,
+      };
+    }
+  } catch {
+    // ignore
+  }
+  return null;
+}
 
 async function forwardChatCompletions(req, res) {
   try {
@@ -140,20 +169,38 @@ async function forwardChatCompletions(req, res) {
           console.log("[LLM Proxy] 正在记录技能拦截日志到后端...");
           console.log("[LLM Proxy] API Base:", settings.apiBase);
           console.log("[LLM Proxy] API Key 长度:", settings.ocApiKey?.length || 0);
-          await axios.post(`${settings.apiBase}/api/safety/log-block`, {
+          const auth = await getLocalAuth().catch(() => null);
+          const logHeaders = {
+            "X-OC-API-KEY": settings.ocApiKey,
+          };
+          if (auth && auth.token) {
+            logHeaders.Authorization = `Bearer ${auth.token}`;
+          }
+
+          const maxPromptChars = 20000;
+          const fullPrompt = typeof combinedText === "string" ? combinedText : String(combinedText || "");
+          const promptForLog = fullPrompt.length > maxPromptChars ? fullPrompt.substring(0, maxPromptChars) : fullPrompt;
+
+          const logRes = await axios.post(`${settings.apiBase}/api/safety/log-block`, {
             blockType: "skill_disabled",
             skills: disabledHits,
-            prompt: combinedText.substring(0, 500),
+            prompt: promptForLog,
             timestamp: new Date().toISOString(),
           }, {
             headers: {
-              "X-OC-API-KEY": settings.ocApiKey,
+              ...logHeaders,
             },
             timeout: 3000,
+            validateStatus: () => true,
           }).catch((err) => {
-            console.log("[LLM Proxy] 日志记录请求失败:", err.response?.status, err.message);
+            console.log("[LLM Proxy] 日志记录请求异常:", err?.message);
+            return null;
           });
-          console.log("[LLM Proxy] 拦截日志已记录");
+          if (logRes && logRes.status >= 200 && logRes.status < 300) {
+            console.log("[LLM Proxy] 拦截日志已记录");
+          } else if (logRes) {
+            console.log("[LLM Proxy] 拦截日志记录失败:", logRes.status, logRes.data?.error?.message || "unknown");
+          }
         } catch (logErr) {
           console.log("[LLM Proxy] 拦截日志记录失败:", logErr.message);
         }
@@ -237,21 +284,39 @@ async function forwardChatCompletions(req, res) {
           console.log("[LLM Proxy] 正在记录危险指令拦截日志到后端...");
           console.log("[LLM Proxy] API Base:", settings.apiBase);
           console.log("[LLM Proxy] API Key 长度:", settings.ocApiKey?.length || 0);
-          await axios.post(`${settings.apiBase}/api/safety/log-block`, {
+          const auth = await getLocalAuth().catch(() => null);
+          const logHeaders = {
+            "X-OC-API-KEY": settings.ocApiKey,
+          };
+          if (auth && auth.token) {
+            logHeaders.Authorization = `Bearer ${auth.token}`;
+          }
+
+          const maxPromptChars = 20000;
+          const fullPrompt = typeof combinedText === "string" ? combinedText : String(combinedText || "");
+          const promptForLog = fullPrompt.length > maxPromptChars ? fullPrompt.substring(0, maxPromptChars) : fullPrompt;
+
+          const logRes = await axios.post(`${settings.apiBase}/api/safety/log-block`, {
             blockType: "danger_command",
             ruleIds: hitRules.map((r) => r.id),
             patterns: hitRules.map((r) => r.command_pattern),
-            prompt: combinedText.substring(0, 500),
+            prompt: promptForLog,
             timestamp: new Date().toISOString(),
           }, {
             headers: {
-              "X-OC-API-KEY": settings.ocApiKey,
+              ...logHeaders,
             },
             timeout: 3000,
+            validateStatus: () => true,
           }).catch((err) => {
-            console.log("[LLM Proxy] 日志记录请求失败:", err.response?.status, err.message);
+            console.log("[LLM Proxy] 日志记录请求异常:", err?.message);
+            return null;
           });
-          console.log("[LLM Proxy] 拦截日志已记录");
+          if (logRes && logRes.status >= 200 && logRes.status < 300) {
+            console.log("[LLM Proxy] 拦截日志已记录");
+          } else if (logRes) {
+            console.log("[LLM Proxy] 拦截日志记录失败:", logRes.status, logRes.data?.error?.message || "unknown");
+          }
         } catch (logErr) {
           console.log("[LLM Proxy] 拦截日志记录失败:", logErr.message);
         }
@@ -272,36 +337,73 @@ async function forwardChatCompletions(req, res) {
     const segments = originalPath.split("/").filter(Boolean);
 
     const llmRouteMode = await getLlmRouteMode();
+    console.log("[LLM Proxy] 请求路径:", originalPath);
+    console.log("[LLM Proxy] 路由模式:", llmRouteMode);
+    console.log("[LLM Proxy] 路径片段:", segments);
 
     let upstreamUrl;
     let headers;
+    let routeMode = llmRouteMode; // DIRECT / GATEWAY / MAPPING
 
-    if (segments.length > 0) {
+    // GATEWAY 模式：直接转发到云端，由云端查映射表
+    if (llmRouteMode === "GATEWAY" && segments.length > 0) {
+      // 任何带前缀的请求都转发到云端 /api/llm/auth/{prefix}/...
+      const auth = await getLocalAuth().catch(() => null);
+      console.log("[LLM Proxy] GATEWAY 模式，auth 状态:", auth ? `已登录 (token 长度: ${auth.token?.length})` : "未登录");
+      
+      if (!auth || !auth.token) {
+        res.status(401).json({ error: { message: "GATEWAY 模式需要登录" } });
+        return;
+      }
+      
+      routeMode = "GATEWAY";
+      upstreamUrl = `${String(settings.apiBase || "").replace(/\/+$/, "")}/api/llm/auth${originalPath}`;
+      headers = {
+        "Content-Type": "application/json",
+        "X-User-Token": `Bearer ${auth.token}`,
+      };
+      
+      console.log("[LLM Proxy] 发送到云端:", upstreamUrl);
+      console.log("[LLM Proxy] X-User-Token 长度:", headers["X-User-Token"]?.length);
+      
+      // 转发原始的 Authorization header（用于上游 LLM 认证）
+      if (req.headers.authorization) {
+        headers.Authorization = req.headers.authorization;
+        console.log("[LLM Proxy] 转发 Authorization header (LLM API Key)");
+      }
+    }
+    // DIRECT 模式：检查本地映射
+    else if (llmRouteMode === "DIRECT" && segments.length > 0) {
       const mappings = await listLlmMappings();
+      console.log("[LLM Proxy] 本地映射列表:", mappings.map(m => m.prefix));
       const hit = mappings.find((m) => m.prefix === segments[0]);
+      console.log("[LLM Proxy] 映射匹配结果:", hit ? `匹配到 ${hit.prefix}` : "未匹配");
+      
       if (hit) {
+        routeMode = "MAPPING";
+        // DIRECT + 映射：本地直接转发到 target_base
         const base = String(hit.target_base || "").replace(/\/+$/, "");
         const restPath = "/" + segments.slice(1).join("/");
         const tail = restPath === "/" ? "/" : restPath;
         upstreamUrl = base + tail;
         
-        // 转发所有请求头（除了 host 等特殊头）
         headers = { ...req.headers };
-        
-        // 删除不应该转发的请求头
         delete headers.host;
         delete headers.connection;
         delete headers["content-length"];
-        
-        // 确保 Content-Type
         if (!headers["content-type"]) {
           headers["content-type"] = "application/json";
         }
       }
     }
 
+    // 如果还没有确定 upstreamUrl，说明是无前缀的请求（如 /v1/chat/completions）
     if (!upstreamUrl) {
       if (llmRouteMode === "DIRECT") {
+        if (!settings.llmKey) {
+          res.status(400).json({ error: { message: "DIRECT 模式需要配置上游 LLM Key（或改用映射/网关模式）。" } });
+          return;
+        }
         const base = String(settings.apiBase || "").replace(/\/+$/, "");
         const tail = originalPath || "/";
         upstreamUrl = base + tail;
@@ -312,14 +414,13 @@ async function forwardChatCompletions(req, res) {
             : `Bearer ${settings.llmKey}`,
         };
       } else {
-        upstreamUrl = `${settings.apiBase}/api/llm/v1/chat/completions`;
-        headers = {
-          "Content-Type": "application/json",
-          "X-OC-API-KEY": settings.ocApiKey,
-          Authorization: settings.llmKey.startsWith("Bearer ")
-            ? settings.llmKey
-            : `Bearer ${settings.llmKey}`,
-        };
+        // GATEWAY 模式但无前缀：这种情况不应该发生，因为 GATEWAY 模式必须有映射前缀
+        res.status(400).json({ 
+          error: { 
+            message: "GATEWAY 模式需要使用映射前缀（如 /minimax/v1/...），请在云端映射配置中添加映射。" 
+          } 
+        });
+        return;
       }
     }
 
@@ -327,6 +428,50 @@ async function forwardChatCompletions(req, res) {
       headers,
       validateStatus: () => true,
     });
+
+    // Token 账单：仅本地直连时由客户端估算后上报；云端中转（GATEWAY/GATEWAY+映射）由云端入库
+    try {
+      const isCloudRoute = routeMode === "GATEWAY" || (routeMode === "MAPPING" && llmRouteMode === "GATEWAY");
+      if (!isCloudRoute) {
+        const auth = await getLocalAuth().catch(() => null);
+        if (auth?.token) {
+          const usage = extractUsage(upstreamRes.data);
+          const reqStr = JSON.stringify(req.body || {});
+          const respStr = typeof upstreamRes.data === "string" ? upstreamRes.data : JSON.stringify(upstreamRes.data || {});
+          const promptEst = estimateTokensFromString(reqStr);
+          const completionEst = estimateTokensFromString(respStr);
+
+          const promptTokens = usage?.promptTokens ?? promptEst;
+          const completionTokens = usage?.completionTokens ?? completionEst;
+          const totalTokens = usage?.totalTokens ?? (promptTokens + completionTokens);
+          const estimated = usage ? usage.estimated : true;
+          const model = usage?.model || (typeof req.body?.model === "string" ? req.body.model : null);
+
+          await axios.post(
+            `${String(settings.apiBase || "").replace(/\/+$/, "")}/api/billing/token-usages/ingest`,
+            {
+              clientId: `desktop-${os.hostname()}`,
+              routeMode,
+              upstreamBase: upstreamUrl,
+              requestPath: originalPath,
+              model,
+              promptTokens,
+              completionTokens,
+              totalTokens,
+              estimated,
+            },
+            {
+              headers: { Authorization: `Bearer ${auth.token}` },
+              timeout: 3000,
+              validateStatus: () => true,
+            }
+          );
+        }
+      }
+    } catch {
+      // ignore billing failure
+    }
+
     res.status(upstreamRes.status).set("Content-Type", "application/json").send(upstreamRes.data);
   } catch (e) {
     console.error("local desktop proxy error", e);

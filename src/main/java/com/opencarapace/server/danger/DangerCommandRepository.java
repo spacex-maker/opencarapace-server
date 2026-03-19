@@ -48,4 +48,6 @@ public interface DangerCommandRepository extends JpaRepository<DangerCommand, Lo
     );
 
     Page<DangerCommand> findByEnabledTrueAndCreatedAtAfterOrderByCreatedAtAsc(Instant createdAt, Pageable pageable);
+
+    long countByEnabled(boolean enabled);
 }

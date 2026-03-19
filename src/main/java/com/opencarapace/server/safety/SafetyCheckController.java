@@ -7,6 +7,11 @@ import com.opencarapace.server.apikey.ApiKeyService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -14,8 +19,11 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 
 import java.util.Optional;
+import java.util.List;
 
 @RestController
 @RequestMapping("/api/safety")
@@ -158,6 +166,72 @@ public class SafetyCheckController {
         return ResponseEntity.ok().build();
     }
 
+    @GetMapping("/block-logs")
+    public ResponseEntity<BlockLogsResponse> listBlockLogs(
+            @RequestParam(name = "page", required = false, defaultValue = "1") int page,
+            @RequestParam(name = "size", required = false, defaultValue = "50") int size,
+            @RequestParam(name = "blockType", required = false) String blockType
+    ) {
+        Long userId = getCurrentUserId();
+
+        int safeSize = Math.min(Math.max(size, 1), 200);
+        int safePage = Math.max(page, 1);
+        PageRequest pageable = PageRequest.of(safePage - 1, safeSize);
+
+        Page<SafetyEvaluationRecord> p = safetyEvaluationRepository.findBlockLogsByUser(
+                userId,
+                "llm_proxy_block",
+                (blockType == null || blockType.isBlank()) ? null : blockType,
+                pageable
+        );
+
+        List<BlockLogDto> items = p.getContent().stream().map(r -> new BlockLogDto(
+                r.getId(),
+                r.getCreatedAt(),
+                r.getInputSummary(),
+                r.getRiskLevel(),
+                r.getReasons(),
+                r.getRawInput()
+        )).toList();
+
+        return ResponseEntity.ok(new BlockLogsResponse(
+                safePage,
+                safeSize,
+                p.getTotalElements(),
+                items
+        ));
+    }
+
+    @GetMapping("/block-logs/{id}")
+    public ResponseEntity<BlockLogDetailDto> getBlockLog(
+            @PathVariable("id") Long id
+    ) {
+        Long userId = getCurrentUserId();
+        if (id == null) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).build();
+        }
+        SafetyEvaluationRecord r = safetyEvaluationRepository.findOneByIdAndUserId(id, userId);
+        if (r == null) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
+        }
+        return ResponseEntity.ok(new BlockLogDetailDto(
+                r.getId(),
+                r.getCreatedAt(),
+                r.getInputSummary(),
+                r.getRiskLevel(),
+                r.getReasons(),
+                r.getRawInput()
+        ));
+    }
+
+    private Long getCurrentUserId() {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        if (auth == null || auth.getName() == null) {
+            throw new IllegalStateException("Missing authentication");
+        }
+        return Long.parseLong(auth.getName());
+    }
+
     public record SafetyCheckRequest(
             @NotBlank String type,
             String toolName,
@@ -181,6 +255,34 @@ public class SafetyCheckController {
             java.util.List<String> patterns,
             String prompt,
             String timestamp
+    ) {
+    }
+
+    public record BlockLogDto(
+            Long id,
+            java.time.Instant createdAt,
+            String blockType,
+            String riskLevel,
+            String reasons,
+            String promptSnippet
+    ) {
+    }
+
+    public record BlockLogsResponse(
+            int page,
+            int size,
+            long total,
+            java.util.List<BlockLogDto> items
+    ) {
+    }
+
+    public record BlockLogDetailDto(
+            Long id,
+            java.time.Instant createdAt,
+            String blockType,
+            String riskLevel,
+            String reasons,
+            String rawInput
     ) {
     }
 }

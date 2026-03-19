@@ -23,7 +23,11 @@ function registerAuthRoutes(app) {
         res.status(400).json({ error: { message: "email / password 均为必填项" } });
         return;
       }
-      const url = "http://localhost:8080/api/auth/login";
+      const settings = await getLocalSettings();
+      const apiBase = (settings && settings.apiBase)
+        ? String(settings.apiBase).replace(/\/+$/, "")
+        : "https://api.clawheart.live";
+      const url = `${apiBase}/api/auth/login`;
       const upstreamRes = await axios.post(url, { email, password }, { validateStatus: () => true });
       if (upstreamRes.status !== 200) {
         res.status(upstreamRes.status).json(upstreamRes.data || { error: { message: "登录失败" } });
@@ -47,7 +51,7 @@ function registerAuthRoutes(app) {
 
       try {
         const settings = await getLocalSettings();
-        const apiBase = (settings && settings.apiBase) || "http://localhost:8080";
+        const apiBase = (settings && settings.apiBase) || "https://api.clawheart.live";
         const routeRes = await axios.get(`${apiBase}/api/user-settings/me`, {
           headers: {
             Authorization: `Bearer ${data.token}`,

@@ -1,6 +1,9 @@
 package com.opencarapace.server.llm;
 
 import com.opencarapace.server.apikey.ApiKey;
+import com.opencarapace.server.billing.TokenUsageRecord;
+import com.opencarapace.server.billing.TokenUsageRepository;
+import com.opencarapace.server.billing.TokenUsageService;
 import com.opencarapace.server.config.SystemConfigService;
 import com.opencarapace.server.config.entity.SystemConfig;
 import lombok.RequiredArgsConstructor;
@@ -13,6 +16,8 @@ import org.springframework.web.reactive.function.client.WebClient;
 import org.springframework.web.reactive.function.client.WebClientResponseException;
 
 import java.util.Optional;
+import java.util.Objects;
+import java.util.Locale;
 
 /**
  * 大模型 API 中转代理：将请求转发到调用方指定的上游地址，并在中间做监管（日志、可扩展策略）。
@@ -26,6 +31,9 @@ public class LlmProxyService {
     private final SystemConfigService configService;
     private final WebClient.Builder webClientBuilder;
     private final LlmSupervisionService supervisionService;
+    private final TokenUsageRepository tokenUsageRepository;
+    private final TokenUsageService tokenUsageService;
+    private final UserLlmMappingRepository userLlmMappingRepository;
 
     /** 是否启用代理且已配置上游地址 */
     public boolean isEnabled() {
@@ -48,32 +56,65 @@ public class LlmProxyService {
         return null;
     }
 
-    /** 转发到上游 POST path，委托给透明代理。 */
-    public ProxyResult forward(String path, String rawBody, String upstreamAuth, String upstreamBaseUrl, ApiKey caller) {
-        return forwardRequest("POST", path, null, rawBody, upstreamAuth, upstreamBaseUrl, caller);
-    }
-
-    /** GET 转发（如 /v1/models），支持 X-LLM-Backend。 */
-    public ProxyResult forwardGet(String path, String upstreamAuth, String upstreamBaseUrl, ApiKey caller) {
-        return forwardRequest("GET", path, null, null, upstreamAuth, upstreamBaseUrl, caller);
+    /**
+     * 使用 API Key 认证的代理转发
+     */
+    public ProxyResult forwardRequestWithApiKey(String method, String path, String queryString, String body,
+                                                String upstreamAuth, ApiKey caller) {
+        if (caller == null || caller.getUser() == null) {
+            return ProxyResult.error(401, "{\"error\":{\"message\":\"Invalid API Key\"}}");
+        }
+        return forwardRequestInternal(method, path, queryString, body, upstreamAuth, caller.getUser(), caller);
     }
 
     /**
-     * 透明代理：按 HTTP 方法、路径、查询串、请求体转发到上游，中间只做鉴权与日志。
-     * 任意 path（如 /v1/chat/completions、/v1/embeddings、/v1/audio/...）均可转发。
+     * 使用登录状态（JWT）认证的代理转发
      */
-    public ProxyResult forwardRequest(String method, String path, String queryString, String body,
-                                      String upstreamAuth, String upstreamBaseUrl, ApiKey caller) {
-        String baseUrl = upstreamBaseUrl != null ? upstreamBaseUrl.trim() : "";
+    public ProxyResult forwardRequestWithUser(String method, String path, String queryString, String body,
+                                              String upstreamAuth, com.opencarapace.server.user.User user) {
+        if (user == null) {
+            return ProxyResult.error(401, "{\"error\":{\"message\":\"Invalid user\"}}");
+        }
+        return forwardRequestInternal(method, path, queryString, body, upstreamAuth, user, null);
+    }
+
+    /**
+     * 内部实现：透明代理转发逻辑
+     * 支持映射前缀：如 path=/minimax/v1/chat/completions，会查用户映射表 prefix=minimax -> targetBase
+     */
+    private ProxyResult forwardRequestInternal(String method, String path, String queryString, String body,
+                                               String upstreamAuth, com.opencarapace.server.user.User user, ApiKey apiKey) {
+        String baseUrl = "";
+        String actualPath = path;
+        
+        // 映射前缀逻辑：从 path 提取前缀并查映射表
+        if (user != null) {
+            String[] segments = (path != null ? path : "").split("/");
+            if (segments.length > 1 && !segments[1].isEmpty()) {
+                String prefix = segments[1];
+                Optional<UserLlmMapping> mapping = userLlmMappingRepository.findByUserIdAndPrefix(user.getId(), prefix);
+                if (mapping.isPresent()) {
+                    baseUrl = mapping.get().getTargetBase();
+                    // 重构路径：去掉前缀，保留后续部分
+                    StringBuilder sb = new StringBuilder();
+                    for (int i = 2; i < segments.length; i++) {
+                        sb.append("/").append(segments[i]);
+                    }
+                    actualPath = sb.length() > 0 ? sb.toString() : "/";
+                    log.info("LLM proxy: mapping prefix={} -> targetBase={}, actualPath={}", prefix, baseUrl, actualPath);
+                }
+            }
+        }
+        
         if (baseUrl.isEmpty()) {
-            String hint = "Missing X-LLM-Upstream-Url header (target LLM/base proxy URL is required)";
+            String hint = "No valid mapping prefix found. Please configure LLM mapping in settings (e.g. prefix=minimax -> targetBase=https://api.minimax.chat)";
             return ProxyResult.error(400, "{\"error\":{\"message\":\"" + hint.replace("\"", "\\\"") + "\"}}");
         }
         String auth = resolveUpstreamAuthorization(upstreamAuth);
         if (auth == null || auth.isBlank()) {
             return ProxyResult.error(400, "{\"error\":{\"message\":\"Missing Authorization header (your LLM API key, e.g. Bearer sk-xxx)\"}}");
         }
-        String normalizedPath = path != null && !path.startsWith("/") ? "/" + path : (path != null ? path : "/");
+        String normalizedPath = actualPath != null && !actualPath.startsWith("/") ? "/" + actualPath : (actualPath != null ? actualPath : "/");
         String fullUrl = baseUrl.endsWith("/")
                 ? baseUrl + normalizedPath.replaceFirst("^/", "")
                 : baseUrl + normalizedPath;
@@ -81,14 +122,17 @@ public class LlmProxyService {
             fullUrl = fullUrl + (fullUrl.contains("?") ? "&" : "?") + queryString;
         }
 
-        if (caller != null) {
+        if (apiKey != null) {
             log.info("LLM proxy: upstream={}, method={}, path={}, caller key id={}",
-                    baseUrl, method, normalizedPath, caller.getId());
+                    baseUrl, method, normalizedPath, apiKey.getId());
+        } else if (user != null) {
+            log.info("LLM proxy: upstream={}, method={}, path={}, user id={}",
+                    baseUrl, method, normalizedPath, user.getId());
         }
 
         // 监管层 + 意图层：请求前校验（仅对 chat/completions 的 POST body）
         if (supervisionService.isSupervisionEnabled() && "POST".equalsIgnoreCase(method) && normalizedPath.contains("chat/completions") && body != null && !body.isBlank()) {
-            LlmSupervisionService.SupervisionResult reqCheck = supervisionService.checkRequestWithIntent(body, caller, baseUrl, auth);
+            LlmSupervisionService.SupervisionResult reqCheck = supervisionService.checkRequestWithIntent(body, apiKey, baseUrl, auth);
             if (!reqCheck.allowed()) {
                 String msg = buildSupervisionBlockMessage(reqCheck, true);
                 log.warn("LLM proxy supervision block (request): path={}, risk={}, matches={}", normalizedPath, reqCheck.riskLevel(), reqCheck.matches());
@@ -97,14 +141,19 @@ public class LlmProxyService {
         }
 
         try {
+            String authHeader = Objects.requireNonNull(auth, "upstream Authorization must not be null here");
+            @SuppressWarnings("DataFlowIssue")
+            String methodUpper = Objects.requireNonNull(method, "method must not be null").toUpperCase(Locale.ROOT);
+            @SuppressWarnings({"DataFlowIssue", "null"})
+            HttpMethod httpMethod = HttpMethod.valueOf(methodUpper);
             WebClient.RequestHeadersSpec<?> spec = webClientBuilder.build()
-                    .method(HttpMethod.valueOf(method))
+                    .method(httpMethod)
                     .uri(fullUrl)
-                    .header(HttpHeaders.AUTHORIZATION, auth);
+                    .header(HttpHeaders.AUTHORIZATION, authHeader);
 
             if (body != null && !body.isBlank() && !"GET".equalsIgnoreCase(method) && !"DELETE".equalsIgnoreCase(method)) {
                 spec = ((WebClient.RequestBodySpec) spec)
-                        .contentType(MediaType.APPLICATION_JSON)
+                        .contentType(Objects.requireNonNull(MediaType.APPLICATION_JSON))
                         .bodyValue(body);
             }
 
@@ -114,12 +163,33 @@ public class LlmProxyService {
 
             // 监管层：响应后校验（仅对 chat/completions 的 assistant 内容）
             if (supervisionService.isSupervisionEnabled() && normalizedPath.contains("chat/completions") && responseBody != null && !responseBody.isBlank()) {
-                LlmSupervisionService.SupervisionResult respCheck = supervisionService.checkResponse(responseBody, caller);
+                LlmSupervisionService.SupervisionResult respCheck = supervisionService.checkResponse(responseBody, apiKey);
                 if (!respCheck.allowed()) {
                     String msg = buildSupervisionBlockMessage(respCheck, false);
                     log.warn("LLM proxy supervision block (response): path={}, risk={}", normalizedPath, respCheck.riskLevel());
                     return ProxyResult.error(403, msg);
                 }
+            }
+
+            // Token 账单：云端中转时由后端计算并入库
+            try {
+                if (user != null) {
+                    TokenUsageService.Usage usage = tokenUsageService.extractOrEstimate(body, responseBody);
+                    TokenUsageRecord r = new TokenUsageRecord();
+                    r.setUser(user);
+                    r.setApiKey(apiKey);
+                    r.setClientId(null);
+                    r.setRouteMode("GATEWAY");
+                    r.setUpstreamBase(baseUrl);
+                    r.setRequestPath(normalizedPath);
+                    r.setModel(usage.model());
+                    r.setPromptTokens(usage.promptTokens());
+                    r.setCompletionTokens(usage.completionTokens());
+                    r.setTotalTokens(usage.totalTokens());
+                    r.setEstimated(usage.estimated());
+                    tokenUsageRepository.save(r);
+                }
+            } catch (Exception ignored) {
             }
 
             return ProxyResult.ok(200, responseBody != null ? responseBody : "{}");

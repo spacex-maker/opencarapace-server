@@ -1,6 +1,6 @@
 import { ReactNode } from "react";
 import { Link, useLocation } from "react-router-dom";
-import { Shield, KeyRound, FileText, LogOut, ShieldAlert, Settings, Moon, Sun, BookOpen } from "lucide-react";
+import { Shield, KeyRound, FileText, LogOut, ShieldAlert, Settings, Moon, Sun, BookOpen, ReceiptText } from "lucide-react";
 import { useAuth } from "../contexts/AuthContext";
 import { useTheme } from "../contexts/ThemeContext";
 
@@ -57,6 +57,10 @@ export const Layout = ({ children }: Props) => {
                 <Link to="/my/intercept-logs" className={navItemClass("/my/intercept-logs")}>
                   <ShieldAlert className="w-4 h-4 shrink-0" />
                   拦截日志
+                </Link>
+                <Link to="/my/token-usages" className={navItemClass("/my/token-usages")}>
+                  <ReceiptText className="w-4 h-4 shrink-0" />
+                  Token 账单
                 </Link>
               </>
             )}

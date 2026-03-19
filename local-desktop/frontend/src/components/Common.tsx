@@ -1,12 +1,15 @@
 import { LocalStatus } from "../types";
+import { ReactNode } from "react";
 
-export function NavButton(props: { label: string; active: boolean; onClick: () => void }) {
+export function NavButton(props: { label: string; active: boolean; onClick: () => void; icon?: ReactNode }) {
   return (
     <button
       type="button"
       onClick={props.onClick}
       style={{
-        display: "block",
+        display: "flex",
+        alignItems: "center",
+        gap: 10,
         width: "100%",
         textAlign: "left",
         padding: "8px 10px",
@@ -19,7 +22,8 @@ export function NavButton(props: { label: string; active: boolean; onClick: () =
         cursor: "pointer",
       }}
     >
-      {props.label}
+      {props.icon && <span style={{ display: "flex", fontSize: 16 }}>{props.icon}</span>}
+      <span>{props.label}</span>
     </button>
   );
 }

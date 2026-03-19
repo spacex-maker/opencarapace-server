@@ -41,8 +41,14 @@ public class SecurityConfig {
                         .requestMatchers("/error").permitAll()
                         .requestMatchers("/api/auth/google", "/api/auth/register", "/api/auth/login").permitAll()
                         .requestMatchers("/api/public/**").permitAll()
-                        // 大模型代理：由 LlmProxyController 内校验 X-OC-API-KEY
+                        // 本地客户端写入拦截日志：用 X-OC-API-KEY 校验（不要求登录）
+                        .requestMatchers("/api/safety/log-block").permitAll()
+                        // 大模型代理（登录状态认证）：由 LlmProxyController 内校验 X-User-Token
+                        .requestMatchers("/api/llm/auth/**").permitAll()
+                        // 大模型代理（API Key 认证）：由 LlmProxyController 内校验 X-OC-API-KEY
                         .requestMatchers("/api/llm/**").permitAll()
+                        // 数据看板接口：由 DashboardController 内部处理认证
+                        .requestMatchers("/api/dashboard/**").permitAll()
                         // 危险指令库列表与详情仅管理员可访问，见 DangerCommandController @PreAuthorize
                         .anyRequest().authenticated()
                 )

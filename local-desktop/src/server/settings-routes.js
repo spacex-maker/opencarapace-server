@@ -20,14 +20,35 @@ function registerSettingsRoutes(app) {
   app.post("/api/settings", async (req, res) => {
     try {
       const { apiBase, ocApiKey, llmKey } = req.body || {};
-      if (!apiBase || !ocApiKey || !llmKey) {
-        res.status(400).json({ error: { message: "apiBase / ocApiKey / llmKey 均为必填项" } });
+      if (!apiBase || !ocApiKey) {
+        res.status(400).json({ error: { message: "apiBase / ocApiKey 均为必填项" } });
         return;
       }
-      await saveLocalSettings({ apiBase: String(apiBase), ocApiKey: String(ocApiKey), llmKey: String(llmKey) });
+      await saveLocalSettings({ apiBase: String(apiBase), ocApiKey: String(ocApiKey), llmKey: String(llmKey || "") });
       res.status(200).json({ ok: true });
     } catch (e) {
       res.status(500).json({ error: { message: e?.message ?? "保存设置失败" } });
+    }
+  });
+
+  // 仅更新 apiBase（用于“测试模式”切换），避免前端还要携带 ocApiKey
+  app.post("/api/settings/api-base", async (req, res) => {
+    try {
+      const { apiBase } = req.body || {};
+      const nextApiBase = String(apiBase || "").trim();
+      if (!nextApiBase) {
+        res.status(400).json({ error: { message: "apiBase 为必填项" } });
+        return;
+      }
+      const current = await getLocalSettings();
+      await saveLocalSettings({
+        apiBase: nextApiBase,
+        ocApiKey: String(current?.ocApiKey || ""),
+        llmKey: String(current?.llmKey || ""),
+      });
+      res.status(200).json({ ok: true, apiBase: nextApiBase });
+    } catch (e) {
+      res.status(500).json({ error: { message: e?.message ?? "更新 apiBase 失败" } });
     }
   });
 
@@ -52,7 +73,7 @@ function registerSettingsRoutes(app) {
       try {
         const settings = await getLocalSettings();
         const auth = await getLocalAuth();
-        const apiBase = (settings && settings.apiBase) || "http://localhost:8080";
+        const apiBase = (settings && settings.apiBase) || "https://api.clawheart.live";
         if (auth && auth.token) {
           await axios.put(
             `${apiBase}/api/user-settings/me/llm-route-mode`,
@@ -77,7 +98,7 @@ function registerSettingsRoutes(app) {
     try {
       const settings = await getLocalSettings();
       const auth = await getLocalAuth();
-      const apiBase = (settings && settings.apiBase) || "http://localhost:8080";
+      const apiBase = (settings && settings.apiBase) || "https://api.clawheart.live";
       if (!auth || !auth.token) {
         res.status(200).json({ needSync: false, cloudVersion: null, localVersion: null });
         return;
@@ -196,6 +217,108 @@ function registerSettingsRoutes(app) {
       res.status(200).json({ items: rows });
     } catch (e) {
       res.status(500).json({ error: { message: e?.message ?? "删除 LLM 映射配置失败" } });
+    }
+  });
+
+  // 云端映射配置代理：获取云端映射列表
+  app.get("/api/cloud-llm-mappings", async (_req, res) => {
+    try {
+      const settings = await getLocalSettings();
+      const auth = await getLocalAuth();
+      const apiBase = (settings && settings.apiBase) || "https://api.clawheart.live";
+      
+      if (!auth || !auth.token) {
+        res.status(401).json({ error: { message: "未登录" } });
+        return;
+      }
+
+      const cloudRes = await axios.get(`${apiBase}/api/user-llm-mappings/me`, {
+        headers: { Authorization: `Bearer ${auth.token}` },
+        validateStatus: () => true,
+      });
+
+      if (cloudRes.status !== 200) {
+        res.status(cloudRes.status).json(cloudRes.data || { error: { message: "获取云端映射失败" } });
+        return;
+      }
+
+      res.status(200).json({ items: cloudRes.data || [] });
+    } catch (e) {
+      res.status(500).json({ error: { message: e?.message ?? "获取云端映射失败" } });
+    }
+  });
+
+  // 云端映射配置代理：创建或更新云端映射
+  app.post("/api/cloud-llm-mappings", async (req, res) => {
+    try {
+      const { prefix, targetBase } = req.body || {};
+      const p = (prefix || "").trim();
+      const t = (targetBase || "").trim();
+      if (!p || !t) {
+        res.status(400).json({ error: { message: "prefix 与 targetBase 均为必填项" } });
+        return;
+      }
+
+      const settings = await getLocalSettings();
+      const auth = await getLocalAuth();
+      const apiBase = (settings && settings.apiBase) || "https://api.clawheart.live";
+      
+      if (!auth || !auth.token) {
+        res.status(401).json({ error: { message: "未登录" } });
+        return;
+      }
+
+      const cloudRes = await axios.post(
+        `${apiBase}/api/user-llm-mappings/me`,
+        { prefix: p, targetBase: t },
+        {
+          headers: { Authorization: `Bearer ${auth.token}` },
+          validateStatus: () => true,
+        }
+      );
+
+      if (cloudRes.status !== 200) {
+        res.status(cloudRes.status).json(cloudRes.data || { error: { message: "保存云端映射失败" } });
+        return;
+      }
+
+      res.status(200).json(cloudRes.data);
+    } catch (e) {
+      res.status(500).json({ error: { message: e?.message ?? "保存云端映射失败" } });
+    }
+  });
+
+  // 云端映射配置代理：删除云端映射
+  app.delete("/api/cloud-llm-mappings/:id", async (req, res) => {
+    try {
+      const id = Number(req.params.id);
+      if (!id || Number.isNaN(id)) {
+        res.status(400).json({ error: { message: "id 无效" } });
+        return;
+      }
+
+      const settings = await getLocalSettings();
+      const auth = await getLocalAuth();
+      const apiBase = (settings && settings.apiBase) || "https://api.clawheart.live";
+      
+      if (!auth || !auth.token) {
+        res.status(401).json({ error: { message: "未登录" } });
+        return;
+      }
+
+      const cloudRes = await axios.delete(`${apiBase}/api/user-llm-mappings/me/${id}`, {
+        headers: { Authorization: `Bearer ${auth.token}` },
+        validateStatus: () => true,
+      });
+
+      if (cloudRes.status !== 200) {
+        res.status(cloudRes.status).json(cloudRes.data || { error: { message: "删除云端映射失败" } });
+        return;
+      }
+
+      res.status(200).json({ ok: true });
+    } catch (e) {
+      res.status(500).json({ error: { message: e?.message ?? "删除云端映射失败" } });
     }
   });
 }

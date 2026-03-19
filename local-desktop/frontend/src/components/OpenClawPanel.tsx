@@ -568,7 +568,7 @@ export function OpenClawPanel() {
             <div style={{ fontSize: 12, color: "#9ca3af", marginBottom: 8 }}>
               配置文件路径: <code style={{ fontSize: 10, color: "#60a5fa" }}>{configPath}</code>
             </div>
-            <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
+            <div style={{ display: "flex", gap: 8, marginBottom: 12, alignItems: "center" }}>
               <button
                 type="button"
                 onClick={saveConfig}
@@ -636,6 +636,11 @@ export function OpenClawPanel() {
               >
                 {configLoading ? "加载中..." : "重新加载"}
               </button>
+              {message && (
+                <span style={{ fontSize: 11, color: "#4ade80", marginLeft: 8 }}>
+                  {message}
+                </span>
+              )}
             </div>
           </div>
           
@@ -680,7 +685,6 @@ export function OpenClawPanel() {
       )}
 
       {loading && <div style={{ marginTop: 10, fontSize: 11, color: "#6b7280" }}>加载中…</div>}
-      {message && <div style={{ marginTop: 10, fontSize: 11, color: "#4ade80" }}>{message}</div>}
       {error && <div style={{ marginTop: 6, fontSize: 11, color: "#f97373" }}>{error}</div>}
     </div>
   );

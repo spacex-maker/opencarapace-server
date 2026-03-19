@@ -434,7 +434,7 @@ function getLocalSettings() {
       if (err || !row) {
         // 默认回退到本机 Spring Boot 端口 8080，避免用户必须手动配置
         resolve({
-          apiBase: "http://localhost:8080",
+          apiBase: "https://api.clawheart.live",
           ocApiKey: "",
           llmKey: "",
         });

@@ -20,9 +20,15 @@ async function createWindow() {
 
   const isDev = process.env.ELECTRON_DEV === "true";
 
-  // 加载打包好的前端静态文件
-  const indexHtml = path.join(__dirname, "../frontend/dist/index.html");
-  await mainWindow.loadFile(indexHtml);
+  if (isDev) {
+    // 开发模式：加载 Vite dev server，实现热更新
+    const devUrl = process.env.ELECTRON_RENDERER_URL || "http://localhost:5199";
+    await mainWindow.loadURL(devUrl);
+  } else {
+    // 生产模式：加载打包好的前端静态文件
+    const indexHtml = path.join(__dirname, "../frontend/dist/index.html");
+    await mainWindow.loadFile(indexHtml);
+  }
 
   // 开发模式下自动打开开发者工具
   if (isDev) {

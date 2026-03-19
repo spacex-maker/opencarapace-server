@@ -146,7 +146,21 @@ export function SkillsPanel() {
 
   useEffect(() => {
     if (!sync.running) return;
+    
+    let pollCount = 0;
+    const maxPolls = 60; // 最多轮询 60 次（2 分钟）
+    
     const timer = setInterval(async () => {
+      pollCount++;
+      
+      // 超时保护：避免无限轮询
+      if (pollCount > maxPolls) {
+        clearInterval(timer);
+        setSync((s) => ({ ...s, running: false }));
+        console.warn("[SkillsPanel] 同步轮询超时，已停止");
+        return;
+      }
+      
       try {
         const res = await fetch("http://127.0.0.1:19111/api/sync-status?type=skills");
         const json = await res.json();
@@ -158,7 +172,8 @@ export function SkillsPanel() {
       } catch {
         // ignore
       }
-    }, 800);
+    }, 2000); // 改为 2 秒轮询一次
+    
     return () => clearInterval(timer);
   }, [sync.running]);
 

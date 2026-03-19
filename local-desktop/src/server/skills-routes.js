@@ -73,7 +73,7 @@ function registerSkillsRoutes(app) {
       }
       const settings = await getLocalSettings();
       const auth = await getLocalAuth();
-      const apiBase = (settings && settings.apiBase) || "http://localhost:8080";
+      const apiBase = (settings && settings.apiBase) || "https://api.clawheart.live";
       const headers = {
         "Content-Type": "application/json",
         "X-OC-API-KEY": settings && settings.ocApiKey,
@@ -153,7 +153,7 @@ function registerSkillsRoutes(app) {
         try {
           const settings = await getLocalSettings();
           const auth = await getLocalAuth();
-          const apiBase = (settings && settings.apiBase) || "http://localhost:8080";
+          const apiBase = (settings && settings.apiBase) || "https://api.clawheart.live";
           if (auth && auth.token) {
             await axios.put(
               `${apiBase}/api/user-skills/me/${encodeURIComponent(slug)}`,

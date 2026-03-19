@@ -38,5 +38,7 @@ public interface SkillRepository extends JpaRepository<Skill, Long> {
             @Param("keyword") String keyword,
             Pageable pageable
     );
+
+    long countByStatus(String status);
 }
 

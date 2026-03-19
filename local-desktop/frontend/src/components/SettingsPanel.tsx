@@ -5,24 +5,42 @@ type LlmRouteMode = "DIRECT" | "GATEWAY";
 type LlmMapping = {
   id: number;
   prefix: string;
-  target_base: string;
+  target_base?: string;  // 本地 API 返回
+  targetBase?: string;   // 云端 API 返回
 };
 
-export function SettingsPanel() {
+interface Props {
+  onApiBaseChanged?: () => void | Promise<void>;
+  status?: {
+    auth?: {
+      email: string;
+      token: string;
+    } | null;
+  } | null;
+}
+
+export function SettingsPanel(props: Props) {
+  const { onApiBaseChanged, status } = props;
   const [mode, setMode] = useState<LlmRouteMode>("GATEWAY");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
+  const [apiBase, setApiBase] = useState<string>("https://api.clawheart.live");
+  const [apiBaseLoading, setApiBaseLoading] = useState(false);
+
   const [mappings, setMappings] = useState<LlmMapping[]>([]);
   const [mappingPrefix, setMappingPrefix] = useState("");
   const [mappingTarget, setMappingTarget] = useState("");
   const [mappingLoading, setMappingLoading] = useState(false);
+  const [syncingMappings, setSyncingMappings] = useState(false);
 
   const [syncUserSkillsToCloud, setSyncUserSkillsToCloud] = useState(true);
   const [syncUserDangersToCloud, setSyncUserDangersToCloud] = useState(true);
   const [syncLoading, setSyncLoading] = useState(false);
+
+  const [syncMappingsToCloud, setSyncMappingsToCloud] = useState(false);
 
   useEffect(() => {
     const loadMode = async () => {
@@ -39,6 +57,23 @@ export function SettingsPanel() {
         setError(e?.message ?? "加载路由模式失败");
       } finally {
         setLoading(false);
+      }
+    };
+
+    const loadApiBase = async () => {
+      try {
+        setApiBaseLoading(true);
+        const res = await fetch("http://127.0.0.1:19111/api/status");
+        const data = await res.json();
+        if (res.ok && data?.settings?.apiBase) {
+          setApiBase(String(data.settings.apiBase));
+        } else {
+          setApiBase("https://api.clawheart.live");
+        }
+      } catch {
+        setApiBase("https://api.clawheart.live");
+      } finally {
+        setApiBaseLoading(false);
       }
     };
 
@@ -77,9 +112,41 @@ export function SettingsPanel() {
     };
 
     loadMode();
+    loadApiBase();
     loadMappings();
     loadSyncSetting();
   }, []);
+
+  const isLocalBackend = apiBase.trim().toLowerCase().includes("localhost:8080") || apiBase.trim().includes("127.0.0.1:8080");
+  const effectiveApiBase = isLocalBackend ? "http://localhost:8080" : "https://api.clawheart.live";
+
+  const handleToggleTestMode = async () => {
+    const nextApiBase = isLocalBackend ? "https://api.clawheart.live" : "http://localhost:8080";
+    setApiBaseLoading(true);
+    setError(null);
+    setMessage(null);
+    try {
+      const res = await fetch("http://127.0.0.1:19111/api/settings/api-base", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ apiBase: nextApiBase }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setError(data?.error?.message || "切换测试模式失败");
+        return;
+      }
+      setApiBase(nextApiBase);
+      setMessage(nextApiBase.includes("localhost:8080") ? "已开启测试模式（使用本地后端 8080）。" : "已关闭测试模式（使用线上后端）。");
+      if (onApiBaseChanged) {
+        await onApiBaseChanged();
+      }
+    } catch (e: any) {
+      setError(e?.message ?? "切换测试模式失败");
+    } finally {
+      setApiBaseLoading(false);
+    }
+  };
 
   const handleSave = async (next: LlmRouteMode) => {
     setSaving(true);
@@ -116,20 +183,48 @@ export function SettingsPanel() {
     setMessage(null);
     setMappingLoading(true);
     try {
-      const res = await fetch("http://127.0.0.1:19111/api/llm-mappings", {
+      // 1. 本地保存
+      const localRes = await fetch("http://127.0.0.1:19111/api/llm-mappings", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ prefix, targetBase }),
       });
-      const data = await res.json();
-      if (!res.ok) {
-        setError(data?.error?.message || "保存映射失败");
-      } else if (Array.isArray(data?.items)) {
-        setMappings(data.items);
-        setMappingPrefix("");
-        setMappingTarget("");
-        setMessage("已更新 LLM 映射配置。");
+      const localData = await localRes.json();
+      if (!localRes.ok) {
+        setError(localData?.error?.message || "保存映射失败");
+        return;
       }
+      if (Array.isArray(localData?.items)) {
+        setMappings(localData.items);
+      }
+
+      // 2. 如果开启云端同步，也保存到云端
+      if (syncMappingsToCloud && status?.auth?.token) {
+        try {
+          const cloudRes = await fetch(`${effectiveApiBase}/api/user-llm-mappings/me`, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${status.auth.token}`,
+            },
+            body: JSON.stringify({ prefix, targetBase }),
+          });
+          if (!cloudRes.ok) {
+            console.warn("云端同步映射失败:", await cloudRes.text());
+            setMessage("已保存到本地，但云端同步失败（请检查登录状态）。");
+          } else {
+            setMessage("已更新映射配置并同步到云端。");
+          }
+        } catch (e) {
+          console.warn("云端同步映射失败:", e);
+          setMessage("已保存到本地，但云端同步失败。");
+        }
+      } else {
+        setMessage("已更新映射配置（仅本地）。");
+      }
+
+      setMappingPrefix("");
+      setMappingTarget("");
     } catch (e: any) {
       setError(e?.message ?? "保存映射失败");
     } finally {
@@ -142,16 +237,48 @@ export function SettingsPanel() {
     setMessage(null);
     setMappingLoading(true);
     try {
-      const res = await fetch(`http://127.0.0.1:19111/api/llm-mappings/${id}`, {
+      // 1. 获取要删除的映射信息（用于云端同步）
+      const mapping = mappings.find(m => m.id === id);
+      
+      // 2. 本地删除
+      const localRes = await fetch(`http://127.0.0.1:19111/api/llm-mappings/${id}`, {
         method: "DELETE",
       });
-      const data = await res.json();
-      if (!res.ok) {
-        setError(data?.error?.message || "删除映射失败");
-      } else if (Array.isArray(data?.items)) {
-        setMappings(data.items);
-        setMessage("已删除一条映射。");
+      const localData = await localRes.json();
+      if (!localRes.ok) {
+        setError(localData?.error?.message || "删除映射失败");
+        return;
       }
+      if (Array.isArray(localData?.items)) {
+        setMappings(localData.items);
+      }
+
+      // 3. 如果开启云端同步，也删除云端记录（通过 prefix 查找）
+      if (syncMappingsToCloud && mapping && status?.auth?.token) {
+        try {
+          // 先查询云端映射列表，找到对应的云端 ID
+          const listRes = await fetch(`${effectiveApiBase}/api/user-llm-mappings/me`, {
+            headers: { Authorization: `Bearer ${status.auth.token}` },
+          });
+          if (listRes.ok) {
+            const listData = await listRes.json();
+            const cloudMapping = Array.isArray(listData) 
+              ? listData.find((m: any) => m.prefix === mapping.prefix)
+              : null;
+            
+            if (cloudMapping?.id) {
+              await fetch(`${effectiveApiBase}/api/user-llm-mappings/me/${cloudMapping.id}`, {
+                method: "DELETE",
+                headers: { Authorization: `Bearer ${status.auth.token}` },
+              });
+            }
+          }
+        } catch (e) {
+          console.warn("云端同步删除失败:", e);
+        }
+      }
+
+      setMessage("已删除一条映射。");
     } catch (e: any) {
       setError(e?.message ?? "删除映射失败");
     } finally {
@@ -206,6 +333,79 @@ export function SettingsPanel() {
       setError(e?.message ?? "更新同步开关失败");
     } finally {
       setSyncLoading(false);
+    }
+  };
+
+  const handleToggleSyncMappings = () => {
+    setSyncMappingsToCloud(!syncMappingsToCloud);
+    setMessage(syncMappingsToCloud ? "已关闭映射同步到云端。" : "已开启映射同步到云端。");
+  };
+
+  const handleSyncFromCloud = async () => {
+    if (!status?.auth?.token) {
+      setError("请先登录");
+      return;
+    }
+
+    setError(null);
+    setMessage(null);
+    setSyncingMappings(true);
+    try {
+      // 1. 获取云端映射列表
+      const cloudRes = await fetch(`${effectiveApiBase}/api/user-llm-mappings/me`, {
+        headers: { Authorization: `Bearer ${status.auth.token}` },
+      });
+      
+      console.log("[SettingsPanel] 云端映射响应状态:", cloudRes.status);
+      console.log("[SettingsPanel] 云端映射响应 Content-Type:", cloudRes.headers.get("content-type"));
+      
+      if (!cloudRes.ok) {
+        const text = await cloudRes.text();
+        console.error("[SettingsPanel] 云端映射响应内容:", text);
+        setError(`获取云端映射失败 (${cloudRes.status}): ${text.substring(0, 100)}`);
+        return;
+      }
+      
+      const contentType = cloudRes.headers.get("content-type");
+      if (!contentType || !contentType.includes("application/json")) {
+        const text = await cloudRes.text();
+        console.error("[SettingsPanel] 云端返回非 JSON:", text);
+        setError("云端返回格式错误（非 JSON），请检查后端配置");
+        return;
+      }
+      
+      const cloudMappings = await cloudRes.json();
+      console.log("[SettingsPanel] 云端映射数据:", cloudMappings);
+      
+      if (!Array.isArray(cloudMappings)) {
+        setError("云端映射数据格式错误（不是数组）");
+        return;
+      }
+      
+      // 2. 同步到本地：逐个保存
+      for (const m of cloudMappings) {
+        if (m.prefix && m.targetBase) {
+          await fetch("http://127.0.0.1:19111/api/llm-mappings", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ prefix: m.prefix, targetBase: m.targetBase }),
+          });
+        }
+      }
+      
+      // 3. 重新加载本地映射列表
+      const localRes = await fetch("http://127.0.0.1:19111/api/llm-mappings");
+      const localData = await localRes.json();
+      if (localRes.ok && Array.isArray(localData?.items)) {
+        setMappings(localData.items);
+      }
+      
+      setMessage(`已从云端同步 ${cloudMappings.length} 条映射配置。`);
+    } catch (e: any) {
+      console.error("[SettingsPanel] 同步失败:", e);
+      setError(e?.message ?? "从云端同步失败");
+    } finally {
+      setSyncingMappings(false);
     }
   };
 
@@ -417,12 +617,71 @@ export function SettingsPanel() {
           borderTop: "1px solid #1f2937",
         }}
       >
+        <div style={{ fontSize: 13, fontWeight: 500, color: "#e5e7eb", marginBottom: 6 }}>映射配置云端同步</div>
+        <p style={{ margin: "0 0 10px", fontSize: 12, color: "#6b7280", lineHeight: 1.5 }}>
+          开启后，添加/删除映射时会自动同步到云端。GATEWAY 模式需要云端映射才能正常工作。
+        </p>
+        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
+          <button
+            type="button"
+            onClick={handleToggleSyncMappings}
+            style={{
+              padding: "8px 14px",
+              borderRadius: 999,
+              border: syncMappingsToCloud ? "1px solid #22c55e" : "1px solid #1f2937",
+              background: syncMappingsToCloud
+                ? "linear-gradient(135deg, #064e3b, #022c22)"
+                : "rgba(15,23,42,0.85)",
+              cursor: "pointer",
+              fontSize: 11,
+              fontWeight: 600,
+              color: syncMappingsToCloud ? "#bbf7d0" : "#e5e7eb",
+            }}
+          >
+            {syncMappingsToCloud ? "已开启" : "已关闭"}
+          </button>
+          <span style={{ fontSize: 11, color: "#9ca3af" }}>
+            {syncMappingsToCloud ? "映射会同步到云端（推荐）" : "映射仅保存在本地"}
+          </span>
+        </div>
+        <div style={{ display: "flex", gap: 8 }}>
+          <button
+            type="button"
+            onClick={handleSyncFromCloud}
+            disabled={syncingMappings}
+            style={{
+              padding: "6px 12px",
+              fontSize: 11,
+              borderRadius: 999,
+              border: "1px solid #3b82f6",
+              background: syncingMappings ? "#1e3a8a" : "linear-gradient(135deg,#2563eb,#3b82f6)",
+              color: "#dbeafe",
+              cursor: syncingMappings ? "not-allowed" : "pointer",
+              whiteSpace: "nowrap",
+            }}
+          >
+            {syncingMappings ? "同步中..." : "从云端拉取映射"}
+          </button>
+          <span style={{ fontSize: 11, color: "#6b7280", lineHeight: "28px" }}>
+            将云端映射配置同步到本地（会覆盖本地同名映射）
+          </span>
+        </div>
+      </div>
+
+      <div
+        style={{
+          marginTop: 18,
+          paddingTop: 12,
+          borderTop: "1px solid #1f2937",
+        }}
+      >
         <div style={{ fontSize: 13, fontWeight: 500, color: "#e5e7eb", marginBottom: 6 }}>LLM 映射配置</div>
         <p style={{ margin: "0 0 10px", fontSize: 12, color: "#6b7280", lineHeight: 1.5 }}>
-          你可以为本地网关配置自定义前缀，将{" "}
-          <span style={{ color: "#e5e7eb" }}>http://127.0.0.1:19111/&lt;前缀&gt;/…</span> 转发到任意
-          LLM 基地址（例如 <span style={{ color: "#e5e7eb" }}>https://api.openai.com</span>）。目标基地址一般建议只写
-          域名和固定前缀，由第三方 SDK 再拼自己的 path，避免出现 <code>/v1/v1/…</code> 这类重复路径。
+          配置自定义前缀，将 <span style={{ color: "#e5e7eb" }}>http://127.0.0.1:19111/&lt;前缀&gt;/…</span> 转发到任意 LLM 基地址。
+          <br/>
+          • <span style={{ color: "#e5e7eb" }}>DIRECT 模式</span>：本地直接转发到目标基地址
+          <br/>
+          • <span style={{ color: "#e5e7eb" }}>GATEWAY 模式</span>：转发到云端，云端查映射表并执行监管（需开启云端同步）
         </p>
 
         <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>
@@ -515,7 +774,7 @@ export function SettingsPanel() {
                       {m.prefix}
                     </td>
                     <td style={{ padding: "6px 10px", color: "#9ca3af", borderTop: "1px solid #111827" }}>
-                      {m.target_base}
+                      {m.target_base || m.targetBase}
                     </td>
                     <td style={{ padding: "6px 10px", color: "#e5e7eb", borderTop: "1px solid #111827" }}>
                       <div style={{ fontSize: 11, whiteSpace: "nowrap" }}>
@@ -554,6 +813,87 @@ export function SettingsPanel() {
               </tbody>
             </table>
           )}
+        </div>
+      </div>
+
+
+      <div
+        style={{
+          marginTop: 18,
+          paddingTop: 12,
+          borderTop: "1px solid #1f2937",
+        }}
+      >
+        <div style={{ fontSize: 13, fontWeight: 500, color: "#e5e7eb", marginBottom: 6 }}>高级系统设置</div>
+        <p style={{ margin: "0 0 10px", fontSize: 12, color: "#6b7280", lineHeight: 1.5 }}>
+          用于本地联调/测试。开启后，云端 API Base 将切换为 <code style={{ color: "#e5e7eb" }}>http://localhost:8080</code>。
+        </p>
+
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            gap: 12,
+            padding: "10px 12px",
+            borderRadius: 12,
+            border: "1px solid #1f2937",
+            background: "rgba(15,23,42,0.85)",
+          }}
+        >
+          <div style={{ minWidth: 0 }}>
+            <div style={{ fontSize: 12, fontWeight: 600, color: "#e5e7eb" }}>测试模式（本地后端 8080）</div>
+            <div style={{ marginTop: 4, fontSize: 11, color: "#9ca3af", lineHeight: 1.5 }}>
+              当前：{" "}
+              <span
+                style={{
+                  fontFamily:
+                    'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
+                  color: "#e5e7eb",
+                }}
+              >
+                {apiBaseLoading ? "…" : effectiveApiBase}
+              </span>
+            </div>
+          </div>
+
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <button
+              type="button"
+              onClick={handleToggleTestMode}
+              aria-pressed={isLocalBackend}
+              disabled={apiBaseLoading}
+              style={{
+                width: 44,
+                height: 24,
+                borderRadius: 999,
+                border: isLocalBackend ? "1px solid rgba(34,197,94,0.6)" : "1px solid #334155",
+                background: isLocalBackend ? "rgba(34,197,94,0.25)" : "rgba(148,163,184,0.16)",
+                padding: 2,
+                boxSizing: "border-box",
+                display: "flex",
+                alignItems: "center",
+                cursor: apiBaseLoading ? "not-allowed" : "pointer",
+                opacity: apiBaseLoading ? 0.7 : 1,
+                flexShrink: 0,
+              }}
+              title={isLocalBackend ? "已开启：使用 http://localhost:8080" : "已关闭：使用 https://api.clawheart.live"}
+            >
+              <span
+                style={{
+                  display: "block",
+                  width: 20,
+                  height: 20,
+                  borderRadius: 999,
+                  background: isLocalBackend ? "#22c55e" : "#94a3b8",
+                  transform: isLocalBackend ? "translateX(20px)" : "translateX(0px)",
+                  transition: "transform 160ms ease, background 160ms ease",
+                  boxShadow: "0 2px 10px rgba(0,0,0,0.35)",
+                }}
+              />
+            </button>
+            <span style={{ fontSize: 11, color: "#9ca3af" }}>{isLocalBackend ? "已开启" : "已关闭"}</span>
+          </div>
         </div>
       </div>
 

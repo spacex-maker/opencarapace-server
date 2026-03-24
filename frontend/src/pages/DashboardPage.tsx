@@ -1,5 +1,17 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { api } from "../api/client";
+import {
+  readDashboardDanger,
+  readDashboardIntercept,
+  readDashboardInterceptTimeline,
+  readDashboardSkills,
+  readDashboardTokenTimeline,
+  writeDashboardDanger,
+  writeDashboardIntercept,
+  writeDashboardInterceptTimeline,
+  writeDashboardSkills,
+  writeDashboardTokenTimeline,
+} from "../utils/dashboardCache";
 import ReactECharts from "echarts-for-react";
 import type { EChartsOption } from "echarts";
 
@@ -87,18 +99,36 @@ function StatCard({ label, value, loading = false }: { label: string; value: num
   );
 }
 
+const DEFAULT_RANGE = "24h" as const;
+const DEFAULT_GRANULARITY = "hour" as const;
+
 export const DashboardPage = () => {
   const [refreshing, setRefreshing] = useState(false);
-  const [skills, setSkills] = useState<SkillsStats | null>(null);
-  const [danger, setDanger] = useState<DangerStats | null>(null);
-  const [intercept, setIntercept] = useState<InterceptStats | null>(null);
-  const [tokenTimeline, setTokenTimeline] = useState<TokenTimeline | null>(null);
-  const [interceptTimeline, setInterceptTimeline] = useState<InterceptTimeline | null>(null);
-  const [skillsLoading, setSkillsLoading] = useState(true);
-  const [dangerLoading, setDangerLoading] = useState(true);
-  const [interceptLoading, setInterceptLoading] = useState(true);
-  const [tokenTimelineLoading, setTokenTimelineLoading] = useState(true);
-  const [interceptTimelineLoading, setInterceptTimelineLoading] = useState(true);
+  const [skills, setSkills] = useState<SkillsStats | null>(() => readDashboardSkills<SkillsStats>());
+  const [danger, setDanger] = useState<DangerStats | null>(() => readDashboardDanger<DangerStats>());
+  const [intercept, setIntercept] = useState<InterceptStats | null>(() => readDashboardIntercept<InterceptStats>());
+  const [tokenTimeline, setTokenTimeline] = useState<TokenTimeline | null>(() =>
+    readDashboardTokenTimeline<TokenTimeline>(DEFAULT_RANGE, DEFAULT_GRANULARITY),
+  );
+  const [interceptTimeline, setInterceptTimeline] = useState<InterceptTimeline | null>(() =>
+    readDashboardInterceptTimeline<InterceptTimeline>(DEFAULT_RANGE, DEFAULT_GRANULARITY),
+  );
+  const [skillsLoading, setSkillsLoading] = useState(() => readDashboardSkills<SkillsStats>() == null);
+  const [dangerLoading, setDangerLoading] = useState(() => readDashboardDanger<DangerStats>() == null);
+  const [interceptLoading, setInterceptLoading] = useState(() => readDashboardIntercept<InterceptStats>() == null);
+  const [tokenTimelineLoading, setTokenTimelineLoading] = useState(
+    () => readDashboardTokenTimeline<TokenTimeline>(DEFAULT_RANGE, DEFAULT_GRANULARITY) == null,
+  );
+  const [interceptTimelineLoading, setInterceptTimelineLoading] = useState(
+    () => readDashboardInterceptTimeline<InterceptTimeline>(DEFAULT_RANGE, DEFAULT_GRANULARITY) == null,
+  );
+
+  const skillsRef = useRef<SkillsStats | null>(null);
+  const dangerRef = useRef<DangerStats | null>(null);
+  const interceptRef = useRef<InterceptStats | null>(null);
+  skillsRef.current = skills;
+  dangerRef.current = danger;
+  interceptRef.current = intercept;
   const [skillsError, setSkillsError] = useState<string | null>(null);
   const [dangerError, setDangerError] = useState<string | null>(null);
   const [interceptError, setInterceptError] = useState<string | null>(null);
@@ -117,11 +147,12 @@ export const DashboardPage = () => {
   };
 
   const loadSkills = async () => {
-    setSkillsLoading(true);
+    setSkillsLoading(skillsRef.current == null);
     setSkillsError(null);
     try {
       const res = await api.get<SkillsStats>("/api/dashboard/skills-stats");
       setSkills(res.data);
+      writeDashboardSkills(res.data);
     } catch (e: unknown) {
       setSkillsError(extractErrorMessage(e, "Skills 数据加载失败"));
     } finally {
@@ -130,11 +161,12 @@ export const DashboardPage = () => {
   };
 
   const loadDanger = async () => {
-    setDangerLoading(true);
+    setDangerLoading(dangerRef.current == null);
     setDangerError(null);
     try {
       const res = await api.get<DangerStats>("/api/dashboard/danger-stats");
       setDanger(res.data);
+      writeDashboardDanger(res.data);
     } catch (e: unknown) {
       setDangerError(extractErrorMessage(e, "危险指令数据加载失败"));
     } finally {
@@ -143,11 +175,12 @@ export const DashboardPage = () => {
   };
 
   const loadIntercept = async () => {
-    setInterceptLoading(true);
+    setInterceptLoading(interceptRef.current == null);
     setInterceptError(null);
     try {
       const res = await api.get<InterceptStats>("/api/dashboard/intercept-risk-stats");
       setIntercept(res.data);
+      writeDashboardIntercept(res.data);
     } catch (e: unknown) {
       setInterceptError(extractErrorMessage(e, "拦截风险数据加载失败"));
     } finally {
@@ -156,11 +189,13 @@ export const DashboardPage = () => {
   };
 
   const loadTokenTimeline = async () => {
-    setTokenTimelineLoading(true);
+    const cached = readDashboardTokenTimeline<TokenTimeline>(range, granularity);
+    setTokenTimelineLoading(cached == null);
     setTokenTimelineError(null);
     try {
       const res = await api.get<TokenTimeline>(`/api/dashboard/token-usage-timeline?range=${range}&granularity=${granularity}`);
       setTokenTimeline(res.data);
+      writeDashboardTokenTimeline(range, granularity, res.data);
     } catch (e: unknown) {
       setTokenTimelineError(extractErrorMessage(e, "Token 时间线加载失败"));
     } finally {
@@ -169,11 +204,13 @@ export const DashboardPage = () => {
   };
 
   const loadInterceptTimeline = async () => {
-    setInterceptTimelineLoading(true);
+    const cached = readDashboardInterceptTimeline<InterceptTimeline>(range, granularity);
+    setInterceptTimelineLoading(cached == null);
     setInterceptTimelineError(null);
     try {
       const res = await api.get<InterceptTimeline>(`/api/dashboard/intercept-timeline?range=${range}&granularity=${granularity}`);
       setInterceptTimeline(res.data);
+      writeDashboardInterceptTimeline(range, granularity, res.data);
     } catch (e: unknown) {
       setInterceptTimelineError(extractErrorMessage(e, "拦截日志时间线加载失败"));
     } finally {
@@ -192,6 +229,15 @@ export const DashboardPage = () => {
     loadDanger();
     loadIntercept();
   }, []);
+
+  useLayoutEffect(() => {
+    const tc = readDashboardTokenTimeline<TokenTimeline>(range, granularity);
+    setTokenTimeline(tc);
+    setTokenTimelineLoading(tc == null);
+    const ic = readDashboardInterceptTimeline<InterceptTimeline>(range, granularity);
+    setInterceptTimeline(ic);
+    setInterceptTimelineLoading(ic == null);
+  }, [range, granularity]);
 
   useEffect(() => {
     loadTokenTimeline();
@@ -278,23 +324,31 @@ export const DashboardPage = () => {
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-        <StatCard label="Skills 总数" value={numberOrZero(skills?.totalSkills)} loading={skillsLoading} />
-        <StatCard label="危险指令总数" value={numberOrZero(danger?.totalCommands)} loading={dangerLoading} />
-        <StatCard label={`${range} Token 用量`} value={numberOrZero(tokenTimeline?.totalTokens)} loading={tokenTimelineLoading} />
-        <StatCard label={`${range} 拦截次数`} value={numberOrZero(interceptTimeline?.totalIntercepts)} loading={interceptTimelineLoading} />
+        <StatCard label="Skills 总数" value={numberOrZero(skills?.totalSkills)} loading={skills == null && skillsLoading} />
+        <StatCard label="危险指令总数" value={numberOrZero(danger?.totalCommands)} loading={danger == null && dangerLoading} />
+        <StatCard
+          label={`${range} Token 用量`}
+          value={numberOrZero(tokenTimeline?.totalTokens)}
+          loading={tokenTimeline == null && tokenTimelineLoading}
+        />
+        <StatCard
+          label={`${range} 拦截次数`}
+          value={numberOrZero(interceptTimeline?.totalIntercepts)}
+          loading={interceptTimeline == null && interceptTimelineLoading}
+        />
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-        <StatCard label="系统禁用 Skills" value={numberOrZero(skills?.disabledSkills)} loading={skillsLoading} />
-        <StatCard label="我禁用的 Skills" value={numberOrZero(skills?.userDisabledCount)} loading={skillsLoading} />
-        <StatCard label="我标记安全" value={numberOrZero(skills?.userSafeLabelCount)} loading={skillsLoading} />
-        <StatCard label="我标记不安全" value={numberOrZero(skills?.userUnsafeLabelCount)} loading={skillsLoading} />
+        <StatCard label="系统禁用 Skills" value={numberOrZero(skills?.disabledSkills)} loading={skills == null && skillsLoading} />
+        <StatCard label="我禁用的 Skills" value={numberOrZero(skills?.userDisabledCount)} loading={skills == null && skillsLoading} />
+        <StatCard label="我标记安全" value={numberOrZero(skills?.userSafeLabelCount)} loading={skills == null && skillsLoading} />
+        <StatCard label="我标记不安全" value={numberOrZero(skills?.userUnsafeLabelCount)} loading={skills == null && skillsLoading} />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
-        <ChartCard title="Skills 分类分布" option={pieOption(skillCategoryRows, true)} loading={skillsLoading} />
-        <ChartCard title="危险指令风险分布" option={pieOption(dangerRiskRows, false)} loading={dangerLoading} />
-        <ChartCard title="拦截风险分布" option={pieOption(interceptRiskRows, true)} loading={interceptLoading} />
+        <ChartCard title="Skills 分类分布" option={pieOption(skillCategoryRows, true)} loading={skills == null && skillsLoading} />
+        <ChartCard title="危险指令风险分布" option={pieOption(dangerRiskRows, false)} loading={danger == null && dangerLoading} />
+        <ChartCard title="拦截风险分布" option={pieOption(interceptRiskRows, true)} loading={intercept == null && interceptLoading} />
       </div>
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
         {skillsError && <div className="rounded-lg bg-red-500/10 border border-red-500/30 text-red-600 dark:text-red-400 text-xs px-3 py-2">{skillsError}</div>}
@@ -322,7 +376,7 @@ export const DashboardPage = () => {
                   </button>
                 ))}
               </div>
-              {tokenTimelineLoading ? (
+              {tokenTimeline == null && tokenTimelineLoading ? (
                 <div className="h-64 rounded bg-slate-100 dark:bg-slate-800 animate-pulse" />
               ) : (
                 <ReactECharts option={barOption(tokenRows, "#3b82f6")} style={{ height: 260, width: "100%" }} />
@@ -370,7 +424,7 @@ export const DashboardPage = () => {
                   </button>
                 ))}
               </div>
-              {interceptTimelineLoading ? (
+              {interceptTimeline == null && interceptTimelineLoading ? (
                 <div className="h-64 rounded bg-slate-100 dark:bg-slate-800 animate-pulse" />
               ) : (
                 <ReactECharts option={barOption(interceptTimelineRows, "#ef4444")} style={{ height: 260, width: "100%" }} />

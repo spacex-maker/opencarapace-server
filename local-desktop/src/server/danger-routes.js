@@ -114,7 +114,8 @@ function registerDangerRoutes(app) {
       const settings = await getLocalSettings();
       const apiKey = (settings && settings.ocApiKey) ? String(settings.ocApiKey) : "";
       syncState.danger = { running: true, total: 0, synced: 0 };
-      syncDangerCommandsFromServer(apiKey, updateDangerProgress)
+      // 手动同步：全量分页拉取（不带 createdAfter），避免仅靠增量漏数据或游标异常导致「点了没反应」
+      syncDangerCommandsFromServer(apiKey, updateDangerProgress, { forceFull: true })
         .then(async (p) => {
           try {
             await syncUserDangerCommandsFromServer(apiKey);

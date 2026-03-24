@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { StatCard } from "./Common";
+import "./DangerPanel.css";
 
 function FilterSelect(props: {
   value: string;
@@ -44,6 +45,7 @@ function FilterSelect(props: {
       </button>
       {open && (
         <div
+          className="danger-filter-dropdown-scroll"
           style={{
             position: "absolute",
             zIndex: 10,
@@ -247,10 +249,23 @@ export function DangerPanel({ showAccountSwitchPlaceholder = false }: { showAcco
   const triggerSync = async () => {
     try {
       setError(null);
-      await fetch("http://127.0.0.1:19111/api/danger-commands/sync", { method: "POST" });
+      const res = await fetch("http://127.0.0.1:19111/api/danger-commands/sync", { method: "POST" });
+      if (!res.ok) {
+        let msg = `无法开始同步（HTTP ${res.status}）`;
+        try {
+          const j = await res.json();
+          if (j?.error?.message) msg = j.error.message;
+        } catch {
+          /* ignore */
+        }
+        setError(msg);
+        setTimeout(() => setError(null), 5000);
+        return;
+      }
       setSync((s) => ({ ...s, running: true }));
     } catch (e: any) {
       setError(e?.message ?? "触发同步失败");
+      setTimeout(() => setError(null), 5000);
     }
   };
 

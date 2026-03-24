@@ -8,6 +8,37 @@ function estimateTokensFromString(s) {
   return Math.ceil(bytes / 4);
 }
 
+/** 单条 message 的 content 转纯文本（支持 string 与多模态数组）。 */
+function messageContentToString(content) {
+  if (typeof content === "string") return content;
+  if (Array.isArray(content)) {
+    return content
+      .map((c) => (c && c.type === "text" && typeof c.text === "string" ? c.text : ""))
+      .filter(Boolean)
+      .join("\n");
+  }
+  return "";
+}
+
+/**
+ * 仅取「最后一条 role=user」的文本用于危险指令匹配，避免整段对话历史导致误拦。
+ * 无 messages 时使用 prompt（completions 形态视为当前输入）。
+ */
+function extractLatestUserMessageText(body) {
+  if (!body || typeof body !== "object") return "";
+  if (typeof body.prompt === "string" && body.prompt.trim()) return body.prompt;
+  const messages = body.messages;
+  if (!Array.isArray(messages) || messages.length === 0) return "";
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const m = messages[i];
+    const role = typeof m?.role === "string" ? m.role.toLowerCase() : "";
+    if (role !== "user") continue;
+    const t = messageContentToString(m?.content).trim();
+    if (t) return t;
+  }
+  return "";
+}
+
 function extractUsage(responseData) {
   try {
     const root = typeof responseData === "string" ? JSON.parse(responseData) : responseData;
@@ -234,7 +265,9 @@ async function forwardChatCompletions(req, res) {
       }
     }
 
-    if (combinedText) {
+    const latestUserText = extractLatestUserMessageText(body);
+
+    if (latestUserText) {
       // 查询所有危险指令规则（包括系统和用户状态）
       const dangerRows = await new Promise((resolve) => {
         db.all(
@@ -243,7 +276,7 @@ async function forwardChatCompletions(req, res) {
         );
       });
 
-      const textLower = combinedText.toLowerCase();
+      const textLower = latestUserText.toLowerCase();
       const matchedRules = dangerRows.filter((r) => {
         const p = (r.command_pattern || "").trim();
         if (!p) return false;
@@ -297,7 +330,8 @@ async function forwardChatCompletions(req, res) {
           }
 
           const maxPromptChars = 20000;
-          const fullPrompt = typeof combinedText === "string" ? combinedText : String(combinedText || "");
+          const fullPrompt =
+            typeof latestUserText === "string" ? latestUserText : String(latestUserText || "");
           const promptForLog = fullPrompt.length > maxPromptChars ? fullPrompt.substring(0, maxPromptChars) : fullPrompt;
 
           const logRes = await axios.post(`${settings.apiBase}/api/safety/log-block`, {

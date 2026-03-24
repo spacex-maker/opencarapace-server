@@ -73,13 +73,13 @@ public class LlmSupervisionService {
     public record DangerMatch(String pattern, String riskLevel, String title) {}
 
     /**
-     * 从聊天请求 JSON 中提取所有 message 的 content 文本（仅 string 类型），拼接后做监管与可选意图检查。
+     * 从聊天请求 JSON 中仅提取「最后一条用户消息」的文本做监管与可选意图检查，
+     * 避免把整段对话历史拼在一起导致历史中的示例指令反复触发拦截。
      */
     public SupervisionResult checkRequest(String chatCompletionsBody, ApiKey caller) {
-        List<String> contents = extractMessageContents(chatCompletionsBody);
-        if (contents.isEmpty()) return SupervisionResult.allow();
-        String combined = String.join("\n", contents);
-        return checkText(combined, "request", caller, null);
+        String text = extractLatestUserMessageText(chatCompletionsBody);
+        if (text == null || text.isBlank()) return SupervisionResult.allow();
+        return checkText(text, "request", caller, null);
     }
 
     /**
@@ -128,11 +128,10 @@ public class LlmSupervisionService {
 
     /** 请求体为 chat/completions 时在代理里调用：传入上游 baseUrl 与 Authorization 用于意图层一次调用。 */
     public SupervisionResult checkRequestWithIntent(String chatCompletionsBody, ApiKey caller, String upstreamBaseUrl, String upstreamAuth) {
-        List<String> contents = extractMessageContents(chatCompletionsBody);
-        if (contents.isEmpty()) return SupervisionResult.allow();
-        String combined = String.join("\n", contents);
+        String text = extractLatestUserMessageText(chatCompletionsBody);
+        if (text == null || text.isBlank()) return SupervisionResult.allow();
         String urlAndAuth = (upstreamBaseUrl != null && upstreamAuth != null) ? upstreamBaseUrl + "|" + upstreamAuth : null;
-        return checkText(combined, "request", caller, urlAndAuth);
+        return checkText(text, "request", caller, urlAndAuth);
     }
 
     /**
@@ -187,21 +186,50 @@ public class LlmSupervisionService {
         return s.toLowerCase().replaceAll("\\s+", " ").trim();
     }
 
-    private List<String> extractMessageContents(String body) {
-        List<String> out = new ArrayList<>();
-        if (body == null || body.isBlank()) return out;
+    /**
+     * 从 OpenAI 风格 chat/completions 请求体中取「从后往前最后一条 role=user」的纯文本；
+     * 无 messages 时退回 prompt 字段（旧 completions 形态视为当前用户输入）。
+     */
+    private String extractLatestUserMessageText(String body) {
+        if (body == null || body.isBlank()) return "";
         try {
             JsonNode root = objectMapper.readTree(body);
             JsonNode messages = root.path("messages");
-            if (!messages.isArray()) return out;
-            for (JsonNode msg : messages) {
-                JsonNode content = msg.path("content");
-                if (content.isTextual()) out.add(content.asText());
+            if (messages.isArray() && !messages.isEmpty()) {
+                for (int i = messages.size() - 1; i >= 0; i--) {
+                    JsonNode msg = messages.get(i);
+                    if (!"user".equalsIgnoreCase(msg.path("role").asText(""))) continue;
+                    String t = messageContentToPlainText(msg.path("content"));
+                    if (t != null && !t.isBlank()) return t;
+                }
+                return "";
             }
+            JsonNode prompt = root.path("prompt");
+            if (prompt.isTextual()) return prompt.asText("");
         } catch (Exception e) {
-            log.debug("Extract message contents failed", e);
+            log.debug("Extract latest user message failed", e);
         }
-        return out;
+        return "";
+    }
+
+    private static String messageContentToPlainText(JsonNode content) {
+        if (content == null || content.isNull()) return "";
+        if (content.isTextual()) return content.asText("");
+        if (content.isArray()) {
+            StringBuilder sb = new StringBuilder();
+            for (JsonNode part : content) {
+                String type = part.path("type").asText("");
+                if ("text".equals(type) || part.has("text")) {
+                    String t = part.path("text").asText("");
+                    if (!t.isEmpty()) {
+                        if (sb.length() > 0) sb.append('\n');
+                        sb.append(t);
+                    }
+                }
+            }
+            return sb.toString();
+        }
+        return "";
     }
 
     private String extractAssistantContent(String body) {

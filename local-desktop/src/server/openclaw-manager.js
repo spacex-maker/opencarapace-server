@@ -1,4 +1,4 @@
-const { spawn } = require("child_process");
+const { spawn, execFileSync } = require("child_process");
 const path = require("path");
 const fs = require("fs");
 const { execWithOutput, checkUrlReachable } = require("./utils.js");
@@ -347,14 +347,15 @@ async function stopEmbeddedOpenClaw() {
   appendGatewayDiag("======== 停止 Gateway ========");
 
   try {
-    // 如果有进程引用，直接 kill
     if (openclawProcess) {
+      const pid = openclawProcess.pid;
       try {
         openclawProcess.kill();
-        console.log("[OpenClaw] 已终止 Gateway 进程");
+        console.log("[OpenClaw] 已终止 Gateway 进程 (pid=%s)", pid);
       } catch (err) {
         console.log("[OpenClaw] 终止进程失败:", err);
       }
+      killWindowsProcessTree(pid);
       openclawProcess = null;
     }
     
@@ -402,13 +403,31 @@ async function stopEmbeddedOpenClaw() {
     console.log("[OpenClaw] 停止命令已执行");
     console.log("[OpenClaw] stdout:", result.stdout);
     console.log("[OpenClaw] stderr:", result.stderr);
-    
-    // 清除缓存的 URL
+
     clearCachedDashboardUrl();
-    
+
+    const stepMs = 300;
+    const maxWaitMs = 15000;
+    for (let elapsed = 0; elapsed < maxWaitMs; elapsed += stepMs) {
+      const stillRunning = await checkOpenClawRunning();
+      if (!stillRunning) {
+        appendGatewayDiag(`端口 ${OPENCLAW_WS_PORT} 已关闭，Gateway 已停止`);
+        return true;
+      }
+      await new Promise((r) => setTimeout(r, stepMs));
+    }
+
+    const stillRunning = await checkOpenClawRunning();
+    if (stillRunning) {
+      appendGatewayDiag(
+        `警告: 停止后端口 ${OPENCLAW_WS_PORT} 仍监听；可能为本机其他 Gateway/守护进程，或未随父进程退出的子进程`
+      );
+      return false;
+    }
     return true;
   } catch (err) {
     console.error("[OpenClaw] 停止失败:", err);
+    appendGatewayDiag(`停止异常: ${err?.stack || err?.message || String(err)}`);
     return false;
   }
 }

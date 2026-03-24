@@ -1,0 +1,24 @@
+/* 高级查询下拉：细滚动条，与深色面板一致（非系统原生粗条） */
+.danger-filter-dropdown-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: #334155 #0c1222;
+}
+
+.danger-filter-dropdown-scroll::-webkit-scrollbar {
+  width: 5px;
+}
+
+.danger-filter-dropdown-scroll::-webkit-scrollbar-track {
+  background: #0c1222;
+  border-radius: 6px;
+  margin: 4px 0;
+}
+
+.danger-filter-dropdown-scroll::-webkit-scrollbar-thumb {
+  background: #334155;
+  border-radius: 6px;
+}
+
+.danger-filter-dropdown-scroll::-webkit-scrollbar-thumb:hover {
+  background: #475569;
+}

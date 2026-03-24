@@ -222,11 +222,11 @@ export function OpenClawPanel() {
       const data = await res.json();
       
       if (!res.ok || !data?.ok) {
-        setError(data?.error?.message || "停止失败");
+        setError(data?.error?.message || data?.message || "停止失败");
         return;
       }
-      
-      setMessage("Gateway 已停止");
+
+      setMessage(data?.message ?? "Gateway 已停止");
       
       // 立即刷新状态
       setTimeout(() => {

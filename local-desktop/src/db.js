@@ -220,6 +220,7 @@ function upsertDangerCommands(rows) {
           r.risk_level,
           r.enabled,
           r.created_at || null,
+          r.user_enabled ?? null,
           (err) => {
             if (err) reject(err);
           }

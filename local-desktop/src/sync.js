@@ -28,22 +28,30 @@ function cloudHeadersWithAuth(apiKey, auth) {
   return headers;
 }
 
-async function syncDangerCommandsFromServer(apiKey, onProgress) {
+/**
+ * @param {string} apiKey
+ * @param {(p: { total: number; synced: number }) => void} [onProgress]
+ * @param {{ forceFull?: boolean }} [options] forceFull=true 时不带 createdAfter，分页拉全量并 upsert（用于手动同步）
+ */
+async function syncDangerCommandsFromServer(apiKey, onProgress, options) {
   const settings = await getLocalSettings();
   const apiBase = (settings && settings.apiBase) || "https://api.clawheart.live";
   const auth = await getLocalAuth();
 
-  // 取本地最新 created_at，作为增量起点
+  // 取本地最新 created_at 作为增量起点；手动全量同步时跳过
   const db = getDb();
-  const lastCreatedAt = await new Promise((resolve) => {
-    db.get("SELECT created_at FROM danger_commands ORDER BY created_at DESC LIMIT 1", (err, row) => {
-      if (err || !row || !row.created_at) {
-        resolve(null);
-      } else {
-        resolve(row.created_at);
-      }
-    });
-  });
+  const forceFull = options && options.forceFull === true;
+  const lastCreatedAt = forceFull
+    ? null
+    : await new Promise((resolve) => {
+        db.get("SELECT created_at FROM danger_commands ORDER BY created_at DESC LIMIT 1", (err, row) => {
+          if (err || !row || !row.created_at) {
+            resolve(null);
+          } else {
+            resolve(row.created_at);
+          }
+        });
+      });
 
   let page = 0;
   const size = 10;
@@ -64,6 +72,13 @@ async function syncDangerCommandsFromServer(apiKey, onProgress) {
       validateStatus: () => true,
     });
     if (res.status !== 200 || !res.data || !Array.isArray(res.data.content)) {
+      if (res.status !== 200) {
+        console.error(
+          "[sync] danger-commands incremental failed:",
+          res.status,
+          typeof res.data === "string" ? res.data.slice(0, 200) : JSON.stringify(res.data || {}).slice(0, 200),
+        );
+      }
       break;
     }
     if (total === null && typeof res.data.totalElements === "number") {

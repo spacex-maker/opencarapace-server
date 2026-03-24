@@ -11,6 +11,33 @@ function getClientId(): string {
   return `desktop-${hostname}`;
 }
 
+function messageContentToString(content: unknown): string {
+  if (typeof content === "string") return content;
+  if (Array.isArray(content)) {
+    return content
+      .map((c: any) => (c && c.type === "text" && typeof c.text === "string" ? c.text : ""))
+      .filter(Boolean)
+      .join("\n");
+  }
+  return "";
+}
+
+/** 仅最后一条 user 消息，用于危险指令匹配（避免整段历史误拦）。 */
+function extractLatestUserMessageText(body: any): string {
+  if (!body || typeof body !== "object") return "";
+  if (typeof body.prompt === "string" && body.prompt.trim()) return body.prompt;
+  const messages = body.messages;
+  if (!Array.isArray(messages) || messages.length === 0) return "";
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const m = messages[i];
+    const role = typeof m?.role === "string" ? m.role.toLowerCase() : "";
+    if (role !== "user") continue;
+    const t = messageContentToString(m?.content).trim();
+    if (t) return t;
+  }
+  return "";
+}
+
 async function getLocalStatus() {
   const db = getDb();
   const counts: { danger: number; disabled: number; deprecated: number } = {
@@ -114,17 +141,9 @@ async function forwardChatCompletions(req: express.Request, res: express.Respons
     }
 
     const body = req.body as any;
-    let combinedText = "";
-    if (Array.isArray(body?.messages)) {
-      combinedText = body.messages
-        .map((m: any) => (typeof m?.content === "string" ? m.content : ""))
-        .filter(Boolean)
-        .join("\n");
-    } else if (typeof body?.prompt === "string") {
-      combinedText = body.prompt;
-    }
+    const latestUserText = extractLatestUserMessageText(body);
 
-    if (combinedText) {
+    if (latestUserText) {
       type DangerRow = { id: number; command_pattern: string; enabled: number };
       const dangerRows: DangerRow[] = await new Promise((resolve) => {
         db.all(
@@ -133,7 +152,7 @@ async function forwardChatCompletions(req: express.Request, res: express.Respons
         );
       });
 
-      const textLower = combinedText.toLowerCase();
+      const textLower = latestUserText.toLowerCase();
       const hitRules = dangerRows.filter((r) => {
         const p = r.command_pattern?.trim();
         if (!p) return false;

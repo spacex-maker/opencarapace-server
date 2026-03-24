@@ -243,10 +243,19 @@ function registerOpenClawRoutes(app) {
   // 停止 Gateway
   app.post("/api/openclaw/stop-gateway", async (_req, res) => {
     try {
-      stopEmbeddedOpenClaw();
-      res.status(200).json({ ok: true, message: "Gateway 停止命令已发送" });
+      const stopped = await stopEmbeddedOpenClaw();
+      res.status(200).json({
+        ok: stopped,
+        message: stopped
+          ? "Gateway 已停止"
+          : "Gateway 可能仍在运行（端口仍被占用），请查看诊断日志或手动结束占用 18789 的进程",
+        gatewayDiagnosticLog: getGatewayDiagnosticLog(),
+      });
     } catch (e) {
-      res.status(500).json({ error: { message: e?.message ?? "停止失败" } });
+      res.status(500).json({
+        error: { message: e?.message ?? "停止失败" },
+        gatewayDiagnosticLog: getGatewayDiagnosticLog(),
+      });
     }
   });
 

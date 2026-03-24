@@ -234,13 +234,13 @@ function FilterSelect({
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}
-        className="w-full inline-flex items-center justify-between rounded-lg bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 px-2.5 py-1.5 text-xs text-slate-900 dark:text-slate-100 hover:border-amber-500/60"
+        className="w-full inline-flex items-center justify-between rounded-full bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 px-3 py-2 text-xs text-slate-900 dark:text-slate-100 hover:border-amber-500/60"
       >
         <span className="truncate">{current ? current.label : displayLabel}</span>
         <span className="ml-1 text-[10px] text-slate-400 dark:text-slate-500">{open ? "▲" : "▼"}</span>
       </button>
       {open && (
-        <div className="absolute z-20 mt-1 w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-lg max-h-52 overflow-y-auto text-xs">
+        <div className="absolute z-20 mt-1 w-full rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-lg max-h-52 overflow-y-auto text-xs">
           {options.map((opt) => (
             <button
               key={opt.value}
@@ -525,8 +525,26 @@ export const DangerCommandListPage = ({ mode = "user" }: DangerCommandListPagePr
   const [userEnabledFilter, setUserEnabledFilter] = useState<"" | "ENABLED" | "DISABLED">("");
   const [detailItem, setDetailItem] = useState<DangerCommandItem | null>(null);
   const [editItem, setEditItem] = useState<DangerCommandItem | null>(null);
+  const [topMessage, setTopMessage] = useState<string | null>(null);
+  const topMessageTimerRef = useRef<number | null>(null);
 
-  const load = () => {
+  const clearTopMessageTimer = () => {
+    if (topMessageTimerRef.current !== null) {
+      window.clearTimeout(topMessageTimerRef.current);
+      topMessageTimerRef.current = null;
+    }
+  };
+
+  const showTopMessage = (message: string) => {
+    clearTopMessageTimer();
+    setTopMessage(message);
+    topMessageTimerRef.current = window.setTimeout(() => {
+      setTopMessage(null);
+      topMessageTimerRef.current = null;
+    }, 2000);
+  };
+
+  const load = (showSuccessMessage = false) => {
     setLoading(true);
     setError("");
     fetchDangerCommands({
@@ -539,6 +557,11 @@ export const DangerCommandListPage = ({ mode = "user" }: DangerCommandListPagePr
       userEnabled: userEnabledFilter || undefined,
     })
       .then(setPage)
+      .then(() => {
+        if (showSuccessMessage) {
+          showTopMessage("刷新成功");
+        }
+      })
       .catch((err) => {
         const msg =
           err?.response?.status === 403
@@ -546,6 +569,9 @@ export const DangerCommandListPage = ({ mode = "user" }: DangerCommandListPagePr
             : err?.response?.data?.message || "加载失败";
         setError(msg);
         setPage(null);
+        if (showSuccessMessage) {
+          setTopMessage(null);
+        }
       })
       .finally(() => setLoading(false));
   };
@@ -554,6 +580,8 @@ export const DangerCommandListPage = ({ mode = "user" }: DangerCommandListPagePr
     load();
   }, [pageNumber, systemType, category, riskLevel, userEnabledFilter]);
 
+  useEffect(() => () => clearTopMessageTimer(), []);
+
   const onSearch = (e: React.FormEvent) => {
     e.preventDefault();
     setPageNumber(0);
@@ -561,7 +589,7 @@ export const DangerCommandListPage = ({ mode = "user" }: DangerCommandListPagePr
   };
 
   const inputClass =
-    "rounded-lg bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 px-2.5 py-1.5 text-xs text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-brand-500/50";
+    "rounded-full bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 px-3 py-2 text-xs text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-brand-500/50";
 
   return (
     <div className="space-y-6">
@@ -646,14 +674,28 @@ export const DangerCommandListPage = ({ mode = "user" }: DangerCommandListPagePr
         />
         <button
           type="submit"
-          className="px-3 py-1.5 rounded-lg bg-brand-500 hover:bg-brand-600 text-white text-xs font-medium"
+          className="px-4 py-2 rounded-full bg-brand-500 hover:bg-brand-600 text-white text-xs font-medium"
         >
           查询
         </button>
+        <button
+          type="button"
+          disabled={loading}
+          onClick={() => load(true)}
+          className="px-4 py-2 rounded-full border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800 text-xs font-medium disabled:opacity-60 disabled:cursor-not-allowed"
+        >
+          {loading ? "刷新中…" : "刷新"}
+        </button>
       </form>
 
+      {topMessage && (
+        <div className="rounded-3xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-2 text-sm text-emerald-700 dark:text-emerald-400">
+          {topMessage}
+        </div>
+      )}
+
       {error && (
-        <div className="rounded-lg bg-red-500/10 border border-red-500/30 text-red-600 dark:text-red-300 text-sm px-4 py-3">
+        <div className="rounded-2xl bg-red-500/10 border border-red-500/30 text-red-600 dark:text-red-300 text-sm px-4 py-3">
           {error}
         </div>
       )}
@@ -666,7 +708,7 @@ export const DangerCommandListPage = ({ mode = "user" }: DangerCommandListPagePr
 
       {!loading && page && (
         <>
-          <div className="rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden">
+          <div className="rounded-2xl border border-slate-200 dark:border-slate-800 overflow-hidden">
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
@@ -803,7 +845,7 @@ export const DangerCommandListPage = ({ mode = "user" }: DangerCommandListPagePr
                             <button
                               type="button"
                               onClick={() => setDetailItem(row)}
-                              className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600"
+                              className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-full text-xs font-medium bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600"
                             >
                               <FileText className="w-3.5 h-3.5" />
                               详情
@@ -812,7 +854,7 @@ export const DangerCommandListPage = ({ mode = "user" }: DangerCommandListPagePr
                               <button
                                 type="button"
                                 onClick={() => setEditItem(row)}
-                                className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300 hover:bg-amber-200 dark:hover:bg-amber-800"
+                                className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-full text-xs font-medium bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300 hover:bg-amber-200 dark:hover:bg-amber-800"
                               >
                                 <Edit3 className="w-3.5 h-3.5" />
                                 编辑
@@ -838,7 +880,7 @@ export const DangerCommandListPage = ({ mode = "user" }: DangerCommandListPagePr
                   type="button"
                   disabled={page.first}
                   onClick={() => setPageNumber((p) => Math.max(0, p - 1))}
-                  className="p-2 rounded-lg border border-slate-300 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-40 disabled:cursor-not-allowed text-slate-700 dark:text-slate-300"
+                  className="p-2 rounded-full border border-slate-300 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-40 disabled:cursor-not-allowed text-slate-700 dark:text-slate-300"
                 >
                   <ChevronLeft className="w-4 h-4" />
                 </button>
@@ -848,7 +890,7 @@ export const DangerCommandListPage = ({ mode = "user" }: DangerCommandListPagePr
                   onClick={() =>
                     setPageNumber((p) => Math.min(page.totalPages - 1, p + 1))
                   }
-                  className="p-2 rounded-lg border border-slate-300 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-40 disabled:cursor-not-allowed text-slate-700 dark:text-slate-300"
+                  className="p-2 rounded-full border border-slate-300 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-40 disabled:cursor-not-allowed text-slate-700 dark:text-slate-300"
                 >
                   <ChevronRight className="w-4 h-4" />
                 </button>

@@ -161,7 +161,7 @@ function FilterSelect({
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}
-        className="w-full inline-flex items-center justify-between rounded-lg bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 px-2.5 py-1.5 text-xs text-slate-900 dark:text-slate-100 hover:border-brand-500/60"
+        className="w-full inline-flex items-center justify-between rounded-full bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 px-3 py-2 text-xs text-slate-900 dark:text-slate-100 hover:border-brand-500/60"
       >
         <span className="truncate">
           {current ? current.label : displayLabel}
@@ -171,7 +171,7 @@ function FilterSelect({
         </span>
       </button>
       {open && (
-        <div className="absolute z-20 mt-1 w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-lg max-h-52 overflow-y-auto text-xs">
+        <div className="absolute z-20 mt-1 w-full rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-lg max-h-52 overflow-y-auto text-xs">
           {options.map((opt) => (
             <button
               key={opt.value}
@@ -453,7 +453,7 @@ export const SkillsListPage = ({ mode = "user" }: SkillsListPageProps) => {
             <BookOpen className="w-5 h-5 text-blue-600 dark:text-blue-400" />
           </div>
           <div>
-            <h2 className="text-xl font-semibold text-slate-900 dark:text-white">技能目录</h2>
+            <h2 className="text-xl font-semibold text-slate-900 dark:text-white">技能仓库</h2>
             <p className="text-sm text-slate-500 dark:text-slate-400">
               来自 ClawHub 的已同步技能列表，{isAdmin ? "管理员可调整部分元信息" : "仅供查看"}。
             </p>
@@ -464,7 +464,7 @@ export const SkillsListPage = ({ mode = "user" }: SkillsListPageProps) => {
             type="button"
             onClick={handleFullSync}
             disabled={syncing}
-            className="inline-flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium bg-brand-500 hover:bg-brand-600 text-white disabled:opacity-60 disabled:cursor-not-allowed"
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-full text-xs font-medium bg-brand-500 hover:bg-brand-600 text-white disabled:opacity-60 disabled:cursor-not-allowed"
           >
             {syncing ? "同步中…" : "手动全量同步"}
           </button>
@@ -481,7 +481,7 @@ export const SkillsListPage = ({ mode = "user" }: SkillsListPageProps) => {
               value={keyword}
               onChange={(e) => setKeyword(e.target.value)}
               placeholder="按名称 / slug / 简介搜索"
-              className="w-full rounded-lg bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 pl-8 pr-3 py-1.5 text-xs text-slate-900 dark:text-slate-100 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-brand-500/50"
+              className="w-full rounded-full bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 pl-8 pr-3 py-2 text-xs text-slate-900 dark:text-slate-100 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-brand-500/50"
             />
           </div>
         </div>
@@ -503,7 +503,7 @@ export const SkillsListPage = ({ mode = "user" }: SkillsListPageProps) => {
             type="text"
             value={typeFilter}
             onChange={(e) => setTypeFilter(e.target.value)}
-            className="w-full rounded-lg bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 px-2 py-1.5 text-xs text-slate-900 dark:text-slate-100"
+            className="w-full rounded-full bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 px-3 py-2 text-xs text-slate-900 dark:text-slate-100"
           />
         </div>
         <div className="w-40">
@@ -512,7 +512,7 @@ export const SkillsListPage = ({ mode = "user" }: SkillsListPageProps) => {
             type="text"
             value={categoryFilter}
             onChange={(e) => setCategoryFilter(e.target.value)}
-            className="w-full rounded-lg bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 px-2 py-1.5 text-xs text-slate-900 dark:text-slate-100"
+            className="w-full rounded-full bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 px-3 py-2 text-xs text-slate-900 dark:text-slate-100"
           />
         </div>
         <FilterSelect
@@ -531,7 +531,7 @@ export const SkillsListPage = ({ mode = "user" }: SkillsListPageProps) => {
             type="button"
             onClick={handleSearch}
             disabled={loading}
-            className="px-3 py-1.5 rounded-lg bg-brand-500 hover:bg-brand-600 disabled:opacity-60 disabled:cursor-not-allowed text-white text-xs font-medium"
+            className="px-4 py-2 rounded-full bg-brand-500 hover:bg-brand-600 disabled:opacity-60 disabled:cursor-not-allowed text-white text-xs font-medium"
           >
             {loading ? "查询中…" : "查询"}
           </button>
@@ -539,13 +539,13 @@ export const SkillsListPage = ({ mode = "user" }: SkillsListPageProps) => {
       </div>
 
       {error && (
-        <div className="rounded-lg bg-red-500/10 border border-red-500/30 text-red-600 dark:text-red-300 text-sm px-4 py-3">
+        <div className="rounded-2xl bg-red-500/10 border border-red-500/30 text-red-600 dark:text-red-300 text-sm px-4 py-3">
           {error}
         </div>
       )}
 
       {syncResult && (
-        <div className="rounded-lg bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs px-4 py-2 text-slate-700 dark:text-slate-200">
+        <div className="rounded-2xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs px-4 py-2 text-slate-700 dark:text-slate-200">
           {syncResult}
         </div>
       )}
@@ -556,7 +556,7 @@ export const SkillsListPage = ({ mode = "user" }: SkillsListPageProps) => {
 
       {!loading && page && (
         <>
-          <div className="rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden">
+          <div className="rounded-2xl border border-slate-200 dark:border-slate-800 overflow-hidden">
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
@@ -653,7 +653,7 @@ export const SkillsListPage = ({ mode = "user" }: SkillsListPageProps) => {
                                       );
                                     }
                                   }}
-                                  className={`px-2 py-0.5 rounded text-[11px] border ${
+                                  className={`px-2 py-0.5 rounded-full text-[11px] border ${
                                     row.userSafetyLabel === "SAFE"
                                       ? "bg-emerald-500/15 text-emerald-600 dark:text-emerald-300 border-emerald-500/40"
                                       : "bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 border-slate-300 dark:border-slate-600"
@@ -710,7 +710,7 @@ export const SkillsListPage = ({ mode = "user" }: SkillsListPageProps) => {
                                       );
                                     }
                                   }}
-                                  className={`px-2 py-0.5 rounded text-[11px] border ${
+                                  className={`px-2 py-0.5 rounded-full text-[11px] border ${
                                     row.userSafetyLabel === "UNSAFE"
                                       ? "bg-red-500/15 text-red-600 dark:text-red-300 border-red-500/40"
                                       : "bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 border-slate-300 dark:border-slate-600"
@@ -795,7 +795,7 @@ export const SkillsListPage = ({ mode = "user" }: SkillsListPageProps) => {
                             <button
                               type="button"
                               onClick={() => setDetailItem(row)}
-                              className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600"
+                              className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-full text-xs font-medium bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600"
                             >
                               <BookOpen className="w-3.5 h-3.5" />
                               详情
@@ -804,7 +804,7 @@ export const SkillsListPage = ({ mode = "user" }: SkillsListPageProps) => {
                               <button
                                 type="button"
                                 onClick={() => setEditItem(row)}
-                                className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300 hover:bg-amber-200 dark:hover:bg-amber-800"
+                                className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-full text-xs font-medium bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300 hover:bg-amber-200 dark:hover:bg-amber-800"
                               >
                                 <Edit3 className="w-3.5 h-3.5" />
                                 编辑
@@ -830,7 +830,7 @@ export const SkillsListPage = ({ mode = "user" }: SkillsListPageProps) => {
                   type="button"
                   disabled={page.first}
                   onClick={() => setPageNumber((p) => Math.max(0, p - 1))}
-                  className="p-2 rounded-lg border border-slate-300 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-40 disabled:cursor-not-allowed text-slate-700 dark:text-slate-300"
+                  className="p-2 rounded-full border border-slate-300 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-40 disabled:cursor-not-allowed text-slate-700 dark:text-slate-300"
                 >
                   <ChevronLeft className="w-4 h-4" />
                 </button>
@@ -838,7 +838,7 @@ export const SkillsListPage = ({ mode = "user" }: SkillsListPageProps) => {
                   type="button"
                   disabled={page.last}
                   onClick={() => setPageNumber((p) => Math.min(page.totalPages - 1, p + 1))}
-                  className="p-2 rounded-lg border border-slate-300 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-40 disabled:cursor-not-allowed text-slate-700 dark:text-slate-300"
+                  className="p-2 rounded-full border border-slate-300 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-40 disabled:cursor-not-allowed text-slate-700 dark:text-slate-300"
                 >
                   <ChevronRight className="w-4 h-4" />
                 </button>

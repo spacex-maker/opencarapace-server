@@ -20,6 +20,8 @@ export const ApiKeysPage = () => {
   const [newScopes, setNewScopes] = useState("");
   const [lastCreatedKey, setLastCreatedKey] = useState<string | null>(null);
   const [listError, setListError] = useState<string | null>(null);
+  const [listLoading, setListLoading] = useState(false);
+  const [topMessage, setTopMessage] = useState<string | null>(null);
   const [actionKeyId, setActionKeyId] = useState<number | null>(null);
   const [editKey, setEditKey] = useState<ApiKeyItem | null>(null);
   const [editLabel, setEditLabel] = useState("");
@@ -27,14 +29,19 @@ export const ApiKeysPage = () => {
   const [editSubmitting, setEditSubmitting] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
-  const loadKeys = async () => {
+  const loadKeys = async (showSuccessMessage = false) => {
     if (!token) return;
+    setListLoading(true);
     setListError(null);
     try {
       const res = await api.get<ApiKeyItem[]>("/api/api-keys", {
         headers: { Authorization: `Bearer ${token}` },
       });
       setApiKeys(Array.isArray(res.data) ? res.data : []);
+      if (showSuccessMessage) {
+        setTopMessage("刷新成功");
+        setTimeout(() => setTopMessage(null), 2000);
+      }
     } catch (e: unknown) {
       const msg =
         e && typeof e === "object" && "response" in e
@@ -42,6 +49,11 @@ export const ApiKeysPage = () => {
           : null;
       setListError(msg || "加载 API Key 列表失败，请刷新重试");
       setApiKeys([]);
+      if (showSuccessMessage) {
+        setTopMessage(null);
+      }
+    } finally {
+      setListLoading(false);
     }
   };
 
@@ -162,15 +174,20 @@ export const ApiKeysPage = () => {
   return (
     <div className="space-y-8">
       <h2 className="text-xl font-semibold text-slate-900 dark:text-white">API Key 管理</h2>
+      {topMessage && (
+        <div className="rounded-2xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-2 text-sm text-emerald-700 dark:text-emerald-400">
+          {topMessage}
+        </div>
+      )}
 
       {/* 创建 API Key */}
-      <section className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900/50 p-5 shadow-sm">
+      <section className="rounded-[28px] border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900/50 p-6 shadow-sm">
         <h3 className="text-sm font-medium text-slate-700 dark:text-slate-200 mb-3">创建 API Key</h3>
         <div className="flex flex-col sm:flex-row gap-3">
           <div className="flex-1 space-y-1">
             <label className="text-xs text-slate-500 dark:text-slate-400">描述</label>
             <input
-              className="w-full rounded-lg bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-600 px-3 py-2 text-sm text-slate-900 dark:text-slate-100 placeholder-slate-400 focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500"
+              className="w-full rounded-full bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-600 px-4 py-2.5 text-sm text-slate-900 dark:text-slate-100 placeholder-slate-400 focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500"
               placeholder="如：生产环境 Agent 网关"
               value={newLabel}
               onChange={(e) => setNewLabel(e.target.value)}
@@ -179,7 +196,7 @@ export const ApiKeysPage = () => {
           <div className="flex-1 space-y-1">
             <label className="text-xs text-slate-500 dark:text-slate-400">Scopes（可选）</label>
             <input
-              className="w-full rounded-lg bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-600 px-3 py-2 text-sm text-slate-900 dark:text-slate-100 placeholder-slate-400 focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500"
+              className="w-full rounded-full bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-600 px-4 py-2.5 text-sm text-slate-900 dark:text-slate-100 placeholder-slate-400 focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500"
               placeholder="tools:read, safety:check"
               value={newScopes}
               onChange={(e) => setNewScopes(e.target.value)}
@@ -188,14 +205,14 @@ export const ApiKeysPage = () => {
           <div className="flex items-end">
             <button
               onClick={createKey}
-              className="w-full sm:w-auto px-5 py-2.5 rounded-lg bg-brand-500 hover:bg-brand-600 text-white text-sm font-medium transition-colors"
+              className="w-full sm:w-auto px-6 py-2.5 rounded-full bg-brand-500 hover:bg-brand-600 text-white text-sm font-medium transition-colors"
             >
               创建
             </button>
           </div>
         </div>
         {lastCreatedKey && (
-          <div className="mt-4 p-3 rounded-lg bg-amber-500/10 dark:bg-amber-500/20 border border-amber-500/30">
+          <div className="mt-4 p-3 rounded-2xl bg-amber-500/10 dark:bg-amber-500/20 border border-amber-500/30">
             <p className="text-xs font-medium text-amber-800 dark:text-amber-200 mb-1">新建 Key 仅显示一次，请复制保存</p>
             <code className="text-xs text-amber-900 dark:text-amber-100 break-all block font-mono">{lastCreatedKey}</code>
           </div>
@@ -203,20 +220,21 @@ export const ApiKeysPage = () => {
       </section>
 
       {/* 我的 API Keys 列表 */}
-      <section className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900/50 shadow-sm overflow-hidden">
+      <section className="rounded-[28px] border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900/50 shadow-sm overflow-hidden">
         <div className="px-5 py-4 flex items-center justify-between border-b border-slate-200 dark:border-slate-700">
           <h3 className="text-sm font-medium text-slate-700 dark:text-slate-200">我的 API Keys</h3>
           <button
             type="button"
-            onClick={() => loadKeys()}
-            className="text-xs text-slate-500 dark:text-slate-400 hover:text-brand-500 dark:hover:text-brand-400 transition-colors"
+            disabled={listLoading}
+            onClick={() => loadKeys(true)}
+            className="text-xs text-slate-500 dark:text-slate-400 hover:text-brand-500 dark:hover:text-brand-400 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
           >
-            刷新
+            {listLoading ? "刷新中…" : "刷新"}
           </button>
         </div>
         <div className="p-5">
           {listError && (
-            <div className="mb-4 py-2 px-3 rounded-lg bg-red-500/10 text-red-600 dark:text-red-400 text-sm">
+            <div className="mb-4 py-2 px-3 rounded-2xl bg-red-500/10 text-red-600 dark:text-red-400 text-sm">
               {listError}
             </div>
           )}
@@ -230,7 +248,7 @@ export const ApiKeysPage = () => {
               {apiKeys.map((k) => (
                 <li
                   key={k.id}
-                  className="flex items-center gap-4 p-4 rounded-lg bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-700/50 hover:border-slate-200 dark:hover:border-slate-600 transition-colors"
+                  className="flex items-center gap-4 p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-700/50 hover:border-slate-200 dark:hover:border-slate-600 transition-colors"
                 >
                   <div className="flex-1 min-w-0">
                     <div className="font-medium text-slate-900 dark:text-white truncate">
@@ -251,20 +269,20 @@ export const ApiKeysPage = () => {
                   <div className="flex items-center gap-2 shrink-0">
                     {k.active !== false && (
                       <>
-                        <span className="px-2 py-0.5 rounded text-xs font-medium bg-emerald-500/20 text-emerald-700 dark:text-emerald-400">
+                        <span className="px-2.5 py-0.5 rounded-full text-xs font-medium bg-emerald-500/20 text-emerald-700 dark:text-emerald-400">
                           有效
                         </span>
                         <div className="relative" ref={actionKeyId === k.id ? dropdownRef : undefined}>
                           <button
                             type="button"
                             onClick={() => setActionKeyId((id) => (id === k.id ? null : k.id))}
-                            className="p-2 rounded-lg text-slate-500 hover:bg-slate-200 dark:hover:bg-slate-700 dark:text-slate-400 dark:hover:text-slate-200 transition-colors"
+                            className="p-2 rounded-full text-slate-500 hover:bg-slate-200 dark:hover:bg-slate-700 dark:text-slate-400 dark:hover:text-slate-200 transition-colors"
                             title="操作"
                           >
                             <MoreHorizontal className="w-4 h-4" />
                           </button>
                           {actionKeyId === k.id && (
-                            <div className="absolute right-0 top-full mt-1 py-1 min-w-[100px] rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 shadow-lg z-10">
+                            <div className="absolute right-0 top-full mt-1 py-1 min-w-[100px] rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 shadow-lg z-10">
                               <button
                                 type="button"
                                 onClick={() => openEdit(k)}
@@ -307,7 +325,7 @@ export const ApiKeysPage = () => {
             onClick={closeEdit}
             aria-hidden
           />
-          <div className="relative w-full max-w-md rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-xl p-5 space-y-4">
+          <div className="relative w-full max-w-md rounded-[28px] border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-xl p-6 space-y-4">
             <h2 id="edit-key-title" className="text-base font-semibold text-slate-900 dark:text-white">
               修改 API Key
             </h2>
@@ -315,7 +333,7 @@ export const ApiKeysPage = () => {
               <div>
                 <label className="block text-xs text-slate-500 dark:text-slate-400 mb-1">描述</label>
                 <input
-                  className="w-full rounded-lg bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-600 px-3 py-2 text-sm text-slate-900 dark:text-slate-100"
+                  className="w-full rounded-full bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-600 px-4 py-2.5 text-sm text-slate-900 dark:text-slate-100"
                   value={editLabel}
                   onChange={(e) => setEditLabel(e.target.value)}
                   placeholder="如：生产环境 Agent 网关"
@@ -324,7 +342,7 @@ export const ApiKeysPage = () => {
               <div>
                 <label className="block text-xs text-slate-500 dark:text-slate-400 mb-1">Scopes（可选）</label>
                 <input
-                  className="w-full rounded-lg bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-600 px-3 py-2 text-sm text-slate-900 dark:text-slate-100"
+                  className="w-full rounded-full bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-600 px-4 py-2.5 text-sm text-slate-900 dark:text-slate-100"
                   value={editScopes}
                   onChange={(e) => setEditScopes(e.target.value)}
                   placeholder="tools:read, safety:check"
@@ -336,7 +354,7 @@ export const ApiKeysPage = () => {
                 type="button"
                 onClick={closeEdit}
                 disabled={editSubmitting}
-                className="px-4 py-2 rounded-lg text-sm font-medium text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-50"
+                className="px-4 py-2 rounded-full text-sm font-medium text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-50"
               >
                 取消
               </button>
@@ -344,7 +362,7 @@ export const ApiKeysPage = () => {
                 type="button"
                 onClick={saveEdit}
                 disabled={editSubmitting || !editLabel.trim()}
-                className="px-4 py-2 rounded-lg text-sm font-medium text-white bg-brand-500 hover:bg-brand-600 disabled:opacity-50"
+                className="px-5 py-2 rounded-full text-sm font-medium text-white bg-brand-500 hover:bg-brand-600 disabled:opacity-50"
               >
                 {editSubmitting ? "保存中…" : "保存"}
               </button>

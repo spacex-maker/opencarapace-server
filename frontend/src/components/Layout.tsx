@@ -40,7 +40,7 @@ export const Layout = ({ children }: Props) => {
               <>
                 <Link to="/settings" className={navItemClass("/settings")}>
                   <Settings className="w-4 h-4 shrink-0" />
-                  设置
+                  用户设置
                 </Link>
                 <Link to="/skills" className={navItemClass("/skills")}>
                   <Shield className="w-4 h-4 shrink-0" />

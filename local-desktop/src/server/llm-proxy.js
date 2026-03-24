@@ -170,9 +170,11 @@ async function forwardChatCompletions(req, res) {
           console.log("[LLM Proxy] API Base:", settings.apiBase);
           console.log("[LLM Proxy] API Key 长度:", settings.ocApiKey?.length || 0);
           const auth = await getLocalAuth().catch(() => null);
-          const logHeaders = {
-            "X-OC-API-KEY": settings.ocApiKey,
-          };
+          const logHeaders = {};
+          const apiKey = settings && settings.ocApiKey && String(settings.ocApiKey).trim();
+          if (apiKey) {
+            logHeaders["X-OC-API-KEY"] = apiKey;
+          }
           if (auth && auth.token) {
             logHeaders.Authorization = `Bearer ${auth.token}`;
           }
@@ -285,9 +287,11 @@ async function forwardChatCompletions(req, res) {
           console.log("[LLM Proxy] API Base:", settings.apiBase);
           console.log("[LLM Proxy] API Key 长度:", settings.ocApiKey?.length || 0);
           const auth = await getLocalAuth().catch(() => null);
-          const logHeaders = {
-            "X-OC-API-KEY": settings.ocApiKey,
-          };
+          const logHeaders = {};
+          const apiKey = settings && settings.ocApiKey && String(settings.ocApiKey).trim();
+          if (apiKey) {
+            logHeaders["X-OC-API-KEY"] = apiKey;
+          }
           if (auth && auth.token) {
             logHeaders.Authorization = `Bearer ${auth.token}`;
           }

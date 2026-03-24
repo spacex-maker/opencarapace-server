@@ -4,6 +4,8 @@ import com.opencarapace.server.agent.ToolDefinition;
 import com.opencarapace.server.agent.ToolDefinitionRepository;
 import com.opencarapace.server.apikey.ApiKey;
 import com.opencarapace.server.apikey.ApiKeyService;
+import com.opencarapace.server.user.User;
+import com.opencarapace.server.user.UserRepository;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
@@ -32,15 +34,18 @@ public class SafetyCheckController {
     private final ApiKeyService apiKeyService;
     private final ToolDefinitionRepository toolDefinitionRepository;
     private final SafetyEvaluationRepository safetyEvaluationRepository;
+    private final UserRepository userRepository;
 
     public SafetyCheckController(
             ApiKeyService apiKeyService,
             ToolDefinitionRepository toolDefinitionRepository,
-            SafetyEvaluationRepository safetyEvaluationRepository
+            SafetyEvaluationRepository safetyEvaluationRepository,
+            UserRepository userRepository
     ) {
         this.apiKeyService = apiKeyService;
         this.toolDefinitionRepository = toolDefinitionRepository;
         this.safetyEvaluationRepository = safetyEvaluationRepository;
+        this.userRepository = userRepository;
     }
 
     @PostMapping("/check")
@@ -127,17 +132,26 @@ public class SafetyCheckController {
             @Valid @RequestBody LogBlockRequest request,
             HttpServletRequest httpServletRequest
     ) {
-        if (apiKeyHeader == null || apiKeyHeader.isBlank()) {
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        ApiKey apiKey = null;
+        if (apiKeyHeader != null && !apiKeyHeader.isBlank()) {
+            apiKey = apiKeyService.authenticateByRawKey(apiKeyHeader);
+            if (apiKey == null) {
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+            }
         }
-        ApiKey apiKey = apiKeyService.authenticateByRawKey(apiKeyHeader);
-        if (apiKey == null) {
+
+        // 优先使用当前登录用户，避免“日志写到了 API Key 所属账号，当前账号查不到”。
+        User currentUser = getCurrentUserOrNull();
+        if (currentUser == null && apiKey != null) {
+            currentUser = apiKey.getUser();
+        }
+        if (currentUser == null) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
         }
 
         SafetyEvaluationRecord record = new SafetyEvaluationRecord();
         record.setApiKey(apiKey);
-        record.setUser(apiKey.getUser());
+        record.setUser(currentUser);
         record.setTool(null);
         record.setInputType("llm_proxy_block");
         record.setInputSummary(request.blockType());
@@ -230,6 +244,19 @@ public class SafetyCheckController {
             throw new IllegalStateException("Missing authentication");
         }
         return Long.parseLong(auth.getName());
+    }
+
+    private User getCurrentUserOrNull() {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        if (auth == null || auth.getName() == null) {
+            return null;
+        }
+        try {
+            Long userId = Long.parseLong(auth.getName());
+            return userRepository.findById(userId).orElse(null);
+        } catch (NumberFormatException ex) {
+            return null;
+        }
     }
 
     public record SafetyCheckRequest(

@@ -124,6 +124,13 @@ type BlockLogDetail = {
   rawInput: string | null;
 };
 
+function formatLocalDateTime(value?: string | null): string {
+  if (!value) return "-";
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return String(value);
+  return d.toLocaleString("zh-CN", { hour12: false });
+}
+
 function formatBlockType(t: string | null) {
   if (!t) return "-";
   if (t === "danger_command") return "危险指令";
@@ -335,7 +342,7 @@ export function InterceptLogsPanel() {
                     </button>
                   </td>
                   <td style={{ padding: "8px 10px", color: "#e5e7eb", whiteSpace: "nowrap" }}>
-                    {String(it.createdAt || "").replace("T", " ").replace("Z", "")}
+                    {formatLocalDateTime(it.createdAt)}
                   </td>
                 </tr>
               ))
@@ -457,7 +464,7 @@ export function InterceptLogsPanel() {
                       'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
                   }}
                 >
-                  {detail?.createdAt ? String(detail.createdAt).replace("T", " ").replace("Z", "") : "-"}
+                  {formatLocalDateTime(detail?.createdAt)}
                 </div>
               </div>
 

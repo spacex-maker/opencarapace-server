@@ -300,8 +300,54 @@ export interface ClientInterceptLogItem {
 }
 
 export async function fetchMyInterceptLogs(limit = 50): Promise<ClientInterceptLogItem[]> {
-  const { data } = await api.get<ClientInterceptLogItem[]>(`/api/client/intercept-logs/me?limit=${limit}`);
-  return Array.isArray(data) ? data : [];
+  // 新版来源：/api/safety/block-logs（本地客户端拦截日志写入该表）
+  try {
+    const { data } = await api.get<{
+      page: number;
+      size: number;
+      total: number;
+      items: Array<{
+        id: number;
+        createdAt?: string;
+        blockType?: string;
+        riskLevel?: string;
+        reasons?: string;
+        promptSnippet?: string;
+      }>;
+    }>(`/api/safety/block-logs?page=1&size=${Math.max(1, Math.min(limit, 200))}`);
+    const items = Array.isArray(data?.items) ? data.items : [];
+    return items.map((it) => ({
+      id: it.id,
+      requestType: it.blockType || "llm_proxy_block",
+      verdict: "BLOCK",
+      riskLevel: it.riskLevel,
+      reason: it.reasons,
+      requestSnippet: it.promptSnippet,
+      createdAt: it.createdAt,
+    }));
+  } catch {
+    // 兼容旧版来源：/api/client/intercept-logs/me
+    const { data } = await api.get<ClientInterceptLogItem[]>(`/api/client/intercept-logs/me?limit=${limit}`);
+    return Array.isArray(data) ? data : [];
+  }
+}
+
+export interface MyInterceptLogDetail {
+  id: number;
+  createdAt?: string;
+  blockType?: string;
+  riskLevel?: string;
+  reasons?: string;
+  rawInput?: string;
+}
+
+export async function fetchMyInterceptLogDetail(id: number): Promise<MyInterceptLogDetail | null> {
+  try {
+    const { data } = await api.get<MyInterceptLogDetail>(`/api/safety/block-logs/${id}`);
+    return data || null;
+  } catch {
+    return null;
+  }
 }
 
 /** 系统配置项（仅管理员） */

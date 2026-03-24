@@ -366,6 +366,64 @@ export async function fetchMyInterceptLogDetail(id: number): Promise<MyIntercept
   }
 }
 
+/** 管理员：全站拦截日志（多条件查询） */
+export interface AdminBlockLogRow {
+  id: number;
+  userId: number | null;
+  userEmail: string | null;
+  createdAt?: string;
+  blockType?: string | null;
+  riskLevel?: string | null;
+  reasons?: string | null;
+  promptSnippet?: string | null;
+}
+
+export interface AdminBlockLogsPageResponse {
+  page: number;
+  size: number;
+  total: number;
+  items: AdminBlockLogRow[];
+}
+
+export interface AdminBlockLogDetail extends MyInterceptLogDetail {
+  userId?: number | null;
+  userEmail?: string | null;
+}
+
+export async function fetchAdminBlockLogs(params: {
+  page?: number;
+  size?: number;
+  userId?: number;
+  email?: string;
+  blockType?: string;
+  riskLevel?: string;
+  from?: string;
+  to?: string;
+  keyword?: string;
+}): Promise<AdminBlockLogsPageResponse> {
+  const sp = new URLSearchParams();
+  if (params.page != null) sp.set("page", String(params.page));
+  if (params.size != null) sp.set("size", String(params.size));
+  if (params.userId != null) sp.set("userId", String(params.userId));
+  if (params.email?.trim()) sp.set("email", params.email.trim());
+  if (params.blockType?.trim()) sp.set("blockType", params.blockType.trim());
+  if (params.riskLevel?.trim()) sp.set("riskLevel", params.riskLevel.trim());
+  if (params.from?.trim()) sp.set("from", params.from.trim());
+  if (params.to?.trim()) sp.set("to", params.to.trim());
+  if (params.keyword?.trim()) sp.set("keyword", params.keyword.trim());
+  const { data } = await api.get<AdminBlockLogsPageResponse>(`/api/admin/safety/block-logs?${sp.toString()}`);
+  return data;
+}
+
+export async function fetchAdminBlockLogDetail(id: number): Promise<AdminBlockLogDetail | null> {
+  try {
+    const { data } = await api.get<AdminBlockLogDetail>(`/api/admin/safety/block-logs/${id}`);
+    return data ?? null;
+  } catch {
+    return null;
+  }
+}
+
 /** 系统配置项（仅管理员） */
 export interface SystemConfigItem {
   configKey: string;

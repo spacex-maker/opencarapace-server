@@ -91,7 +91,7 @@ export const Layout = ({ children }: Props) => {
             </Link>
             <Link to="/admin/intercept-logs" className={navItemClass("/admin/intercept-logs")}>
               <ShieldAlert className="w-4 h-4 shrink-0" />
-              拦截日志
+              全站拦截日志
             </Link>
           </div>
         )}

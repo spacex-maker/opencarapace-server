@@ -12,8 +12,8 @@ import { AdminDangerCommandsPage } from "./pages/AdminDangerCommandsPage";
 import { UserSkillsPage } from "./pages/UserSkillsPage";
 import { AdminSkillsPage } from "./pages/AdminSkillsPage";
 import { SystemConfigPage } from "./pages/SystemConfigPage";
-import { InterceptLogsPage } from "./pages/InterceptLogsPage";
 import { MyInterceptLogsPage } from "./pages/MyInterceptLogsPage";
+import { AdminInterceptLogsPage } from "./pages/AdminInterceptLogsPage";
 import { SettingsPage } from "./pages/SettingsPage";
 import { ApiKeysPage } from "./pages/ApiKeysPage";
 import { OfficialIntroPage } from "./pages/OfficialIntroPage";
@@ -122,7 +122,7 @@ function App() {
                   path="/admin/intercept-logs"
                   element={
                     <AdminRoute>
-                      <InterceptLogsPage />
+                      <AdminInterceptLogsPage />
                     </AdminRoute>
                   }
                 />

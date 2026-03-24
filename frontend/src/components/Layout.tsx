@@ -43,12 +43,12 @@ export const Layout = ({ children }: Props) => {
                   用户设置
                 </Link>
                 <Link to="/skills" className={navItemClass("/skills")}>
-                  <Shield className="w-4 h-4 shrink-0" />
-                  Skills 仓库
+                  <BookOpen className="w-4 h-4 shrink-0" />
+                  我的技能
                 </Link>
                 <Link to="/danger-commands" className={navItemClass("/danger-commands")}>
                   <ShieldAlert className="w-4 h-4 shrink-0" />
-                  危险指令库
+                  我的危险指令
                 </Link>
                 <Link to="/api-keys" className={navItemClass("/api-keys")}>
                   <KeyRound className="w-4 h-4 shrink-0" />
@@ -78,12 +78,12 @@ export const Layout = ({ children }: Props) => {
               管理员
             </div>
             <Link to="/admin/skills" className={navItemClass("/admin/skills")}>
-              <Shield className="w-4 h-4 shrink-0" />
-              技能管理
+              <BookOpen className="w-4 h-4 shrink-0" />
+              全局技能
             </Link>
             <Link to="/admin/danger-commands" className={navItemClass("/admin/danger-commands")}>
               <ShieldAlert className="w-4 h-4 shrink-0" />
-              危险指令库
+              全局危险指令
             </Link>
             <Link to="/admin/system-config" className={navItemClass("/admin/system-config")}>
               <Settings className="w-4 h-4 shrink-0" />

@@ -154,6 +154,22 @@ export async function updateDangerCommand(id: number, payload: DangerCommandDto)
   return data;
 }
 
+/** 新增危险指令（仅管理员，POST /api/danger-commands） */
+export async function createDangerCommand(payload: DangerCommandDto): Promise<DangerCommandItem> {
+  const { data } = await api.post<DangerCommandItem>("/api/danger-commands", {
+    commandPattern: payload.commandPattern.trim(),
+    systemType: payload.systemType,
+    category: payload.category,
+    riskLevel: payload.riskLevel,
+    title: payload.title.trim(),
+    description: payload.description?.trim() || undefined,
+    mitigation: payload.mitigation?.trim() || undefined,
+    tags: payload.tags?.trim() || undefined,
+    enabled: payload.enabled ?? true,
+  });
+  return data;
+}
+
 // Skills
 export interface SkillItem {
   id: number;

@@ -1,10 +1,12 @@
 package com.opencarapace.server.skill;
 
+import com.opencarapace.server.config.SystemDataVersionService;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.Map;
+import java.util.Objects;
 
 @RestController
 @RequestMapping("/api/admin/skills")
@@ -12,10 +14,14 @@ public class SkillAdminController {
 
     private final SkillSyncService skillSyncService;
     private final SkillRepository skillRepository;
+    private final SystemDataVersionService systemDataVersionService;
 
-    public SkillAdminController(SkillSyncService skillSyncService, SkillRepository skillRepository) {
+    public SkillAdminController(SkillSyncService skillSyncService,
+                                SkillRepository skillRepository,
+                                SystemDataVersionService systemDataVersionService) {
         this.skillSyncService = skillSyncService;
         this.skillRepository = skillRepository;
+        this.systemDataVersionService = systemDataVersionService;
     }
 
     /**
@@ -52,6 +58,7 @@ public class SkillAdminController {
     public ResponseEntity<Skill> update(@PathVariable("id") Long id, @RequestBody UpdateSkillRequest req) {
         return skillRepository.findById(id)
                 .map(skill -> {
+                    String oldStatus = skill.getStatus();
                     if (req.name() != null) skill.setName(req.name());
                     if (req.status() != null) skill.setStatus(req.status());
                     if (req.shortDesc() != null) skill.setShortDesc(req.shortDesc());
@@ -60,7 +67,11 @@ public class SkillAdminController {
                     if (req.installHint() != null) skill.setInstallHint(req.installHint());
                     if (req.category() != null) skill.setCategory(req.category());
                     if (req.type() != null) skill.setType(req.type());
-                    return ResponseEntity.ok(skillRepository.save(skill));
+                    Skill saved = skillRepository.save(skill);
+                    if (req.status() != null && !Objects.equals(oldStatus, saved.getStatus())) {
+                        systemDataVersionService.incrementSkillsDataVersion();
+                    }
+                    return ResponseEntity.ok(saved);
                 })
                 .orElse(ResponseEntity.notFound().build());
     }

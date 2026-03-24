@@ -7,8 +7,10 @@ import { LoginPage } from "./pages/LoginPage";
 import { RegisterPage } from "./pages/RegisterPage";
 import { DashboardPage } from "./pages/DashboardPage";
 import { ApiDocsPage } from "./pages/ApiDocsPage";
-import { DangerCommandListPage } from "./pages/DangerCommandListPage";
-import { SkillsListPage } from "./pages/SkillsListPage";
+import { UserDangerCommandsPage } from "./pages/UserDangerCommandsPage";
+import { AdminDangerCommandsPage } from "./pages/AdminDangerCommandsPage";
+import { UserSkillsPage } from "./pages/UserSkillsPage";
+import { AdminSkillsPage } from "./pages/AdminSkillsPage";
 import { SystemConfigPage } from "./pages/SystemConfigPage";
 import { InterceptLogsPage } from "./pages/InterceptLogsPage";
 import { MyInterceptLogsPage } from "./pages/MyInterceptLogsPage";
@@ -80,7 +82,7 @@ function App() {
                   path="/skills"
                   element={
                     <ProtectedRoute>
-                      <SkillsListPage mode="user" />
+                      <UserSkillsPage />
                     </ProtectedRoute>
                   }
                 />
@@ -88,7 +90,7 @@ function App() {
                   path="/danger-commands"
                   element={
                     <ProtectedRoute>
-                      <DangerCommandListPage mode="user" />
+                      <UserDangerCommandsPage />
                     </ProtectedRoute>
                   }
                 />
@@ -96,7 +98,7 @@ function App() {
                   path="/admin/danger-commands"
                   element={
                     <AdminRoute>
-                      <DangerCommandListPage mode="admin" />
+                      <AdminDangerCommandsPage />
                     </AdminRoute>
                   }
                 />
@@ -104,7 +106,7 @@ function App() {
                   path="/admin/skills"
                   element={
                     <AdminRoute>
-                      <SkillsListPage mode="admin" />
+                      <AdminSkillsPage />
                     </AdminRoute>
                   }
                 />

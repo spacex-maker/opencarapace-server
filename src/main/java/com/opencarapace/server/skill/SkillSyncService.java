@@ -86,11 +86,12 @@ public class SkillSyncService {
                         return s;
                     });
 
+            String preservedStatus = skill.getId() == null ? null : skill.getStatus();
             String displayName = nullToEmpty(item.getDisplayName(), item.getSlug());
             skill.setName(displayName);
             skill.setSlug(item.getSlug());
             skill.setType("SKILL");
-            skill.setStatus("ACTIVE");
+            applySyncedSkillStatus(skill, preservedStatus);
             skill.setShortDesc(item.getSummary());
             skill.setVersion(item.getVersion());
             skill.setHomepageUrl("https://clawhub.ai/skills/" + item.getSlug());
@@ -172,11 +173,12 @@ public class SkillSyncService {
                             return ns;
                         });
                 try {
+                    String preservedStatus = skill.getId() == null ? null : skill.getStatus();
                     String displayName = nullToEmpty(s.getDisplayName(), slug);
                     skill.setName(displayName);
                     skill.setSlug(slug);
                     skill.setType("SKILL");
-                    skill.setStatus("ACTIVE");
+                    applySyncedSkillStatus(skill, preservedStatus);
                     skill.setShortDesc(s.getSummary());
                     skill.setLastSyncAt(now);
                     skillRepository.save(skill);
@@ -200,6 +202,18 @@ public class SkillSyncService {
 
     private String nullToEmpty(String value, String fallback) {
         return (value != null && !value.isBlank()) ? value : fallback;
+    }
+
+    /**
+     * 新技能默认 ACTIVE；已存在记录若管理员设为 DISABLED / DEPRECATED，同步时保留，避免覆盖系统级启用状态。
+     */
+    private void applySyncedSkillStatus(Skill skill, String previousStatus) {
+        if (previousStatus != null
+                && ("DISABLED".equalsIgnoreCase(previousStatus) || "DEPRECATED".equalsIgnoreCase(previousStatus))) {
+            skill.setStatus(previousStatus);
+        } else {
+            skill.setStatus("ACTIVE");
+        }
     }
 }
 

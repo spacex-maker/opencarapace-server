@@ -1,6 +1,6 @@
 import { ReactNode } from "react";
 import { Link, useLocation } from "react-router-dom";
-import { Shield, KeyRound, FileText, LogOut, ShieldAlert, Settings, Moon, Sun, BookOpen, ReceiptText } from "lucide-react";
+import { Shield, KeyRound, FileText, LogOut, ShieldAlert, Settings, Moon, Sun, BookOpen, ReceiptText, LayoutDashboard } from "lucide-react";
 import { useAuth } from "../contexts/AuthContext";
 import { useTheme } from "../contexts/ThemeContext";
 
@@ -33,8 +33,8 @@ export const Layout = ({ children }: Props) => {
         <div className="flex-1 min-h-0 overflow-y-auto p-2 space-y-0.5">
           <nav className="space-y-0.5">
             <Link to="/dashboard" className={navItemClass("/dashboard")}>
-              <KeyRound className="w-4 h-4 shrink-0" />
-              控制台
+              <LayoutDashboard className="w-4 h-4 shrink-0" />
+              概览
             </Link>
             {isAuthenticated && (
               <>
@@ -44,7 +44,7 @@ export const Layout = ({ children }: Props) => {
                 </Link>
                 <Link to="/skills" className={navItemClass("/skills")}>
                   <Shield className="w-4 h-4 shrink-0" />
-                  技能目录
+                  Skills 仓库
                 </Link>
                 <Link to="/danger-commands" className={navItemClass("/danger-commands")}>
                   <ShieldAlert className="w-4 h-4 shrink-0" />
@@ -66,7 +66,7 @@ export const Layout = ({ children }: Props) => {
             )}
             <Link to="/docs" className={navItemClass("/docs")}>
               <FileText className="w-4 h-4 shrink-0" />
-              API 文档
+              文档 / 使用说明
             </Link>
             {/* 未登录时不显示登录/注册菜单，访问需登录页面时会自动跳转到登录页 */}
           </nav>

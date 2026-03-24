@@ -20,6 +20,8 @@ export function OpenClawPanel() {
   const [configPath, setConfigPath] = useState("");
   const [configLoading, setConfigLoading] = useState(false);
   const [configSaving, setConfigSaving] = useState(false);
+  /** Gateway 诊断日志（与后端 gatewayDiagnosticLog 同步，便于复制反馈） */
+  const [gatewayLog, setGatewayLog] = useState("");
 
   const refresh = async () => {
     try {
@@ -28,8 +30,22 @@ export function OpenClawPanel() {
       setHasEmbedded(!!data?.hasEmbedded);
       setIsRunning(!!data?.isRunning);
       setUiUrl(data?.uiUrl || "http://localhost:18789");
+      if (typeof data?.gatewayDiagnosticLog === "string") {
+        setGatewayLog(data.gatewayDiagnosticLog);
+      }
     } catch (e: any) {
       setError(e?.message ?? "加载失败");
+    }
+  };
+
+  const copyGatewayLog = async () => {
+    const text = gatewayLog.trim() || "（无日志）";
+    try {
+      await navigator.clipboard.writeText(text);
+      setMessage("诊断日志已复制到剪贴板");
+      setTimeout(() => setMessage(null), 2500);
+    } catch {
+      setError("复制失败，请手动在日志框内全选复制");
     }
   };
 
@@ -170,14 +186,18 @@ export function OpenClawPanel() {
       });
       
       const data = await res.json();
-      
+
+      if (typeof data?.gatewayDiagnosticLog === "string") {
+        setGatewayLog(data.gatewayDiagnosticLog);
+      }
+
       if (!res.ok || !data?.ok) {
         setError(data?.error?.message || "启动失败");
         return;
       }
-      
-      setMessage("Gateway 正在启动，请稍候...");
-      
+
+      setMessage(data?.ok ? "Gateway 正在启动，请稍候..." : (data?.message ?? "启动未就绪"));
+
       // 等待几秒后刷新状态
       setTimeout(() => {
         refresh();
@@ -500,7 +520,7 @@ export function OpenClawPanel() {
 
             <div
               style={{
-                height: 500,
+                minHeight: 520,
                 borderRadius: 12,
                 border: "1px solid #111827",
                 overflow: "hidden",
@@ -545,15 +565,90 @@ export function OpenClawPanel() {
                   </div>
                 </div>
               ) : (
-                <div style={{ textAlign: "center", padding: "40px 20px", color: "#9ca3af", fontSize: 12 }}>
-                  <div style={{ fontSize: 14, color: "#e5e7eb", marginBottom: 12, fontWeight: 600 }}>
-                    OpenClaw Gateway 未运行
+                <div
+                  style={{
+                    width: "100%",
+                    boxSizing: "border-box",
+                    padding: "16px 14px 14px",
+                    color: "#9ca3af",
+                    fontSize: 12,
+                    display: "flex",
+                    flexDirection: "column",
+                    alignItems: "stretch",
+                    gap: 10,
+                    flex: 1,
+                    minHeight: 0,
+                  }}
+                >
+                  <div style={{ textAlign: "center" }}>
+                    <div style={{ fontSize: 14, color: "#e5e7eb", marginBottom: 8, fontWeight: 600 }}>
+                      OpenClaw Gateway 未运行
+                    </div>
+                    <div style={{ fontSize: 11, color: "#9ca3af", lineHeight: 1.6 }}>
+                      {hasEmbedded
+                        ? "请点击上方的「启动 Gateway」按钮来启动 OpenClaw 服务。"
+                        : "请先运行 npm install 安装 OpenClaw。"}
+                    </div>
                   </div>
-                  <div style={{ fontSize: 11, color: "#9ca3af", marginBottom: 20, lineHeight: 1.6 }}>
-                    {hasEmbedded 
-                      ? "请点击上方的「启动 Gateway」按钮来启动 OpenClaw 服务。" 
-                      : "请先运行 npm install 安装 OpenClaw。"}
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 8, justifyContent: "center" }}>
+                    <button
+                      type="button"
+                      onClick={() => copyGatewayLog()}
+                      style={{
+                        padding: "6px 12px",
+                        borderRadius: 999,
+                        border: "1px solid #374151",
+                        background: "rgba(59,130,246,0.15)",
+                        color: "#93c5fd",
+                        fontSize: 11,
+                        fontWeight: 600,
+                        cursor: "pointer",
+                      }}
+                    >
+                      复制全部诊断日志
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => refresh().catch(() => {})}
+                      style={{
+                        padding: "6px 12px",
+                        borderRadius: 999,
+                        border: "1px solid #374151",
+                        background: "rgba(15,23,42,0.85)",
+                        color: "#e5e7eb",
+                        fontSize: 11,
+                        fontWeight: 600,
+                        cursor: "pointer",
+                      }}
+                    >
+                      刷新日志
+                    </button>
                   </div>
+                  <div style={{ fontSize: 10, color: "#6b7280", textAlign: "center" }}>
+                    下方文本框可选中后 Ctrl+C 复制；失败时请整段发给开发者。
+                  </div>
+                  <textarea
+                    readOnly
+                    value={gatewayLog}
+                    placeholder="（暂无日志：点击「启动 Gateway」后此处会显示完整命令、路径与子进程输出）"
+                    spellCheck={false}
+                    style={{
+                      width: "100%",
+                      flex: 1,
+                      minHeight: 320,
+                      boxSizing: "border-box",
+                      resize: "vertical",
+                      padding: "10px 12px",
+                      borderRadius: 8,
+                      border: "1px solid #1f2937",
+                      background: "#0b1220",
+                      color: "#e2e8f0",
+                      fontSize: 10,
+                      fontFamily: "Consolas, Monaco, 'Courier New', monospace",
+                      lineHeight: 1.45,
+                      outline: "none",
+                    }}
+                  />
                 </div>
               )}
             </div>

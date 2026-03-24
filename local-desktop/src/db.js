@@ -707,6 +707,21 @@ function clearLocalAuth() {
   });
 }
 
+function clearLocalUserScopedState() {
+  const database = getDb();
+  return new Promise((resolve, reject) => {
+    database.serialize(() => {
+      database.run("DELETE FROM user_skills");
+      database.run("DELETE FROM user_skill_safety_labels");
+      database.run("UPDATE danger_commands SET user_enabled = NULL");
+      database.run("UPDATE skills SET user_safety_label = NULL", (err) => {
+        if (err) reject(err);
+        else resolve();
+      });
+    });
+  });
+}
+
 module.exports = {
   getDb,
   replaceDangerCommands,
@@ -733,6 +748,7 @@ module.exports = {
   getLocalAuth,
   saveLocalAuth,
   clearLocalAuth,
+  clearLocalUserScopedState,
   applyUserDangerPrefs,
   updateUserDangerCommand,
   getSyncUserDangersToCloud,

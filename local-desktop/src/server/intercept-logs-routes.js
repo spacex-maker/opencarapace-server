@@ -5,12 +5,9 @@ function registerInterceptLogsRoutes(app) {
   app.get("/api/intercept-logs", async (req, res) => {
     try {
       const settings = await getLocalSettings();
-      if (!settings?.apiBase || !settings?.ocApiKey) {
-        res.status(400).json({ error: { message: "请先在概览页配置 API Base 与 ClawHeart API Key" } });
-        return;
-      }
+      const apiBaseRaw = (settings && settings.apiBase) || "https://api.clawheart.live";
+      const apiBase = String(apiBaseRaw).replace(/\/+$/, "");
 
-      const apiBase = String(settings.apiBase).replace(/\/+$/, "");
       const auth = await getLocalAuth().catch(() => null);
       if (!auth?.token) {
         res.status(401).json({ error: { message: "请先登录云端账户后再查看拦截日志。" } });
@@ -36,11 +33,8 @@ function registerInterceptLogsRoutes(app) {
   app.get("/api/intercept-logs/:id", async (req, res) => {
     try {
       const settings = await getLocalSettings();
-      if (!settings?.apiBase) {
-        res.status(400).json({ error: { message: "未配置 API Base" } });
-        return;
-      }
-      const apiBase = String(settings.apiBase).replace(/\/+$/, "");
+      const apiBaseRaw = (settings && settings.apiBase) || "https://api.clawheart.live";
+      const apiBase = String(apiBaseRaw).replace(/\/+$/, "");
       const auth = await getLocalAuth().catch(() => null);
       if (!auth?.token) {
         res.status(401).json({ error: { message: "请先登录云端账户后再查看拦截日志。" } });

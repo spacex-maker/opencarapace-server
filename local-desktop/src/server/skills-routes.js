@@ -1,5 +1,14 @@
 const axios = require("axios");
 const { getDb, getLocalSettings, getLocalAuth, upsertUserSkill, upsertUserSkillSafetyLabel, getSyncUserSkillsToCloud } = require("../db.js");
+
+async function requireLoginForCloudSync(res) {
+  const auth = await getLocalAuth();
+  if (!auth?.token) {
+    res.status(401).json({ error: { message: "请先登录后再从云端同步 Skills 与用户设置" } });
+    return false;
+  }
+  return true;
+}
 const { syncSystemSkillsStatusFromServer, syncUserSkillsFromServer, syncDangerCommandsFromServer, syncUserDangerCommandsFromServer } = require("../sync.js");
 const { syncState, startSkillsProgress, finishSkillsProgress, updateDangerProgress, finishDangerProgress } = require("./sync-state.js");
 
@@ -81,8 +90,11 @@ function registerSkillsRoutes(app) {
       const apiBase = (settings && settings.apiBase) || "https://api.clawheart.live";
       const headers = {
         "Content-Type": "application/json",
-        "X-OC-API-KEY": settings && settings.ocApiKey,
       };
+      const key = settings && settings.ocApiKey && String(settings.ocApiKey).trim();
+      if (key) {
+        headers["X-OC-API-KEY"] = key;
+      }
       if (auth && auth.token) {
         headers.Authorization = `Bearer ${auth.token}`;
       }
@@ -97,14 +109,11 @@ function registerSkillsRoutes(app) {
 
   app.post("/api/skills/sync", async (req, res) => {
     try {
+      if (!(await requireLoginForCloudSync(res))) return;
       const settings = await getLocalSettings();
-      const apiKey = settings && settings.ocApiKey;
-      if (!apiKey) {
-        res.status(400).json({ error: { message: "本地尚未配置 OC API Key" } });
-        return;
-      }
+      const apiKey = (settings && settings.ocApiKey) ? String(settings.ocApiKey) : "";
       startSkillsProgress();
-      syncSystemSkillsStatusFromServer(String(apiKey), (p) => {
+      syncSystemSkillsStatusFromServer(apiKey, (p) => {
         syncState.skills = {
           running: true,
           total: typeof p.total === "number" ? p.total : syncState.skills.total,
@@ -112,7 +121,7 @@ function registerSkillsRoutes(app) {
         };
       })
         .then(({ totalSkills }) =>
-          syncUserSkillsFromServer(String(apiKey)).then(() => finishSkillsProgress(totalSkills, totalSkills))
+          syncUserSkillsFromServer(apiKey).then(() => finishSkillsProgress(totalSkills, totalSkills))
         )
         .catch(() => finishSkillsProgress(syncState.skills.total, syncState.skills.synced));
       res.status(202).json({ accepted: true });
@@ -242,18 +251,15 @@ function registerSkillsRoutes(app) {
 
   app.post("/api/user-settings/sync", async (req, res) => {
     try {
+      if (!(await requireLoginForCloudSync(res))) return;
       const settings = await getLocalSettings();
-      const apiKey = settings && settings.ocApiKey;
-      if (!apiKey) {
-        res.status(400).json({ error: { message: "本地尚未配置 OC API Key" } });
-        return;
-      }
-      
+      const apiKey = (settings && settings.ocApiKey) ? String(settings.ocApiKey) : "";
+
       startSkillsProgress();
       syncState.danger = { running: true, total: 0, synced: 0 };
 
       Promise.all([
-        syncSystemSkillsStatusFromServer(String(apiKey), (p) => {
+        syncSystemSkillsStatusFromServer(apiKey, (p) => {
           syncState.skills = {
             running: true,
             total: typeof p.total === "number" ? p.total : syncState.skills.total,
@@ -261,11 +267,11 @@ function registerSkillsRoutes(app) {
           };
         })
           .then(({ totalSkills }) =>
-            syncUserSkillsFromServer(String(apiKey)).then(() => finishSkillsProgress(totalSkills, totalSkills))
+            syncUserSkillsFromServer(apiKey).then(() => finishSkillsProgress(totalSkills, totalSkills))
           )
           .catch(() => finishSkillsProgress(syncState.skills.total, syncState.skills.synced)),
         
-        syncDangerCommandsFromServer(String(apiKey), (p) => {
+        syncDangerCommandsFromServer(apiKey, (p) => {
           syncState.danger = {
             running: true,
             total: typeof p.total === "number" ? p.total : syncState.danger.total,
@@ -273,7 +279,7 @@ function registerSkillsRoutes(app) {
           };
         })
           .then((p) =>
-            syncUserDangerCommandsFromServer(String(apiKey)).then(() => finishDangerProgress(p))
+            syncUserDangerCommandsFromServer(apiKey).then(() => finishDangerProgress(p))
           )
           .catch(() => finishDangerProgress({ total: syncState.danger.total, synced: syncState.danger.synced })),
       ]);

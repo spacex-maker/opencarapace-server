@@ -86,7 +86,7 @@ function FilterSelect(props: {
   );
 }
 
-export function DangerPanel() {
+export function DangerPanel({ showAccountSwitchPlaceholder = false }: { showAccountSwitchPlaceholder?: boolean }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
@@ -353,6 +353,22 @@ export function DangerPanel() {
           }}
         >
           {message}
+        </div>
+      )}
+
+      {showAccountSwitchPlaceholder && (
+        <div
+          style={{
+            marginBottom: 12,
+            padding: "10px 12px",
+            borderRadius: 10,
+            background: "rgba(59,130,246,0.12)",
+            border: "1px solid rgba(59,130,246,0.3)",
+            color: "#bfdbfe",
+            fontSize: 12,
+          }}
+        >
+          正在切换账号并同步用户偏好，请稍候…
         </div>
       )}
 

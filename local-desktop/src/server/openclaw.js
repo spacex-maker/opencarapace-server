@@ -1,7 +1,12 @@
 const { getOpenClawSettings, saveOpenClawSettings } = require("../db.js");
 const { detectPlatform, execWithOutput, hasCommand, checkUrlReachable } = require("./utils.js");
 const { hasEmbeddedNode, downloadAndInstallNode, runEmbeddedNpm, NODE_VERSION } = require("./node-manager.js");
-const { getOpenClawStatus, startEmbeddedOpenClaw, stopEmbeddedOpenClaw } = require("./openclaw-manager.js");
+const {
+  getOpenClawStatus,
+  startEmbeddedOpenClaw,
+  stopEmbeddedOpenClaw,
+  getGatewayDiagnosticLog,
+} = require("./openclaw-manager.js");
 const { configureProvider, resetOpenClawConfig, restartGateway, readOpenClawConfig, writeOpenClawConfig, getOpenClawConfigPath, initOpenClawConfig, PROVIDER_PRESETS } = require("./openclaw-config.js");
 
 // 全局安装状态
@@ -222,12 +227,16 @@ function registerOpenClawRoutes(app) {
   app.post("/api/openclaw/start-gateway", async (_req, res) => {
     try {
       const result = await startEmbeddedOpenClaw();
-      res.status(200).json({ 
-        ok: result, 
-        message: result ? "Gateway 已启动" : "Gateway 启动超时，请查看日志",
+      res.status(200).json({
+        ok: result,
+        message: result ? "Gateway 已启动" : "Gateway 启动失败或超时，诊断见 gatewayDiagnosticLog",
+        gatewayDiagnosticLog: getGatewayDiagnosticLog(),
       });
     } catch (e) {
-      res.status(500).json({ error: { message: e?.message ?? "启动失败" } });
+      res.status(500).json({
+        error: { message: e?.message ?? "启动失败" },
+        gatewayDiagnosticLog: getGatewayDiagnosticLog(),
+      });
     }
   });
 

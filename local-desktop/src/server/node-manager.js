@@ -4,8 +4,8 @@ const https = require("https");
 const { spawn } = require("child_process");
 const { detectPlatform, execWithOutput } = require("./utils.js");
 
-// Node.js 版本配置
-const NODE_VERSION = "20.18.1"; // LTS 版本
+// Node.js 版本配置（须满足 openclaw 包要求：当前为 >=22.16.0）
+const NODE_VERSION = "22.16.0";
 const NODE_DOWNLOAD_BASE = "https://nodejs.org/dist";
 
 /**

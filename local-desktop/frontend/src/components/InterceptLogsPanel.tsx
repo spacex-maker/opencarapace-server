@@ -1,4 +1,110 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+
+function FilterSelect(props: {
+  value: string;
+  onChange: (v: string) => void;
+  options: { label: string; value: string }[];
+  placeholder: string;
+  height?: number;
+  width?: number;
+}) {
+  const controlHeight = props.height ?? 36;
+  const [open, setOpen] = useState(false);
+  const [hoverIndex, setHoverIndex] = useState<number | null>(null);
+  const ref = useRef<HTMLDivElement | null>(null);
+
+  // eslint-disable-next-line react-hooks/rules-of-hooks
+  useEffect(() => {
+    const onDoc = (e: MouseEvent) => {
+      if (!ref.current) return;
+      if (!ref.current.contains(e.target as any)) setOpen(false);
+    };
+    document.addEventListener("mousedown", onDoc);
+    return () => document.removeEventListener("mousedown", onDoc);
+  }, []);
+
+  const current = props.options.find((o) => o.value === props.value)?.label || props.placeholder;
+  const safeWidth = props.width ?? 220;
+
+  return (
+    <div ref={ref} style={{ position: "relative", width: safeWidth, flexShrink: 0 }}>
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        style={{
+          width: "100%",
+          height: controlHeight,
+          padding: "0 12px",
+          borderRadius: 999,
+          border: "1px solid #334155",
+          background: "rgba(2,6,23,0.86)",
+          color: props.value ? "#e5e7eb" : "#6b7280",
+          fontSize: 12,
+          fontWeight: 500,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          boxSizing: "border-box",
+          cursor: "pointer",
+        }}
+      >
+        <span style={{ lineHeight: 1 }}>{current}</span>
+        <span style={{ color: "#6b7280", lineHeight: 1 }}>{open ? "▲" : "▼"}</span>
+      </button>
+
+      {open && (
+        <div
+          style={{
+            position: "absolute",
+            zIndex: 20,
+            top: `calc(${controlHeight}px + 6px)`,
+            left: 0,
+            right: 0,
+            maxHeight: 220,
+            overflowY: "auto",
+            borderRadius: 12,
+            border: "1px solid #1f2937",
+            background: "rgba(2,6,23,0.98)",
+            boxShadow: "0 12px 30px rgba(0,0,0,0.35)",
+          }}
+        >
+          {props.options.map((o, idx) => {
+            const active = o.value === props.value;
+            const hovered = hoverIndex === idx;
+            return (
+              <button
+                key={o.value || "__all"}
+                type="button"
+                onMouseEnter={() => setHoverIndex(idx)}
+                onMouseLeave={() => setHoverIndex(null)}
+                onClick={() => {
+                  props.onChange(o.value);
+                  setOpen(false);
+                }}
+                style={{
+                  width: "100%",
+                  padding: "8px 12px",
+                  border: "none",
+                  background: active
+                    ? "rgba(59,130,246,0.12)"
+                    : hovered
+                      ? "rgba(148,163,184,0.08)"
+                      : "transparent",
+                  color: active ? "#93c5fd" : "#e5e7eb",
+                  fontSize: 12,
+                  textAlign: "left",
+                  cursor: "pointer",
+                }}
+              >
+                {o.label}
+              </button>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
 
 type BlockLog = {
   id: number;
@@ -134,25 +240,20 @@ export function InterceptLogsPanel() {
 
       <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
         <div style={{ fontSize: 12, color: "#9ca3af" }}>类型</div>
-        <select
+        <FilterSelect
           value={blockType}
-          onChange={(e) => {
+          onChange={(v) => {
             setPage(1);
-            setBlockType(e.target.value);
+            setBlockType(v);
           }}
-          style={{
-            background: "#020617",
-            border: "1px solid #1f2937",
-            borderRadius: 10,
-            padding: "6px 10px",
-            color: "#e5e7eb",
-            fontSize: 12,
-          }}
-        >
-          <option value="">全部</option>
-          <option value="danger_command">危险指令</option>
-          <option value="skill_disabled">技能禁用</option>
-        </select>
+          placeholder="全部"
+          width={240}
+          options={[
+            { label: "全部", value: "" },
+            { label: "危险指令", value: "danger_command" },
+            { label: "技能禁用", value: "skill_disabled" },
+          ]}
+        />
 
         <button
           type="button"

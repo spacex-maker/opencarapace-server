@@ -1,5 +1,14 @@
 const axios = require("axios");
 const { getDb, getLocalSettings, updateUserDangerCommand, getLocalAuth, getSyncUserDangersToCloud } = require("../db.js");
+
+async function requireLoginForCloudSync(res) {
+  const auth = await getLocalAuth();
+  if (!auth?.token) {
+    res.status(401).json({ error: { message: "请先登录后再从云端同步危险指令库" } });
+    return false;
+  }
+  return true;
+}
 const { syncDangerCommandsFromServer, syncUserDangerCommandsFromServer } = require("../sync.js");
 const { syncState, updateDangerProgress, finishDangerProgress } = require("./sync-state.js");
 
@@ -101,17 +110,14 @@ function registerDangerRoutes(app) {
 
   app.post("/api/danger-commands/sync", async (req, res) => {
     try {
+      if (!(await requireLoginForCloudSync(res))) return;
       const settings = await getLocalSettings();
-      const apiKey = settings && settings.ocApiKey;
-      if (!apiKey) {
-        res.status(400).json({ error: { message: "本地尚未配置 OC API Key" } });
-        return;
-      }
+      const apiKey = (settings && settings.ocApiKey) ? String(settings.ocApiKey) : "";
       syncState.danger = { running: true, total: 0, synced: 0 };
-      syncDangerCommandsFromServer(String(apiKey), updateDangerProgress)
+      syncDangerCommandsFromServer(apiKey, updateDangerProgress)
         .then(async (p) => {
           try {
-            await syncUserDangerCommandsFromServer(String(apiKey));
+            await syncUserDangerCommandsFromServer(apiKey);
           } catch {
             // ignore
           }

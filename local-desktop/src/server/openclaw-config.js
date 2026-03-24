@@ -1,6 +1,13 @@
 const path = require("path");
 const fs = require("fs");
 const { execWithOutput } = require("./utils.js");
+const {
+  getUnpackedAppRoot,
+  getPackagedOpenClawBinFromUnpacked,
+  getPackagedOpenClawMjsPath,
+  resolveRealNodeExecutable,
+  buildOpenClawChildEnv,
+} = require("./openclaw-paths.js");
 
 /**
  * 获取 OpenClaw 可执行文件路径
@@ -18,6 +25,43 @@ function getOpenClawBinPath() {
  * 执行 openclaw config 命令
  */
 async function runOpenClawConfig(args) {
+  const packagedBin = getPackagedOpenClawBinFromUnpacked();
+  if (packagedBin) {
+    const childEnv = buildOpenClawChildEnv(packagedBin.cwd);
+    if (process.platform === "win32") {
+      return execWithOutput("cmd.exe", ["/c", packagedBin.bin, "config", ...args], {
+        shell: false,
+        cwd: packagedBin.cwd,
+        env: childEnv,
+      });
+    }
+    return execWithOutput(packagedBin.bin, ["config", ...args], {
+      shell: false,
+      cwd: packagedBin.cwd,
+      env: childEnv,
+    });
+  }
+
+  const packagedMjs = getPackagedOpenClawMjsPath();
+  if (packagedMjs) {
+    const unpackedRoot = getUnpackedAppRoot();
+    const nodeExe = resolveRealNodeExecutable();
+    if (!nodeExe) {
+      return {
+        code: 1,
+        stdout: "",
+        stderr:
+          "未找到 node.exe（安装包 resources 内置或客户端「内置 Node」）。请更新安装包或安装内置 Node。",
+      };
+    }
+    const extraEnv = buildOpenClawChildEnv(unpackedRoot);
+    return execWithOutput(nodeExe, [packagedMjs, "config", ...args], {
+      shell: false,
+      cwd: path.dirname(packagedMjs),
+      env: extraEnv,
+    });
+  }
+
   const binPath = getOpenClawBinPath();
   
   if (process.platform === "win32") {
@@ -58,6 +102,43 @@ async function getOpenClawConfig(key) {
  * 执行 openclaw models 命令
  */
 async function runOpenClawModels(args) {
+  const packagedBin = getPackagedOpenClawBinFromUnpacked();
+  if (packagedBin) {
+    const childEnv = buildOpenClawChildEnv(packagedBin.cwd);
+    if (process.platform === "win32") {
+      return execWithOutput("cmd.exe", ["/c", packagedBin.bin, "models", ...args], {
+        shell: false,
+        cwd: packagedBin.cwd,
+        env: childEnv,
+      });
+    }
+    return execWithOutput(packagedBin.bin, ["models", ...args], {
+      shell: false,
+      cwd: packagedBin.cwd,
+      env: childEnv,
+    });
+  }
+
+  const packagedMjs = getPackagedOpenClawMjsPath();
+  if (packagedMjs) {
+    const unpackedRoot = getUnpackedAppRoot();
+    const nodeExe = resolveRealNodeExecutable();
+    if (!nodeExe) {
+      return {
+        code: 1,
+        stdout: "",
+        stderr:
+          "未找到 node.exe（安装包 resources 内置或客户端「内置 Node」）。请更新安装包或安装内置 Node。",
+      };
+    }
+    const extraEnv = buildOpenClawChildEnv(unpackedRoot);
+    return execWithOutput(nodeExe, [packagedMjs, "models", ...args], {
+      shell: false,
+      cwd: path.dirname(packagedMjs),
+      env: extraEnv,
+    });
+  }
+
   const binPath = getOpenClawBinPath();
   
   if (process.platform === "win32") {

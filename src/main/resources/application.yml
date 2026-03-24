@@ -30,7 +30,9 @@ security:
   jwt:
     # 至少 32 字符，生产环境请用环境变量或密钥管理覆盖
     secret: "Op3nC4r4p4c3JwtS3cr3tK3y2026X9zR2mN7qL5vP8w"
-    access-token-validity-seconds: 86400
+    # 访问 token 有效期（秒）
+    # 客户端长期运行时可避免 token 到期导致 401
+    access-token-validity-seconds: 31536000 # 365 天
 
 google:
   oauth:

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { LocalStatus } from "./types";
 import { NavButton } from "./components/Common";
 import { OverviewPanel } from "./components/OverviewPanel";
@@ -34,6 +34,9 @@ export function App() {
   const [apiBase, setApiBase] = useState("https://api.clawheart.live");
   const [ocApiKey, setOcApiKey] = useState("");
   const [latency, setLatency] = useState<number | null>(null);
+  const [accountSwitchSyncing, setAccountSwitchSyncing] = useState(false);
+  const [accountSwitchStartedAt, setAccountSwitchStartedAt] = useState<number>(0);
+  const lastAuthEmailRef = useRef<string | null>(null);
 
   useEffect(() => {
     const load = async () => {
@@ -58,6 +61,57 @@ export function App() {
     };
     load();
   }, []);
+
+  useEffect(() => {
+    const currentEmail = status?.auth?.email ? String(status.auth.email).trim().toLowerCase() : null;
+    if (lastAuthEmailRef.current === null) {
+      lastAuthEmailRef.current = currentEmail;
+      return;
+    }
+    if (currentEmail !== lastAuthEmailRef.current) {
+      if (currentEmail) {
+        setAccountSwitchStartedAt(Date.now());
+        setAccountSwitchSyncing(true);
+      } else {
+        setAccountSwitchSyncing(false);
+        setAccountSwitchStartedAt(0);
+      }
+      lastAuthEmailRef.current = currentEmail;
+    }
+  }, [status?.auth?.email]);
+
+  useEffect(() => {
+    if (!accountSwitchSyncing) return;
+    let active = true;
+    const minPlaceholderMs = 1200;
+    const maxPlaceholderMs = 20000;
+    const startedAt = accountSwitchStartedAt || Date.now();
+    const timer = setInterval(async () => {
+      if (!active) return;
+      const elapsed = Date.now() - startedAt;
+      if (elapsed >= maxPlaceholderMs) {
+        setAccountSwitchSyncing(false);
+        return;
+      }
+      try {
+        const [dangerRes, skillsRes] = await Promise.all([
+          fetch("http://127.0.0.1:19111/api/sync-status?type=danger"),
+          fetch("http://127.0.0.1:19111/api/sync-status?type=skills"),
+        ]);
+        const [dangerJson, skillsJson] = await Promise.all([dangerRes.json(), skillsRes.json()]);
+        const running = !!dangerJson?.running || !!skillsJson?.running;
+        if (!running && elapsed >= minPlaceholderMs) {
+          setAccountSwitchSyncing(false);
+        }
+      } catch {
+        // ignore polling errors
+      }
+    }, 1200);
+    return () => {
+      active = false;
+      clearInterval(timer);
+    };
+  }, [accountSwitchSyncing, accountSwitchStartedAt]);
 
   useEffect(() => {
     let isActive = true;
@@ -273,8 +327,8 @@ export function App() {
             loading={loading}
           />
         )}
-        {activeTab === "danger" && <DangerPanel />}
-        {activeTab === "skills" && <SkillsPanel />}
+        {activeTab === "danger" && <DangerPanel showAccountSwitchPlaceholder={accountSwitchSyncing} />}
+        {activeTab === "skills" && <SkillsPanel showAccountSwitchPlaceholder={accountSwitchSyncing} />}
         {activeTab === "interceptLogs" && <InterceptLogsPanel />}
         {activeTab === "tokenBill" && <TokenBillPanel />}
         {activeTab === "openclaw" && <OpenClawPanel />}

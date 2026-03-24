@@ -4,8 +4,10 @@ const {
   getLocalAuth,
   saveLocalAuth,
   clearLocalAuth,
+  clearLocalUserScopedState,
   saveLlmRouteMode,
   ensureDefaultLlmMappings,
+  saveLastKnownVersion,
 } = require("../db.js");
 const {
   syncDangerCommandsFromServer,
@@ -14,6 +16,7 @@ const {
   syncUserDangerCommandsFromServer,
 } = require("../sync.js");
 const { updateDangerProgress, finishDangerProgress, startSkillsProgress, finishSkillsProgress, syncState } = require("./sync-state.js");
+const { clearCachedDashboardUrl } = require("./openclaw-manager.js");
 
 function registerAuthRoutes(app) {
   app.post("/api/auth/login", async (req, res) => {
@@ -38,10 +41,21 @@ function registerAuthRoutes(app) {
         res.status(500).json({ error: { message: "登录响应缺少 token" } });
         return;
       }
+      const prevAuth = await getLocalAuth();
       await saveLocalAuth({
         email: data.email || email,
         token: data.token,
       });
+      const currentEmail = String(data.email || email || "").trim().toLowerCase();
+      const previousEmail = String(prevAuth?.email || "").trim().toLowerCase();
+      const switchedUser = previousEmail && currentEmail && previousEmail !== currentEmail;
+      if (switchedUser) {
+        // 切换账号时清除用户级本地偏好，避免沿用上一个账号的启停状态
+        await clearLocalUserScopedState();
+        await saveLastKnownVersion(0);
+        // 切换账号后清理 OpenClaw dashboard token URL 缓存，避免沿用上一账号会话
+        clearCachedDashboardUrl();
+      }
 
       try {
         await ensureDefaultLlmMappings();
@@ -69,33 +83,31 @@ function registerAuthRoutes(app) {
 
       try {
         const settings = await getLocalSettings();
-        const apiKey = settings && settings.ocApiKey;
-        if (apiKey) {
-          syncState.danger = { running: true, total: 0, synced: 0 };
-          syncDangerCommandsFromServer(String(apiKey), updateDangerProgress)
-            .then(async (p) => {
-              try {
-                await syncUserDangerCommandsFromServer(String(apiKey));
-              } catch {
-                // ignore
-              }
-              finishDangerProgress(p);
-            })
-            .catch(() => finishDangerProgress({ total: syncState.danger.total, synced: syncState.danger.synced }));
-
-          startSkillsProgress();
-          syncSystemSkillsStatusFromServer(String(apiKey), (p) => {
-            syncState.skills = {
-              running: true,
-              total: typeof p.total === "number" ? p.total : syncState.skills.total,
-              synced: typeof p.synced === "number" ? p.synced : syncState.skills.synced,
-            };
+        const apiKey = (settings && settings.ocApiKey) ? String(settings.ocApiKey) : "";
+        syncState.danger = { running: true, total: 0, synced: 0 };
+        syncDangerCommandsFromServer(apiKey, updateDangerProgress)
+          .then(async (p) => {
+            try {
+              await syncUserDangerCommandsFromServer(apiKey);
+            } catch {
+              // ignore
+            }
+            finishDangerProgress(p);
           })
-            .then(({ totalSkills }) =>
-              syncUserSkillsFromServer(String(apiKey)).then(() => finishSkillsProgress(totalSkills, totalSkills))
-            )
-            .catch(() => finishSkillsProgress(syncState.skills.total, syncState.skills.synced));
-        }
+          .catch(() => finishDangerProgress({ total: syncState.danger.total, synced: syncState.danger.synced }));
+
+        startSkillsProgress();
+        syncSystemSkillsStatusFromServer(apiKey, (p) => {
+          syncState.skills = {
+            running: true,
+            total: typeof p.total === "number" ? p.total : syncState.skills.total,
+            synced: typeof p.synced === "number" ? p.synced : syncState.skills.synced,
+          };
+        })
+          .then(({ totalSkills }) =>
+            syncUserSkillsFromServer(apiKey).then(() => finishSkillsProgress(totalSkills, totalSkills))
+          )
+          .catch(() => finishSkillsProgress(syncState.skills.total, syncState.skills.synced));
       } catch {
         // ignore
       }
@@ -111,6 +123,9 @@ function registerAuthRoutes(app) {
   app.post("/api/auth/logout", async (_req, res) => {
     try {
       await clearLocalAuth();
+      await clearLocalUserScopedState();
+      await saveLastKnownVersion(0);
+      clearCachedDashboardUrl();
       res.status(200).json({ ok: true });
     } catch (e) {
       res.status(500).json({ error: { message: e?.message ?? "退出登录失败" } });

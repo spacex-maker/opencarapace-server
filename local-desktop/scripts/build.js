@@ -46,20 +46,41 @@ if (!fs.existsSync(openclawPath)) {
 }
 console.log("   ✓ OpenClaw 已安装");
 
+// 5b. 内置 Node（OpenClaw 子进程专用，不依赖用户本机 Node）
+console.log("\n4b. 确保内置 Node runtime（resources/node.exe）...");
+execSync("node scripts/ensure-bundled-node.js", { cwd: rootDir, stdio: "inherit" });
+const bundledNode = path.join(rootDir, "bundled", "win-x64", "node.exe");
+if (!fs.existsSync(bundledNode)) {
+  console.error("   ✗ 未找到 bundled/win-x64/node.exe，请检查网络或手动运行: node scripts/ensure-bundled-node.js");
+  process.exit(1);
+}
+console.log("   ✓ 内置 node.exe 已就绪");
+
 // 6. 开始打包（Windows）
 console.log("\n5. 开始打包 Electron 应用（Windows）...");
 const buildType = process.argv[2] || "installer";
+const buildStamp = new Date().toISOString().replace(/[:.]/g, "-");
+const outputDirName = `build-output-${buildStamp}`;
+const outputDir = path.join(rootDir, outputDirName);
+
+console.log(`   输出目录：${outputDirName}`);
 
 if (buildType === "dir") {
   console.log("   打包模式：免安装版本（--dir）");
-  execSync("electron-builder --win --x64 --dir", { cwd: rootDir, stdio: "inherit" });
+  execSync(`electron-builder --win --x64 --dir --config.directories.output="${outputDirName}"`, {
+    cwd: rootDir,
+    stdio: "inherit",
+  });
   console.log("\n=== 打包完成 ===");
-  console.log("输出目录：build-output/");
-  console.log("可执行文件：build-output/win-unpacked/ClawHeart Desktop.exe");
+  console.log(`输出目录：${outputDirName}/`);
+  console.log(`可执行文件：${outputDirName}/win-unpacked/ClawHeart Desktop.exe`);
 } else {
   console.log("   打包模式：安装程序（NSIS）");
-  execSync("electron-builder --win --x64", { cwd: rootDir, stdio: "inherit" });
+  execSync(`electron-builder --win --x64 --config.directories.output="${outputDirName}"`, {
+    cwd: rootDir,
+    stdio: "inherit",
+  });
   console.log("\n=== 打包完成 ===");
-  console.log("输出目录：build-output/");
-  console.log("安装程序：build-output/ClawHeart Desktop Setup 0.1.0.exe");
+  console.log(`输出目录：${outputDirName}/`);
+  console.log(`安装程序：${outputDirName}/ClawHeart Desktop Setup 0.1.0.exe`);
 }

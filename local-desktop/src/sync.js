@@ -13,6 +13,21 @@ const {
   saveLastKnownVersion,
 } = require("./db");
 
+/** 云端接口以 JWT 为主；仅在本地填写了 OC API Key 时再附带 X-OC-API-KEY（如 LLM 代理等场景）。 */
+function cloudHeadersWithAuth(apiKey, auth) {
+  const headers = {
+    "Content-Type": "application/json",
+  };
+  const k = apiKey != null && String(apiKey).trim();
+  if (k) {
+    headers["X-OC-API-KEY"] = String(apiKey).trim();
+  }
+  if (auth && auth.token) {
+    headers.Authorization = `Bearer ${auth.token}`;
+  }
+  return headers;
+}
+
 async function syncDangerCommandsFromServer(apiKey, onProgress) {
   const settings = await getLocalSettings();
   const apiBase = (settings && settings.apiBase) || "https://api.clawheart.live";
@@ -43,13 +58,7 @@ async function syncDangerCommandsFromServer(apiKey, onProgress) {
       params.set("createdAfter", lastCreatedAt);
     }
     const url = `${apiBase}/api/danger-commands/incremental?${params.toString()}`;
-    const headers = {
-      "Content-Type": "application/json",
-      "X-OC-API-KEY": apiKey,
-    };
-    if (auth && auth.token) {
-      headers.Authorization = `Bearer ${auth.token}`;
-    }
+    const headers = cloudHeadersWithAuth(apiKey, auth);
     const res = await axios.get(url, {
       headers,
       validateStatus: () => true,
@@ -100,13 +109,7 @@ async function syncSystemSkillsStatusFromServer(apiKey, onProgress) {
   const settings = await getLocalSettings();
   const apiBase = (settings && settings.apiBase) || "https://api.clawheart.live";
   const auth = await getLocalAuth();
-  const headers = {
-    "Content-Type": "application/json",
-    "X-OC-API-KEY": apiKey,
-  };
-  if (auth && auth.token) {
-    headers.Authorization = `Bearer ${auth.token}`;
-  }
+  const headers = cloudHeadersWithAuth(apiKey, auth);
 
   const db = getDb();
   // 取本地最新 updated_at，作为增量起点
@@ -214,13 +217,7 @@ async function syncUserSkillsFromServer(apiKey) {
   const settings = await getLocalSettings();
   const apiBase = (settings && settings.apiBase) || "https://api.clawheart.live";
   const auth = await getLocalAuth();
-  const headers = {
-    "Content-Type": "application/json",
-    "X-OC-API-KEY": apiKey,
-  };
-  if (auth && auth.token) {
-    headers.Authorization = `Bearer ${auth.token}`;
-  }
+  const headers = cloudHeadersWithAuth(apiKey, auth);
 
   const url = `${apiBase}/api/user-skills/me`;
   const res = await axios.get(url, { headers, validateStatus: () => true });
@@ -250,13 +247,7 @@ async function syncUserDangerCommandsFromServer(apiKey) {
   const settings = await getLocalSettings();
   const apiBase = (settings && settings.apiBase) || "https://api.clawheart.live";
   const auth = await getLocalAuth();
-  const headers = {
-    "Content-Type": "application/json",
-    "X-OC-API-KEY": apiKey,
-  };
-  if (auth && auth.token) {
-    headers.Authorization = `Bearer ${auth.token}`;
-  }
+  const headers = cloudHeadersWithAuth(apiKey, auth);
 
   const url = `${apiBase}/api/user-danger-commands/me?onlyDisabled=true`;
   const res = await axios.get(url, { headers, validateStatus: () => true });

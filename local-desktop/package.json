@@ -9,6 +9,7 @@
     "dev": "concurrently -k -n renderer,electron -c cyan,green \"npm run dev:renderer\" \"npm run dev:electron\"",
     "start": "electron src/main.js",
     "postinstall": "node scripts/setup-openclaw.js",
+    "ensure-node": "node scripts/ensure-bundled-node.js",
     "build": "node scripts/build.js",
     "build:dir": "node scripts/build.js dir",
     "build:mac": "node scripts/build.js mac",
@@ -31,6 +32,10 @@
   "build": {
     "appId": "com.clawheart.desktop",
     "productName": "ClawHeart Desktop",
+    "asar": true,
+    "asarUnpack": [
+      "node_modules/**/*"
+    ],
     "directories": {
       "output": "build-output"
     },
@@ -46,6 +51,12 @@
         {
           "target": "nsis",
           "arch": ["x64"]
+        }
+      ],
+      "extraResources": [
+        {
+          "from": "bundled/win-x64/node.exe",
+          "to": "node.exe"
         }
       ]
     },

@@ -51,6 +51,10 @@ local-desktop/*.db
 local-desktop/*.db-journal
 local-desktop/*.db-shm
 local-desktop/*.db-wal
+# 打包时下载的官方 node.exe（不提交仓库）
+local-desktop/bundled/**
+!local-desktop/bundled/README.md
+local-desktop/build-output-*/
 
 # local-desktop 前端子项目（Vite/React）
 local-desktop/frontend/node_modules/

@@ -1,4 +1,5 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useLayoutEffect, useRef } from "react";
+import { createPortal } from "react-dom";
 import { api } from "../api/client";
 import { useAuth } from "../contexts/AuthContext";
 import { useConfirm } from "../contexts/ConfirmContext";
@@ -27,7 +28,11 @@ export const ApiKeysPage = () => {
   const [editLabel, setEditLabel] = useState("");
   const [editScopes, setEditScopes] = useState("");
   const [editSubmitting, setEditSubmitting] = useState(false);
-  const dropdownRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLDivElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+  const [menuBox, setMenuBox] = useState<{ top: number; left: number; width: number } | null>(null);
+
+  const MENU_WIDTH = 160;
 
   const loadKeys = async (showSuccessMessage = false) => {
     if (!token) return;
@@ -61,16 +66,50 @@ export const ApiKeysPage = () => {
     loadKeys();
   }, [token]);
 
-  // 点击外部关闭下拉
-  useEffect(() => {
-    const onOutside = (e: MouseEvent) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
-        setActionKeyId(null);
-      }
+  const updateMenuPosition = () => {
+    const el = triggerRef.current;
+    if (!el) return;
+    const r = el.getBoundingClientRect();
+    setMenuBox({
+      top: r.bottom + 6,
+      left: Math.max(8, r.right - MENU_WIDTH),
+      width: MENU_WIDTH,
+    });
+  };
+
+  useLayoutEffect(() => {
+    if (actionKeyId === null) {
+      setMenuBox(null);
+      return;
+    }
+    updateMenuPosition();
+    const onWin = () => updateMenuPosition();
+    window.addEventListener("scroll", onWin, true);
+    window.addEventListener("resize", onWin);
+    return () => {
+      window.removeEventListener("scroll", onWin, true);
+      window.removeEventListener("resize", onWin);
     };
-    document.addEventListener("click", onOutside);
-    return () => document.removeEventListener("click", onOutside);
-  }, []);
+  }, [actionKeyId]);
+
+  useEffect(() => {
+    if (actionKeyId === null) return;
+    const onOutside = (e: MouseEvent) => {
+      const t = e.target as Node;
+      if (triggerRef.current?.contains(t)) return;
+      if (menuRef.current?.contains(t)) return;
+      setActionKeyId(null);
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setActionKeyId(null);
+    };
+    window.addEventListener("mousedown", onOutside);
+    window.addEventListener("keydown", onKey);
+    return () => {
+      window.removeEventListener("mousedown", onOutside);
+      window.removeEventListener("keydown", onKey);
+    };
+  }, [actionKeyId]);
 
   const createKey = async () => {
     if (!token || !newLabel.trim()) return;
@@ -220,7 +259,7 @@ export const ApiKeysPage = () => {
       </section>
 
       {/* 我的 API Keys 列表 */}
-      <section className="rounded-[28px] border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900/50 shadow-sm overflow-hidden">
+      <section className="rounded-[28px] border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900/50 shadow-sm">
         <div className="px-5 py-4 flex items-center justify-between border-b border-slate-200 dark:border-slate-700">
           <h3 className="text-sm font-medium text-slate-700 dark:text-slate-200">我的 API Keys</h3>
           <button
@@ -272,7 +311,7 @@ export const ApiKeysPage = () => {
                         <span className="px-2.5 py-0.5 rounded-full text-xs font-medium bg-emerald-500/20 text-emerald-700 dark:text-emerald-400">
                           有效
                         </span>
-                        <div className="relative" ref={actionKeyId === k.id ? dropdownRef : undefined}>
+                        <div className="relative shrink-0" ref={actionKeyId === k.id ? triggerRef : undefined}>
                           <button
                             type="button"
                             onClick={() => setActionKeyId((id) => (id === k.id ? null : k.id))}
@@ -281,26 +320,6 @@ export const ApiKeysPage = () => {
                           >
                             <MoreHorizontal className="w-4 h-4" />
                           </button>
-                          {actionKeyId === k.id && (
-                            <div className="absolute right-0 top-full mt-1 py-1 min-w-[100px] rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 shadow-lg z-10">
-                              <button
-                                type="button"
-                                onClick={() => openEdit(k)}
-                                className="flex items-center gap-2 w-full px-3 py-2 text-left text-sm text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700"
-                              >
-                                <Pencil className="w-3.5 h-3.5" />
-                                修改
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => revokeKey(k.id, k.label)}
-                                className="flex items-center gap-2 w-full px-3 py-2 text-left text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-500/10"
-                              >
-                                <Trash2 className="w-3.5 h-3.5" />
-                                删除
-                              </button>
-                            </div>
-                          )}
                         </div>
                       </>
                     )}
@@ -311,6 +330,48 @@ export const ApiKeysPage = () => {
           )}
         </div>
       </section>
+
+      {actionKeyId !== null &&
+        menuBox &&
+        (() => {
+          const row = apiKeys.find((x) => x.id === actionKeyId);
+          if (!row) return null;
+          return createPortal(
+            <div
+              ref={menuRef}
+              role="menu"
+              aria-label="API Key 操作"
+              className="py-1 rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 shadow-xl ring-1 ring-black/5 dark:ring-white/10"
+              style={{
+                position: "fixed",
+                top: menuBox.top,
+                left: menuBox.left,
+                width: menuBox.width,
+                zIndex: 200,
+              }}
+            >
+              <button
+                type="button"
+                role="menuitem"
+                onClick={() => openEdit(row)}
+                className="flex items-center gap-2 w-full px-3 py-2 text-left text-sm text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700"
+              >
+                <Pencil className="w-3.5 h-3.5 shrink-0" />
+                修改
+              </button>
+              <button
+                type="button"
+                role="menuitem"
+                onClick={() => revokeKey(row.id, row.label)}
+                className="flex items-center gap-2 w-full px-3 py-2 text-left text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-500/10"
+              >
+                <Trash2 className="w-3.5 h-3.5 shrink-0" />
+                删除
+              </button>
+            </div>,
+            document.body,
+          );
+        })()}
 
       {/* 修改 API Key 弹窗 */}
       {editKey && (

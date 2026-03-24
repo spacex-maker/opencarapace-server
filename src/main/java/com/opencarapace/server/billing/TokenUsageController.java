@@ -27,7 +27,11 @@ public class TokenUsageController {
             @RequestParam(name = "page", defaultValue = "1") int page,
             @RequestParam(name = "size", defaultValue = "50") int size,
             @RequestParam(name = "from", required = false) String from,
-            @RequestParam(name = "to", required = false) String to
+            @RequestParam(name = "to", required = false) String to,
+            @RequestParam(name = "routeMode", required = false) String routeMode,
+            @RequestParam(name = "model", required = false) String model,
+            @RequestParam(name = "keyword", required = false) String keyword,
+            @RequestParam(name = "estimated", required = false) Boolean estimated
     ) {
         Long userId = getCurrentUserId();
         int safeSize = Math.min(Math.max(size, 1), 200);
@@ -35,7 +39,20 @@ public class TokenUsageController {
         Instant fromTs = parseInstant(from);
         Instant toTs = parseInstant(to);
 
-        Page<TokenUsageRecord> p = repository.findByUser(userId, fromTs, toTs, PageRequest.of(safePage - 1, safeSize));
+        String route = (routeMode == null || routeMode.isBlank()) ? null : routeMode.trim();
+        String modelPat = likePattern(model);
+        String keywordPat = likePattern(keyword);
+
+        Page<TokenUsageRecord> p = repository.findByUserFiltered(
+                userId,
+                fromTs,
+                toTs,
+                route,
+                modelPat,
+                keywordPat,
+                estimated,
+                PageRequest.of(safePage - 1, safeSize)
+        );
         List<TokenUsageItem> items = p.getContent().stream().map(TokenUsageItem::from).toList();
         return ResponseEntity.ok(new TokenUsagePage(safePage, safeSize, p.getTotalElements(), items));
     }
@@ -65,6 +82,18 @@ public class TokenUsageController {
     private static Instant parseInstant(String s) {
         if (s == null || s.isBlank()) return null;
         try { return Instant.parse(s.trim()); } catch (Exception ignored) { return null; }
+    }
+
+    /** JPQL LIKE：小写子串匹配；去掉 % _ 避免通配注入 */
+    private static String likePattern(String raw) {
+        if (raw == null || raw.isBlank()) {
+            return null;
+        }
+        String t = raw.trim().toLowerCase().replace("%", "").replace("_", "");
+        if (t.isEmpty()) {
+            return null;
+        }
+        return "%" + t + "%";
     }
 
     private Long getCurrentUserId() {

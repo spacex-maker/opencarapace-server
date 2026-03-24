@@ -1,14 +1,15 @@
 /**
  * 管理员：全站用户的 LLM 代理拦截日志（与「我的拦截日志」数据源一致，但跨用户 + 高级筛选）。
  */
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import {
   fetchAdminBlockLogDetail,
   fetchAdminBlockLogs,
   type AdminBlockLogDetail,
   type AdminBlockLogRow,
 } from "../api/client";
-import { RefreshCw, Search, ShieldAlert, X } from "lucide-react";
+import { ChevronDown, Loader2, Search, ShieldAlert, X } from "lucide-react";
 
 type BlockTypeFilter = "" | "skill_disabled" | "danger_command";
 
@@ -67,11 +68,330 @@ function riskBadgeClass(level?: string | null): string {
   return `${base} border-slate-300 dark:border-slate-600 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300`;
 }
 
+function blockTypeBadgeClass(type: string): string {
+  const base =
+    "inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide";
+  if (type === "danger_command")
+    return `${base} border-red-500/40 bg-red-500/10 text-red-700 dark:text-red-300`;
+  if (type === "skill_disabled")
+    return `${base} border-violet-500/40 bg-violet-500/10 text-violet-800 dark:text-violet-300`;
+  return `${base} border-slate-300 dark:border-slate-600 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300`;
+}
+
 const inputRound =
   "w-full min-w-0 border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 px-3 py-2 text-xs rounded-full outline-none focus:ring-2 focus:ring-brand-500/35";
 
-const selectRound =
-  "w-full min-w-0 border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 px-3 py-2 text-xs rounded-full outline-none focus:ring-2 focus:ring-brand-500/35 appearance-none bg-[length:14px] bg-[right_10px_center] bg-no-repeat pr-9";
+const BLOCK_TYPE_FILTER_OPTIONS: { value: BlockTypeFilter; label: string; tag: string; hint?: string }[] = [
+  { value: "", label: "全部（不限）", tag: "ALL", hint: "不过滤类型" },
+  { value: "skill_disabled", label: "技能禁用", tag: "SKILL" },
+  { value: "danger_command", label: "危险指令", tag: "CMD" },
+];
+
+/** 拦截类型：自定义全圆角下拉 + Portal 菜单 */
+function BlockTypeFilterSelect({
+  value,
+  onChange,
+  disabled,
+}: {
+  value: BlockTypeFilter;
+  onChange: (v: BlockTypeFilter) => void;
+  disabled?: boolean;
+}) {
+  const [open, setOpen] = useState(false);
+  const triggerRef = useRef<HTMLDivElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+  const [menuBox, setMenuBox] = useState<{ top: number; left: number; width: number } | null>(null);
+
+  const current = BLOCK_TYPE_FILTER_OPTIONS.find((o) => o.value === value) ?? BLOCK_TYPE_FILTER_OPTIONS[0];
+
+  const updateMenuPosition = () => {
+    const el = triggerRef.current;
+    if (!el) return;
+    const r = el.getBoundingClientRect();
+    setMenuBox({ top: r.bottom + 8, left: r.left, width: r.width });
+  };
+
+  useLayoutEffect(() => {
+    if (!open) {
+      setMenuBox(null);
+      return;
+    }
+    updateMenuPosition();
+    const onWin = () => updateMenuPosition();
+    window.addEventListener("scroll", onWin, true);
+    window.addEventListener("resize", onWin);
+    return () => {
+      window.removeEventListener("scroll", onWin, true);
+      window.removeEventListener("resize", onWin);
+    };
+  }, [open]);
+
+  useEffect(() => {
+    if (!open) return;
+    const onDoc = (e: MouseEvent) => {
+      const t = e.target as Node;
+      if (triggerRef.current?.contains(t)) return;
+      if (menuRef.current?.contains(t)) return;
+      setOpen(false);
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setOpen(false);
+    };
+    window.addEventListener("mousedown", onDoc);
+    window.addEventListener("keydown", onKey);
+    return () => {
+      window.removeEventListener("mousedown", onDoc);
+      window.removeEventListener("keydown", onKey);
+    };
+  }, [open]);
+
+  const menu =
+    open &&
+    menuBox &&
+    createPortal(
+      <div
+        ref={menuRef}
+        role="listbox"
+        aria-label="拦截类型"
+        className="max-h-72 overflow-y-auto rounded-3xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-900 py-2 shadow-xl ring-1 ring-black/5 dark:ring-white/10"
+        style={{
+          position: "fixed",
+          top: menuBox.top,
+          left: menuBox.left,
+          width: Math.max(menuBox.width, 240),
+          zIndex: 9999,
+        }}
+      >
+        {BLOCK_TYPE_FILTER_OPTIONS.map((opt) => {
+          const selected = opt.value === value;
+          return (
+            <button
+              key={opt.value || "__all"}
+              type="button"
+              role="option"
+              aria-selected={selected}
+              onClick={() => {
+                onChange(opt.value);
+                setOpen(false);
+              }}
+              className={`flex w-full items-center gap-3 px-4 py-2.5 text-left transition-colors ${
+                selected
+                  ? "bg-brand-500/10 dark:bg-brand-500/15"
+                  : "hover:bg-slate-100 dark:hover:bg-slate-800/80"
+              }`}
+            >
+              <div className="flex min-w-0 flex-1 items-center gap-2">
+                {opt.value ? (
+                  <span className={`shrink-0 ${blockTypeBadgeClass(opt.value)}`}>{opt.tag}</span>
+                ) : (
+                  <span className="shrink-0 rounded-full border border-dashed border-slate-300 dark:border-slate-600 px-2 py-0.5 text-[10px] font-medium text-slate-500 dark:text-slate-400">
+                    {opt.tag}
+                  </span>
+                )}
+                <div className="min-w-0">
+                  <div className="text-xs font-medium text-slate-900 dark:text-slate-100">{opt.label}</div>
+                  {!opt.value && opt.hint && (
+                    <div className="text-[10px] text-slate-500 dark:text-slate-500">{opt.hint}</div>
+                  )}
+                </div>
+              </div>
+              {selected && (
+                <span className="shrink-0 rounded-full bg-brand-500 px-2 py-0.5 text-[10px] font-semibold text-white">
+                  当前
+                </span>
+              )}
+            </button>
+          );
+        })}
+      </div>,
+      document.body,
+    );
+
+  return (
+    <div ref={triggerRef} className="w-full min-w-0">
+      <button
+        type="button"
+        disabled={disabled}
+        aria-expanded={open}
+        aria-haspopup="listbox"
+        onClick={() => setOpen((o) => !o)}
+        className="w-full flex items-center justify-between gap-2 border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 pl-3 pr-2.5 py-2 text-xs rounded-full outline-none transition-shadow focus:ring-2 focus:ring-brand-500/35 focus:border-brand-500/50 disabled:opacity-50 disabled:pointer-events-none"
+      >
+        <span className="min-w-0 flex items-center gap-2 truncate text-left">
+          {current.value ? (
+            <>
+              <span className={`shrink-0 ${blockTypeBadgeClass(current.value)}`}>{current.tag}</span>
+              <span className="truncate font-medium">{current.label}</span>
+            </>
+          ) : (
+            <span className="truncate text-slate-500 dark:text-slate-400">{current.label}</span>
+          )}
+        </span>
+        <ChevronDown
+          className={`w-4 h-4 shrink-0 text-slate-400 transition-transform duration-200 ${open ? "rotate-180" : ""}`}
+        />
+      </button>
+      {menu}
+    </div>
+  );
+}
+
+const RISK_FILTER_OPTIONS: { value: string; label: string; hint?: string }[] = [
+  { value: "", label: "全部（不限）", hint: "不过滤风险" },
+  { value: "low", label: "低", hint: "LOW" },
+  { value: "high", label: "高", hint: "HIGH" },
+  { value: "medium", label: "中", hint: "MEDIUM" },
+  { value: "critical", label: "严重", hint: "CRITICAL" },
+];
+
+/** 风险等级：自定义全圆角下拉 + Portal 菜单（避免被卡片裁剪） */
+function RiskLevelFilterSelect({
+  value,
+  onChange,
+  disabled,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  disabled?: boolean;
+}) {
+  const [open, setOpen] = useState(false);
+  const triggerRef = useRef<HTMLDivElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+  const [menuBox, setMenuBox] = useState<{ top: number; left: number; width: number } | null>(null);
+
+  const current = RISK_FILTER_OPTIONS.find((o) => o.value === value) ?? RISK_FILTER_OPTIONS[0];
+
+  const updateMenuPosition = () => {
+    const el = triggerRef.current;
+    if (!el) return;
+    const r = el.getBoundingClientRect();
+    setMenuBox({ top: r.bottom + 8, left: r.left, width: r.width });
+  };
+
+  useLayoutEffect(() => {
+    if (!open) {
+      setMenuBox(null);
+      return;
+    }
+    updateMenuPosition();
+    const onWin = () => updateMenuPosition();
+    window.addEventListener("scroll", onWin, true);
+    window.addEventListener("resize", onWin);
+    return () => {
+      window.removeEventListener("scroll", onWin, true);
+      window.removeEventListener("resize", onWin);
+    };
+  }, [open]);
+
+  useEffect(() => {
+    if (!open) return;
+    const onDoc = (e: MouseEvent) => {
+      const t = e.target as Node;
+      if (triggerRef.current?.contains(t)) return;
+      if (menuRef.current?.contains(t)) return;
+      setOpen(false);
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setOpen(false);
+    };
+    window.addEventListener("mousedown", onDoc);
+    window.addEventListener("keydown", onKey);
+    return () => {
+      window.removeEventListener("mousedown", onDoc);
+      window.removeEventListener("keydown", onKey);
+    };
+  }, [open]);
+
+  const menu =
+    open &&
+    menuBox &&
+    createPortal(
+      <div
+        ref={menuRef}
+        role="listbox"
+        aria-label="风险等级"
+        className="max-h-72 overflow-y-auto rounded-3xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-900 py-2 shadow-xl ring-1 ring-black/5 dark:ring-white/10"
+        style={{
+          position: "fixed",
+          top: menuBox.top,
+          left: menuBox.left,
+          width: Math.max(menuBox.width, 220),
+          zIndex: 9999,
+        }}
+      >
+        {RISK_FILTER_OPTIONS.map((opt) => {
+          const selected = opt.value === value;
+          return (
+            <button
+              key={opt.value || "__all"}
+              type="button"
+              role="option"
+              aria-selected={selected}
+              onClick={() => {
+                onChange(opt.value);
+                setOpen(false);
+              }}
+              className={`flex w-full items-center gap-3 px-4 py-2.5 text-left transition-colors ${
+                selected
+                  ? "bg-brand-500/10 dark:bg-brand-500/15"
+                  : "hover:bg-slate-100 dark:hover:bg-slate-800/80"
+              }`}
+            >
+              <div className="flex min-w-0 flex-1 items-center gap-2">
+                {opt.value ? (
+                  <span className={`shrink-0 ${riskBadgeClass(opt.value)}`}>{opt.hint}</span>
+                ) : (
+                  <span className="shrink-0 rounded-full border border-dashed border-slate-300 dark:border-slate-600 px-2 py-0.5 text-[10px] font-medium text-slate-500 dark:text-slate-400">
+                    ALL
+                  </span>
+                )}
+                <div className="min-w-0">
+                  <div className="text-xs font-medium text-slate-900 dark:text-slate-100">{opt.label}</div>
+                  {!opt.value && opt.hint && (
+                    <div className="text-[10px] text-slate-500 dark:text-slate-500">{opt.hint}</div>
+                  )}
+                </div>
+              </div>
+              {selected && (
+                <span className="shrink-0 rounded-full bg-brand-500 px-2 py-0.5 text-[10px] font-semibold text-white">
+                  当前
+                </span>
+              )}
+            </button>
+          );
+        })}
+      </div>,
+      document.body,
+    );
+
+  return (
+    <div ref={triggerRef} className="w-full min-w-0">
+      <button
+        type="button"
+        disabled={disabled}
+        aria-expanded={open}
+        aria-haspopup="listbox"
+        onClick={() => setOpen((o) => !o)}
+        className="w-full flex items-center justify-between gap-2 border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 pl-3 pr-2.5 py-2 text-xs rounded-full outline-none transition-shadow focus:ring-2 focus:ring-brand-500/35 focus:border-brand-500/50 disabled:opacity-50 disabled:pointer-events-none"
+      >
+        <span className="min-w-0 flex items-center gap-2 truncate text-left">
+          {current.value ? (
+            <>
+              <span className={`shrink-0 ${riskBadgeClass(current.value)}`}>{current.hint}</span>
+              <span className="truncate font-medium">{current.label}</span>
+            </>
+          ) : (
+            <span className="truncate text-slate-500 dark:text-slate-400">{current.label}</span>
+          )}
+        </span>
+        <ChevronDown
+          className={`w-4 h-4 shrink-0 text-slate-400 transition-transform duration-200 ${open ? "rotate-180" : ""}`}
+        />
+      </button>
+      {menu}
+    </div>
+  );
+}
 
 export function AdminInterceptLogsPage() {
   const [draft, setDraft] = useState<ActiveFilters>(emptyFilters);
@@ -158,27 +478,16 @@ export function AdminInterceptLogsPage() {
   return (
     <div className="max-w-[1200px] mx-auto space-y-5">
       <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 p-5 sm:p-6">
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div className="flex items-start gap-3">
-            <div className="mt-0.5 rounded-xl bg-brand-500/10 p-2 text-brand-600 dark:text-brand-400">
-              <ShieldAlert className="w-5 h-5" />
-            </div>
-            <div>
-              <h1 className="text-lg font-semibold text-slate-900 dark:text-white m-0">全站拦截日志</h1>
-              <p className="mt-1 text-xs text-slate-500 dark:text-slate-400 m-0 max-w-xl">
-                查看所有用户的 LLM 代理拦截记录。支持按用户、邮箱、类型、风险、时间与关键词（匹配原因或完整内容）筛选。
-              </p>
-            </div>
+        <div className="flex flex-wrap items-start gap-3">
+          <div className="mt-0.5 rounded-xl bg-brand-500/10 p-2 text-brand-600 dark:text-brand-400">
+            <ShieldAlert className="w-5 h-5" />
           </div>
-          <button
-            type="button"
-            disabled={loading}
-            onClick={() => void load()}
-            className="inline-flex items-center gap-1.5 rounded-full border border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-900 px-3 py-2 text-xs font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-50"
-          >
-            <RefreshCw className={`w-3.5 h-3.5 ${loading ? "animate-spin" : ""}`} />
-            刷新
-          </button>
+          <div>
+            <h1 className="text-lg font-semibold text-slate-900 dark:text-white m-0">全站拦截日志</h1>
+            <p className="mt-1 text-xs text-slate-500 dark:text-slate-400 m-0 max-w-xl">
+              查看所有用户的 LLM 代理拦截记录。支持按用户、邮箱、类型、风险、时间与关键词（匹配原因或完整内容）筛选。
+            </p>
+          </div>
         </div>
 
         <div className="mt-5 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
@@ -205,37 +514,19 @@ export function AdminInterceptLogsPage() {
           </div>
           <div>
             <label className="block text-[11px] font-medium text-slate-500 dark:text-slate-400 mb-1.5 ml-1">拦截类型</label>
-            <select
+            <BlockTypeFilterSelect
               value={draft.blockType}
-              onChange={(e) =>
-                setDraft((d) => ({ ...d, blockType: e.target.value as BlockTypeFilter }))
-              }
-              className={selectRound}
-              style={{
-                backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E")`,
-              }}
-            >
-              <option value="">全部</option>
-              <option value="skill_disabled">技能禁用</option>
-              <option value="danger_command">危险指令</option>
-            </select>
+              disabled={loading}
+              onChange={(v) => setDraft((d) => ({ ...d, blockType: v }))}
+            />
           </div>
           <div>
             <label className="block text-[11px] font-medium text-slate-500 dark:text-slate-400 mb-1.5 ml-1">风险等级</label>
-            <select
+            <RiskLevelFilterSelect
               value={draft.riskLevel}
-              onChange={(e) => setDraft((d) => ({ ...d, riskLevel: e.target.value }))}
-              className={selectRound}
-              style={{
-                backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E")`,
-              }}
-            >
-              <option value="">全部</option>
-              <option value="low">low</option>
-              <option value="high">high</option>
-              <option value="medium">medium</option>
-              <option value="critical">critical</option>
-            </select>
+              disabled={loading}
+              onChange={(v) => setDraft((d) => ({ ...d, riskLevel: v }))}
+            />
           </div>
           <div>
             <label className="block text-[11px] font-medium text-slate-500 dark:text-slate-400 mb-1.5 ml-1">开始时间</label>
@@ -272,11 +563,21 @@ export function AdminInterceptLogsPage() {
         <div className="mt-4 flex flex-wrap gap-2">
           <button
             type="button"
+            disabled={loading}
             onClick={applySearch}
-            className="inline-flex items-center gap-1.5 rounded-full bg-brand-500 hover:bg-brand-600 text-white text-xs font-medium px-4 py-2 shadow-sm"
+            className="inline-flex items-center justify-center gap-1.5 min-w-[96px] rounded-full bg-brand-500 hover:bg-brand-600 text-white text-xs font-medium px-4 py-2 shadow-sm disabled:opacity-60 disabled:pointer-events-none"
           >
-            <Search className="w-3.5 h-3.5" />
-            查询
+            {loading ? (
+              <>
+                <Loader2 className="w-3.5 h-3.5 shrink-0 animate-spin" />
+                查询中…
+              </>
+            ) : (
+              <>
+                <Search className="w-3.5 h-3.5 shrink-0" />
+                查询
+              </>
+            )}
           </button>
           <button
             type="button"

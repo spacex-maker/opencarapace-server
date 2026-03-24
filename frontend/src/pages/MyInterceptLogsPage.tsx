@@ -1,5 +1,6 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { api } from "../api/client";
+import { FilterPortalSelect } from "../components/FilterPortalSelect";
 
 type BlockLog = {
   id: number;
@@ -18,98 +19,6 @@ type BlockLogDetail = {
   reasons: string | null;
   rawInput: string | null;
 };
-
-function FilterSelect(props: {
-  value: string;
-  onChange: (v: "" | "skill_disabled" | "danger_command") => void;
-  options: { label: string; value: "" | "skill_disabled" | "danger_command" }[];
-  placeholder: string;
-}) {
-  const [open, setOpen] = useState(false);
-  const ref = useRef<HTMLDivElement | null>(null);
-  const isDark =
-    typeof document !== "undefined" &&
-    (document.documentElement.classList.contains("dark") || document.body.classList.contains("dark"));
-
-  useEffect(() => {
-    const onDoc = (e: MouseEvent) => {
-      if (!ref.current) return;
-      if (!ref.current.contains(e.target as Node)) setOpen(false);
-    };
-    document.addEventListener("mousedown", onDoc);
-    return () => document.removeEventListener("mousedown", onDoc);
-  }, []);
-
-  const current = props.options.find((o) => o.value === props.value)?.label || props.placeholder;
-
-  return (
-    <div ref={ref} style={{ position: "relative", width: 220, flexShrink: 0 }}>
-      <button
-        type="button"
-        onClick={() => setOpen((v) => !v)}
-        style={{
-          width: "100%",
-          height: 36,
-          padding: "0 12px",
-          borderRadius: 999,
-          border: isDark ? "1px solid #334155" : "1px solid #cbd5e1",
-          background: isDark ? "rgba(2,6,23,0.86)" : "#f8fafc",
-          color: props.value ? (isDark ? "#e5e7eb" : "#0f172a") : "#6b7280",
-          fontSize: 12,
-          fontWeight: 500,
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          boxSizing: "border-box",
-          cursor: "pointer",
-        }}
-      >
-        <span>{current}</span>
-        <span style={{ color: isDark ? "#6b7280" : "#64748b" }}>{open ? "▲" : "▼"}</span>
-      </button>
-
-      {open && (
-        <div
-          style={{
-            position: "absolute",
-            zIndex: 20,
-            top: "calc(100% + 6px)",
-            left: 0,
-            right: 0,
-            borderRadius: 12,
-            border: isDark ? "1px solid #1f2937" : "1px solid #cbd5e1",
-            background: isDark ? "rgba(2,6,23,0.98)" : "#ffffff",
-            boxShadow: "0 12px 30px rgba(0,0,0,0.35)",
-            overflow: "hidden",
-          }}
-        >
-          {props.options.map((o) => (
-            <button
-              key={o.value || "__all"}
-              type="button"
-              onClick={() => {
-                props.onChange(o.value);
-                setOpen(false);
-              }}
-              style={{
-                width: "100%",
-                border: "none",
-                background: o.value === props.value ? (isDark ? "rgba(59,130,246,0.12)" : "rgba(59,130,246,0.10)") : "transparent",
-                color: o.value === props.value ? (isDark ? "#93c5fd" : "#2563eb") : (isDark ? "#e5e7eb" : "#0f172a"),
-                textAlign: "left",
-                fontSize: 12,
-                padding: "8px 12px",
-                cursor: "pointer",
-              }}
-            >
-              {o.label}
-            </button>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
 
 function formatBlockType(value?: string | null): string {
   if (!value) return "-";
@@ -254,18 +163,19 @@ export const MyInterceptLogsPage = () => {
 
       <div style={{ marginBottom: 10, display: "flex", gap: 10, alignItems: "center" }}>
         <label className="text-xs text-slate-500 dark:text-slate-400">拦截类型</label>
-        <FilterSelect
+        <FilterPortalSelect
           value={blockType}
           onChange={(v) => {
             setPage(1);
-            setBlockType(v);
+            setBlockType(v as "" | "skill_disabled" | "danger_command");
           }}
           placeholder="拦截类型（全部）"
           options={[
-            { label: "拦截类型（全部）", value: "" },
-            { label: "技能拦截", value: "skill_disabled" },
-            { label: "危险指令拦截", value: "danger_command" },
+            { value: "", label: "拦截类型（全部）" },
+            { value: "skill_disabled", label: "技能拦截" },
+            { value: "danger_command", label: "危险指令拦截" },
           ]}
+          className="w-[220px] shrink-0"
         />
       </div>
 

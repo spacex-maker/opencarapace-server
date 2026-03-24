@@ -25,7 +25,11 @@ export const Layout = ({ children }: Props) => {
       {/* 左侧边栏：固定视口高度，底部用户名/退出始终在视口底部 */}
       <aside className="w-48 h-full flex flex-col border-r border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-950/95 shrink-0">
         <div className="p-3 border-b border-slate-200 dark:border-slate-800 shrink-0">
-          <Link to="/" className="flex items-center gap-2 text-slate-900 dark:text-white">
+          <Link
+            to="/"
+            title="返回官网"
+            className="flex items-center gap-2 text-slate-900 dark:text-white hover:opacity-90"
+          >
             <Shield className="w-6 h-6 text-brand-500" />
             <span className="font-semibold tracking-tight">ClawHeart</span>
           </Link>
@@ -34,7 +38,7 @@ export const Layout = ({ children }: Props) => {
           <nav className="space-y-0.5">
             <Link to="/dashboard" className={navItemClass("/dashboard")}>
               <LayoutDashboard className="w-4 h-4 shrink-0" />
-              概览
+              控制台
             </Link>
             {isAuthenticated && (
               <>
@@ -117,11 +121,11 @@ export const Layout = ({ children }: Props) => {
       <div className="flex-1 flex flex-col min-w-0 h-full overflow-hidden">
         <header className="h-12 shrink-0 border-b border-slate-200 dark:border-slate-800 bg-white/80 dark:bg-slate-950/80 backdrop-blur flex items-center justify-end px-4 gap-2">
           <Link
-            to="/intro"
+            to="/"
             className="flex items-center gap-1.5 px-2 py-1.5 rounded-md text-sm text-slate-600 hover:text-slate-900 hover:bg-slate-100 dark:text-slate-400 dark:hover:text-slate-200 dark:hover:bg-slate-800"
           >
             <BookOpen className="w-4 h-4" />
-            官网介绍
+            官网
           </Link>
           <button
             type="button"

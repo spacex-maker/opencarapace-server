@@ -16,12 +16,24 @@ public interface TokenUsageRepository extends JpaRepository<TokenUsageRecord, Lo
             WHERE r.user.id = :userId
               AND (:fromTs IS NULL OR r.createdAt >= :fromTs)
               AND (:toTs IS NULL OR r.createdAt <= :toTs)
+              AND (:routeMode IS NULL OR r.routeMode = :routeMode)
+              AND (:modelPattern IS NULL OR LOWER(r.model) LIKE :modelPattern)
+              AND (:keywordPattern IS NULL OR (
+                    LOWER(r.model) LIKE :keywordPattern
+                 OR LOWER(r.upstreamBase) LIKE :keywordPattern
+                 OR LOWER(COALESCE(r.requestPath, '')) LIKE :keywordPattern
+              ))
+              AND (:estimated IS NULL OR r.estimated = :estimated)
             ORDER BY r.createdAt DESC
             """)
-    Page<TokenUsageRecord> findByUser(
+    Page<TokenUsageRecord> findByUserFiltered(
             @Param("userId") Long userId,
             @Param("fromTs") Instant fromTs,
             @Param("toTs") Instant toTs,
+            @Param("routeMode") String routeMode,
+            @Param("modelPattern") String modelPattern,
+            @Param("keywordPattern") String keywordPattern,
+            @Param("estimated") Boolean estimated,
             Pageable pageable
     );
 

@@ -73,6 +73,55 @@ export async function fetchMe(token: string): Promise<UserProfile> {
   return data;
 }
 
+/** 当前用户 Token 用量账单（分页 + 筛选） */
+export interface TokenUsageItem {
+  id: number;
+  createdAt: string | null;
+  routeMode: string | null;
+  upstreamBase: string | null;
+  model: string | null;
+  promptTokens: number | null;
+  completionTokens: number | null;
+  totalTokens: number | null;
+  estimated: boolean;
+}
+
+export interface TokenUsagePageResult {
+  page: number;
+  size: number;
+  total: number;
+  items: TokenUsageItem[];
+}
+
+export async function fetchMyTokenUsages(params: {
+  page?: number;
+  size?: number;
+  /** ISO-8601 起始时间（含） */
+  from?: string;
+  /** ISO-8601 结束时间（含） */
+  to?: string;
+  routeMode?: string;
+  /** 模型名模糊 */
+  model?: string;
+  /** 模型 / 上游 Base / 请求路径 任一模糊匹配 */
+  keyword?: string;
+  /** 不传：不限；true 仅估算；false 仅非估算 */
+  estimated?: boolean;
+}): Promise<TokenUsagePageResult> {
+  const sp = new URLSearchParams();
+  if (params.page != null) sp.set("page", String(params.page));
+  if (params.size != null) sp.set("size", String(params.size));
+  if (params.from?.trim()) sp.set("from", params.from.trim());
+  if (params.to?.trim()) sp.set("to", params.to.trim());
+  if (params.routeMode?.trim()) sp.set("routeMode", params.routeMode.trim());
+  if (params.model?.trim()) sp.set("model", params.model.trim());
+  if (params.keyword?.trim()) sp.set("keyword", params.keyword.trim());
+  if (params.estimated === true) sp.set("estimated", "true");
+  if (params.estimated === false) sp.set("estimated", "false");
+  const { data } = await api.get<TokenUsagePageResult>(`/api/billing/token-usages/me?${sp.toString()}`);
+  return data;
+}
+
 /** 危险指令库条目（仅管理员可调用的接口） */
 export interface DangerCommandItem {
   id: number;

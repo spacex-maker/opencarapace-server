@@ -1,8 +1,8 @@
 /**
  * 用户技能页与管理员全局技能页共用的纯展示组件（无业务分支）。
  */
-import { useEffect, useState, useRef } from "react";
 import { BookOpen, X } from "lucide-react";
+import { FilterPortalSelect } from "../../components/FilterPortalSelect";
 import type { SkillItem } from "../../api/client";
 
 export function formatDate(s?: string) {
@@ -24,53 +24,16 @@ export function FilterSelect({
   options: { value: string; label: string }[];
   onChange: (v: string) => void;
 }) {
-  const [open, setOpen] = useState(false);
-  const ref = useRef<HTMLDivElement | null>(null);
   const current = options.find((o) => o.value === value);
-
-  useEffect(() => {
-    if (!open) return;
-    const handler = (e: MouseEvent) => {
-      if (!ref.current) return;
-      if (!ref.current.contains(e.target as Node)) {
-        setOpen(false);
-      }
-    };
-    window.addEventListener("mousedown", handler);
-    return () => window.removeEventListener("mousedown", handler);
-  }, [open]);
-
   return (
-    <div className="w-40 relative" ref={ref}>
-      <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1">{label}</label>
-      <button
-        type="button"
-        onClick={() => setOpen((o) => !o)}
-        className="w-full inline-flex items-center justify-between rounded-full bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 px-3 py-2 text-xs text-slate-900 dark:text-slate-100 hover:border-brand-500/60"
-      >
-        <span className="truncate">{current ? current.label : displayLabel}</span>
-        <span className="ml-1 text-[10px] text-slate-400 dark:text-slate-500">{open ? "▲" : "▼"}</span>
-      </button>
-      {open && (
-        <div className="absolute z-20 mt-1 w-full rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-lg max-h-52 overflow-y-auto text-xs">
-          {options.map((opt) => (
-            <button
-              key={opt.value}
-              type="button"
-              onClick={() => {
-                onChange(opt.value);
-                setOpen(false);
-              }}
-              className={`w-full text-left px-2.5 py-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 ${
-                opt.value === value ? "text-brand-600 dark:text-brand-400 font-medium" : "text-slate-700 dark:text-slate-200"
-              }`}
-            >
-              {opt.label}
-            </button>
-          ))}
-        </div>
-      )}
-    </div>
+    <FilterPortalSelect
+      label={label}
+      value={value}
+      options={options}
+      placeholder={current ? current.label : displayLabel}
+      onChange={onChange}
+      className="w-40"
+    />
   );
 }
 

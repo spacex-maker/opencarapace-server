@@ -1,7 +1,11 @@
 import { useState } from "react";
 import { Link, useNavigate, useLocation } from "react-router-dom";
-import { Shield } from "lucide-react";
+import { Loader2, Lock, Mail, UserRound } from "lucide-react";
 import { useAuth } from "../contexts/AuthContext";
+import { AuthPageShell } from "../components/AuthPageShell";
+
+const fieldClass =
+  "w-full rounded-full border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-950/50 px-4 py-2.5 pl-11 text-sm text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-brand-500/35 focus:border-brand-500/40 transition-shadow";
 
 export const RegisterPage = () => {
   const navigate = useNavigate();
@@ -33,8 +37,7 @@ export const RegisterPage = () => {
     } catch (err: unknown) {
       const msg =
         err && typeof err === "object" && "response" in err
-          ? (err as { response?: { data?: { message?: string } } }).response
-              ?.data?.message
+          ? (err as { response?: { data?: { message?: string } } }).response?.data?.message
           : null;
       setError(msg || "注册失败，该邮箱可能已被使用");
     } finally {
@@ -43,83 +46,101 @@ export const RegisterPage = () => {
   };
 
   return (
-    <div className="max-w-md mx-auto py-12">
-      <div className="flex flex-col items-center mb-8">
-        <div className="w-12 h-12 rounded-xl bg-brand-500/20 flex items-center justify-center mb-4">
-          <Shield className="w-6 h-6 text-brand-400" />
+    <AuthPageShell
+      title="创建你的账号"
+      subtitle="几分钟内完成注册，即可使用安全评估、危险指令库与 API Key 管理。"
+    >
+      {error && (
+        <div
+          role="alert"
+          className="mb-6 rounded-full border border-red-500/35 bg-red-500/10 text-red-700 dark:text-red-300 text-sm px-4 py-2.5"
+        >
+          {error}
         </div>
-        <h1 className="text-xl font-semibold text-slate-100">注册 ClawHeart</h1>
-        <p className="text-sm text-slate-400 mt-1">
-          创建账号后即可使用安全评估与 API Key 管理
-        </p>
-      </div>
+      )}
 
-      <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-6 space-y-5">
-        {error && (
-          <div className="rounded-lg bg-red-500/10 border border-red-500/30 text-red-300 text-sm px-3 py-2">
-            {error}
-          </div>
-        )}
-
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-slate-300 mb-1">
-              邮箱 <span className="text-slate-500">*</span>
-            </label>
+      <form onSubmit={handleSubmit} className="space-y-4">
+        <div>
+          <label htmlFor="reg-email" className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-2 ml-1">
+            邮箱 <span className="text-red-500 dark:text-red-400 font-normal">*</span>
+          </label>
+          <div className="relative">
+            <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
             <input
+              id="reg-email"
               type="email"
               required
               autoComplete="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              className="w-full rounded-lg bg-slate-900 border border-slate-700 px-3 py-2 text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-brand-500/50 focus:border-brand-500"
-              placeholder="you@example.com"
+              className={fieldClass}
+              placeholder="you@company.com"
             />
           </div>
-          <div>
-            <label className="block text-sm font-medium text-slate-300 mb-1">
-              密码 <span className="text-slate-500">*</span>
-            </label>
+        </div>
+        <div>
+          <label htmlFor="reg-password" className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-2 ml-1">
+            密码 <span className="text-red-500 dark:text-red-400 font-normal">*</span>
+          </label>
+          <div className="relative">
+            <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
             <input
+              id="reg-password"
               type="password"
               required
               minLength={6}
               autoComplete="new-password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className="w-full rounded-lg bg-slate-900 border border-slate-700 px-3 py-2 text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-brand-500/50 focus:border-brand-500"
+              className={fieldClass}
               placeholder="至少 6 位"
             />
           </div>
-          <div>
-            <label className="block text-sm font-medium text-slate-300 mb-1">
-              昵称 <span className="text-slate-500">（选填）</span>
-            </label>
+          <p className="mt-1.5 ml-1 text-[11px] text-slate-500 dark:text-slate-500">建议使用字母与数字组合</p>
+        </div>
+        <div>
+          <label htmlFor="reg-name" className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-2 ml-1">
+            昵称 <span className="text-slate-400 font-normal">（选填）</span>
+          </label>
+          <div className="relative">
+            <UserRound className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
             <input
+              id="reg-name"
               type="text"
               autoComplete="name"
               value={displayName}
               onChange={(e) => setDisplayName(e.target.value)}
-              className="w-full rounded-lg bg-slate-900 border border-slate-700 px-3 py-2 text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-brand-500/50 focus:border-brand-500"
-              placeholder="显示名称"
+              className={fieldClass}
+              placeholder="在控制台中显示的名称"
             />
           </div>
-          <button
-            type="submit"
-            disabled={submitting}
-            className="w-full py-2.5 rounded-lg bg-brand-500 hover:bg-brand-600 text-white font-medium text-sm disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-          >
-            {submitting ? "注册中…" : "注册"}
-          </button>
-        </form>
+        </div>
+        <button
+          type="submit"
+          disabled={submitting}
+          className="w-full mt-2 flex items-center justify-center gap-2 rounded-full py-3 bg-brand-600 hover:bg-brand-500 text-white text-sm font-semibold shadow-lg shadow-brand-600/25 disabled:opacity-50 disabled:pointer-events-none transition-colors"
+        >
+          {submitting ? (
+            <>
+              <Loader2 className="w-4 h-4 animate-spin shrink-0" />
+              注册中…
+            </>
+          ) : (
+            "注册并进入控制台"
+          )}
+        </button>
+      </form>
 
-        <p className="text-center text-sm text-slate-400">
-          已有账号？{" "}
-          <Link to="/login" className="text-brand-400 hover:text-brand-300 font-medium">
-            去登录
-          </Link>
-        </p>
-      </div>
-    </div>
+      <p className="mt-8 text-center text-sm text-slate-600 dark:text-slate-400">
+        已有账号？{" "}
+        <Link
+          to="/login"
+          state={location.state}
+          className="font-semibold text-brand-600 dark:text-brand-400 hover:text-brand-500 dark:hover:text-brand-300"
+        >
+          去登录
+        </Link>
+      </p>
+    </AuthPageShell>
   );
 };

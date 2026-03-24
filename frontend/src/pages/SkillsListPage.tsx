@@ -22,6 +22,19 @@ function formatDate(s?: string) {
   return isNaN(d.getTime()) ? s : d.toLocaleString("zh-CN");
 }
 
+type UserSafetyLabel = "SAFE" | "UNSAFE";
+
+/** 乐观更新时 safe/unsafe 计数的增量（与原先内联三元逻辑一致）。 */
+function safetyMarkCountDelta(
+  prev: UserSafetyLabel | null,
+  next: UserSafetyLabel,
+): { dSafe: number; dUnsafe: number } {
+  return {
+    dSafe: next === "SAFE" ? 1 : prev === "SAFE" ? -1 : 0,
+    dUnsafe: next === "UNSAFE" ? 1 : prev === "UNSAFE" ? -1 : 0,
+  };
+}
+
 function SkillDetailModal({ item, onClose }: { item: SkillItem; onClose: () => void }) {
   const tags = item.tags ? item.tags.split(/[,，\s]+/).filter(Boolean) : [];
 
@@ -610,8 +623,9 @@ export const SkillsListPage = ({ mode = "user" }: SkillsListPageProps) => {
                                     const prev = row.userSafetyLabel ?? null;
                                     const prevSafeCount = row.safeMarkCount ?? 0;
                                     const prevUnsafeCount = row.unsafeMarkCount ?? 0;
-                                    const next: "SAFE" | "UNSAFE" = "SAFE";
+                                    const next: UserSafetyLabel = "SAFE";
                                     if (prev === next) return;
+                                    const { dSafe, dUnsafe } = safetyMarkCountDelta(prev, next);
                                     setPage((p) =>
                                       p
                                         ? {
@@ -621,10 +635,8 @@ export const SkillsListPage = ({ mode = "user" }: SkillsListPageProps) => {
                                                 ? {
                                                     ...s,
                                                     userSafetyLabel: next,
-                                                    safeMarkCount:
-                                                      (s.safeMarkCount ?? 0) + (next === "SAFE" ? 1 : prev === "SAFE" ? -1 : 0),
-                                                    unsafeMarkCount:
-                                                      (s.unsafeMarkCount ?? 0) + (next === "UNSAFE" ? 1 : prev === "UNSAFE" ? -1 : 0),
+                                                    safeMarkCount: (s.safeMarkCount ?? 0) + dSafe,
+                                                    unsafeMarkCount: (s.unsafeMarkCount ?? 0) + dUnsafe,
                                                   }
                                                 : s,
                                             ),
@@ -667,8 +679,9 @@ export const SkillsListPage = ({ mode = "user" }: SkillsListPageProps) => {
                                     const prev = row.userSafetyLabel ?? null;
                                     const prevSafeCount = row.safeMarkCount ?? 0;
                                     const prevUnsafeCount = row.unsafeMarkCount ?? 0;
-                                    const next: "SAFE" | "UNSAFE" = "UNSAFE";
+                                    const next: UserSafetyLabel = "UNSAFE";
                                     if (prev === next) return;
+                                    const { dSafe, dUnsafe } = safetyMarkCountDelta(prev, next);
                                     setPage((p) =>
                                       p
                                         ? {
@@ -678,10 +691,8 @@ export const SkillsListPage = ({ mode = "user" }: SkillsListPageProps) => {
                                                 ? {
                                                     ...s,
                                                     userSafetyLabel: next,
-                                                    safeMarkCount:
-                                                      (s.safeMarkCount ?? 0) + (next === "SAFE" ? 1 : prev === "SAFE" ? -1 : 0),
-                                                    unsafeMarkCount:
-                                                      (s.unsafeMarkCount ?? 0) + (next === "UNSAFE" ? 1 : prev === "UNSAFE" ? -1 : 0),
+                                                    safeMarkCount: (s.safeMarkCount ?? 0) + dSafe,
+                                                    unsafeMarkCount: (s.unsafeMarkCount ?? 0) + dUnsafe,
                                                   }
                                                 : s,
                                             ),

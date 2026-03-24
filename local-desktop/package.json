@@ -10,10 +10,11 @@
     "start": "electron src/main.js",
     "postinstall": "node scripts/setup-openclaw.js",
     "ensure-node": "node scripts/ensure-bundled-node.js",
-    "build": "node scripts/build.js",
-    "build:dir": "node scripts/build.js dir",
-    "build:mac": "node scripts/build.js mac",
-    "pack": "node scripts/build.js dir"
+    "build": "node scripts/build.js win installer",
+    "build:dir": "node scripts/build.js win dir",
+    "build:mac": "node scripts/build.js mac installer",
+    "build:mac:dir": "node scripts/build.js mac dir",
+    "pack": "node scripts/build.js win dir"
   },
   "description": "ClawHeart Desktop Client",
   "author": "ClawHeart Team",

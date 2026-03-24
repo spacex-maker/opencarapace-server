@@ -27,7 +27,7 @@ npm run build:frontend
 
 这会在 `frontend/dist/` 目录生成前端静态文件。
 
-### 3. 打包为 Windows exe
+### 3. 打包为安装包
 
 #### 方式 A：生成安装程序（推荐）
 
@@ -45,10 +45,26 @@ npm run build:dir
 
 这会在 `dist/win-unpacked/` 目录生成可直接运行的文件夹，不需要安装。
 
-### 4. 测试打包结果
+### 4. 打包为 macOS 安装包（在 macOS 机器执行）
+
+#### 方式 A：生成 DMG + ZIP（推荐）
+
+```bash
+npm run build:mac
+```
+
+#### 方式 B：生成免安装 .app 目录（用于快速测试）
+
+```bash
+npm run build:mac:dir
+```
+
+### 5. 测试打包结果
 
 - **安装程序版本**：运行 `dist/ClawHeart Desktop Setup 0.1.0.exe`
 - **免安装版本**：运行 `dist/win-unpacked/ClawHeart Desktop.exe`
+- **macOS 安装包**：运行 `dist/ClawHeart Desktop-0.1.0-universal.dmg`
+- **macOS 免安装**：运行 `dist/mac-universal/ClawHeart Desktop.app`
 
 ## 打包配置说明
 
@@ -57,8 +73,8 @@ npm run build:dir
 - **appId**: `com.clawheart.desktop`
 - **productName**: `ClawHeart Desktop`
 - **输出目录**: `dist/`
-- **目标平台**: Windows x64
-- **安装程序类型**: NSIS（支持自定义安装路径）
+- **目标平台**: Windows x64、macOS Universal（x64 + arm64）
+- **安装程序类型**: Windows NSIS、macOS DMG + ZIP
 
 ## 注意事项
 

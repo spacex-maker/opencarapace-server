@@ -184,7 +184,7 @@ function registerSettingsRoutes(app) {
       const rows = await listLlmMappings();
       res.status(200).json({ items: rows });
     } catch (e) {
-      res.status(500).json({ error: { message: e?.message ?? "读取 LLM 映射配置失败" } });
+      res.status(500).json({ error: { message: e?.message ?? "读取网络映射配置失败" } });
     }
   });
 
@@ -201,7 +201,7 @@ function registerSettingsRoutes(app) {
       const rows = await listLlmMappings();
       res.status(200).json({ items: rows });
     } catch (e) {
-      res.status(500).json({ error: { message: e?.message ?? "保存 LLM 映射配置失败" } });
+      res.status(500).json({ error: { message: e?.message ?? "保存网络映射配置失败" } });
     }
   });
 
@@ -216,7 +216,7 @@ function registerSettingsRoutes(app) {
       const rows = await listLlmMappings();
       res.status(200).json({ items: rows });
     } catch (e) {
-      res.status(500).json({ error: { message: e?.message ?? "删除 LLM 映射配置失败" } });
+      res.status(500).json({ error: { message: e?.message ?? "删除网络映射配置失败" } });
     }
   });
 

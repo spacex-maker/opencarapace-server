@@ -10,8 +10,60 @@ const { forwardChatCompletions } = require("./server/llm-proxy.js");
 const { registerSkillsRoutes } = require("./server/skills-routes.js");
 const { registerInterceptLogsRoutes } = require("./server/intercept-logs-routes.js");
 const { registerTokenUsageRoutes } = require("./server/token-usage-routes.js");
+const { registerAgentMgmtRoutes } = require("./server/agent-mgmt-routes.js");
+const { registerBudgetRoutes } = require("./server/budget-routes.js");
+const axios = require("axios");
 
 const PORT = 19111;
+
+/** 安全扫描：转发至云端（与独立模块同逻辑，内联避免打包/路径导致未注册 404） */
+function registerSecurityScanRoutes(app) {
+  async function cloudAxiosConfig() {
+    const settings = await getLocalSettings();
+    const apiBase = settings && settings.apiBase
+      ? String(settings.apiBase).replace(/\/+$/, "")
+      : "https://api.clawheart.live";
+    const auth = await getLocalAuth();
+    const headers = { Accept: "application/json" };
+    if (auth && auth.token) {
+      headers.Authorization = `Bearer ${auth.token}`;
+    }
+    return { apiBase, headers };
+  }
+
+  app.get("/api/security-scan/items", async (_req, res) => {
+    try {
+      const { apiBase, headers } = await cloudAxiosConfig();
+      if (!headers.Authorization) {
+        res.status(401).json({ error: { message: "请先登录云端账户后再获取安全扫描项。" } });
+        return;
+      }
+      const url = `${apiBase}/api/security-scan/items`;
+      const r = await axios.get(url, { headers, validateStatus: () => true });
+      res.status(r.status).json(r.data);
+    } catch (e) {
+      res.status(500).json({ error: { message: e?.message ?? "获取安全扫描项失败" } });
+    }
+  });
+
+  app.post("/api/security-scan/ai-run", async (req, res) => {
+    try {
+      const { apiBase, headers } = await cloudAxiosConfig();
+      if (!headers.Authorization) {
+        res.status(401).json({ error: { message: "请先登录云端账户后再执行安全扫描。" } });
+        return;
+      }
+      const url = `${apiBase}/api/security-scan/ai-run`;
+      const r = await axios.post(url, req.body || {}, {
+        headers: { ...headers, "Content-Type": "application/json" },
+        validateStatus: () => true,
+      });
+      res.status(r.status).json(r.data);
+    } catch (e) {
+      res.status(500).json({ error: { message: e?.message ?? "安全扫描请求失败" } });
+    }
+  });
+}
 
 function getClientId() {
   const hostname = os.hostname();
@@ -92,6 +144,9 @@ async function startServer() {
   registerSkillsRoutes(app);
   registerInterceptLogsRoutes(app);
   registerTokenUsageRoutes(app);
+  registerSecurityScanRoutes(app);
+  registerAgentMgmtRoutes(app);
+  registerBudgetRoutes(app);
 
   app.post(/^(?!\/api\/).+$/, forwardChatCompletions);
 

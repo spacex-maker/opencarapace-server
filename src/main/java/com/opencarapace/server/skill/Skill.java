@@ -77,5 +77,36 @@ public class Skill {
     @UpdateTimestamp
     @Column(name = "updated_at")
     private Instant updatedAt;
+
+    /** 安全市场：官方精选 */
+    @Column(name = "market_featured", nullable = false)
+    private boolean marketFeatured = false;
+
+    /** 安全市场：安全推荐位 */
+    @Column(name = "market_safe_recommended", nullable = false)
+    private boolean marketSafeRecommended = false;
+
+    @Column(name = "hot_score", nullable = false)
+    private double hotScore = 0.0;
+
+    @Column(name = "download_count", nullable = false)
+    private long downloadCount = 0L;
+
+    /** 安全市场：收藏 / 关注量（统计字段，由运营或上游同步写入） */
+    @Column(name = "favorite_count", nullable = false)
+    private long favoriteCount = 0L;
+
+    @Column(name = "star_rating")
+    private Double starRating;
+
+    @Column(name = "publisher_verified", nullable = false)
+    private boolean publisherVerified = false;
+
+    /** 安全等级展示用，如 A / B / C */
+    @Column(name = "security_grade", length = 8)
+    private String securityGrade;
+
+    @Column(name = "published_at")
+    private Instant publishedAt;
 }
 

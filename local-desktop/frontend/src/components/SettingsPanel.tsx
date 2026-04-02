@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { DocsPanel } from "./DocsPanel";
 
 type LlmRouteMode = "DIRECT" | "GATEWAY";
 
@@ -15,6 +16,7 @@ interface Props {
     auth?: {
       email: string;
       token: string;
+      displayName?: string | null;
     } | null;
   } | null;
 }
@@ -41,6 +43,8 @@ export function SettingsPanel(props: Props) {
   const [syncLoading, setSyncLoading] = useState(false);
 
   const [syncMappingsToCloud, setSyncMappingsToCloud] = useState(false);
+
+  const [settingsTab, setSettingsTab] = useState<"general" | "docs">("general");
 
   useEffect(() => {
     const loadMode = async () => {
@@ -412,7 +416,7 @@ export function SettingsPanel(props: Props) {
   return (
     <div
       style={{
-        maxWidth: 720,
+        maxWidth: 920,
         margin: "0 auto",
         background: "#020617",
         borderRadius: 16,
@@ -423,10 +427,57 @@ export function SettingsPanel(props: Props) {
       }}
     >
       <h1 style={{ fontSize: 20, margin: "0 0 4px", color: "#f9fafb" }}>设置</h1>
-      <p style={{ margin: "4px 0 16px", fontSize: 13, color: "#9ca3af" }}>
-        在这里选择本地客户端调用 LLM 时的路由模式，并配置自定义转发映射。
+      <p style={{ margin: "4px 0 12px", fontSize: 13, color: "#9ca3af" }}>
+        在这里选择本地客户端调用 LLM 时的路由模式，并配置自定义转发映射。使用说明请切换到「文档与使用说明」。
       </p>
 
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 4 }}>
+        {(
+          [
+            { key: "general" as const, label: "常规设置" },
+            { key: "docs" as const, label: "文档与使用说明" },
+          ] as const
+        ).map((t) => {
+          const active = settingsTab === t.key;
+          return (
+            <button
+              key={t.key}
+              type="button"
+              onClick={() => setSettingsTab(t.key)}
+              style={{
+                padding: "8px 14px",
+                borderRadius: 999,
+                border: active ? "1px solid rgba(34,197,94,0.45)" : "1px solid rgba(51,65,85,0.7)",
+                background: active ? "rgba(34,197,94,0.12)" : "rgba(15,23,42,0.55)",
+                color: active ? "#86efac" : "#e5e7eb",
+                fontSize: 12,
+                fontWeight: active ? 700 : 600,
+                cursor: "pointer",
+              }}
+            >
+              {t.label}
+            </button>
+          );
+        })}
+      </div>
+
+      {settingsTab === "docs" && (
+        <div
+          style={{
+            marginTop: 12,
+            paddingTop: 14,
+            borderTop: "1px solid #1f2937",
+            maxHeight: "min(70vh, 720px)",
+            overflowY: "auto",
+            paddingRight: 4,
+          }}
+        >
+          <DocsPanel embedded />
+        </div>
+      )}
+
+      {settingsTab === "general" && (
+      <>
       <div
         style={{
           marginTop: 8,
@@ -675,9 +726,9 @@ export function SettingsPanel(props: Props) {
           borderTop: "1px solid #1f2937",
         }}
       >
-        <div style={{ fontSize: 13, fontWeight: 500, color: "#e5e7eb", marginBottom: 6 }}>LLM 映射配置</div>
+        <div style={{ fontSize: 13, fontWeight: 500, color: "#e5e7eb", marginBottom: 6 }}>网络映射配置</div>
         <p style={{ margin: "0 0 10px", fontSize: 12, color: "#6b7280", lineHeight: 1.5 }}>
-          配置自定义前缀，将 <span style={{ color: "#e5e7eb" }}>http://127.0.0.1:19111/&lt;前缀&gt;/…</span> 转发到任意 LLM 基地址。
+          配置自定义前缀，将 <span style={{ color: "#e5e7eb" }}>http://127.0.0.1:19111/&lt;前缀&gt;/…</span> 转发到任意上游网络基地址（不限于纯文本 LLM，亦可对接多模态等 HTTP API）。
           <br/>
           • <span style={{ color: "#e5e7eb" }}>DIRECT 模式</span>：本地直接转发到目标基地址
           <br/>
@@ -896,6 +947,8 @@ export function SettingsPanel(props: Props) {
           </div>
         </div>
       </div>
+      </>
+      )}
 
       {message && (
         <div style={{ marginTop: 10, fontSize: 11, color: "#4ade80" }}>{message}</div>

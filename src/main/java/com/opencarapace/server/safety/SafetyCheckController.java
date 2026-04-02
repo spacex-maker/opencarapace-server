@@ -167,6 +167,14 @@ public class SafetyCheckController {
         } else if ("danger_command".equals(request.blockType())) {
             riskLevel = "high";
             reasons.append("Danger command patterns: ").append(String.join(", ", request.patterns() != null ? request.patterns() : new java.util.ArrayList<>()));
+        } else if ("budget_exceeded".equals(request.blockType())) {
+            riskLevel = "medium";
+            reasons.append("本地 Token 费用预算已用尽: ");
+            if (request.patterns() != null && !request.patterns().isEmpty()) {
+                reasons.append(String.join("; ", request.patterns()));
+            } else {
+                reasons.append("(无详情)");
+            }
         }
         
         record.setRiskLevel(riskLevel);

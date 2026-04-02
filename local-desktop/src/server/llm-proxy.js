@@ -11,7 +11,6 @@ const {
   computeLlmCostUsd,
   insertLlmUsageCostEvent,
   updateLlmUsageEventCloudId,
-  insertProxyRequestLog,
 } = require("../db.js");
 
 function estimateTokensFromString(s) {
@@ -250,43 +249,6 @@ async function forwardChatCompletions(req, res) {
         } catch (logErr) {
           console.log("[LLM Proxy] 拦截日志记录失败:", logErr.message);
         }
-
-        try {
-          const requestPath = req.path || "/";
-          const segments = requestPath.split("/").filter(Boolean);
-          const providerKeyForLogs = segments.length > 0 ? segments[0] : "default";
-          const modelForLogs =
-            typeof body.model === "string" && body.model.trim() ? body.model.trim() : "unknown";
-
-          const maxPromptChars = 20000;
-          const fullPrompt = typeof combinedText === "string" ? combinedText : String(combinedText || "");
-          const promptForLog = fullPrompt.length > maxPromptChars ? fullPrompt.substring(0, maxPromptChars) : fullPrompt;
-          const promptTokens = estimateTokensFromString(promptForLog);
-          const latencyMs = Date.now() - proxyStartMs;
-          const clientTag = `desktop-${os.hostname()}`;
-
-          const { row: costRow } = await resolveLlmBudgetRow(providerKeyForLogs, modelForLogs).catch(() => ({ row: null }));
-          const costUsd = computeLlmCostUsd(costRow, promptTokens, 0);
-
-          await insertProxyRequestLog({
-            created_at: new Date().toISOString(),
-            provider_key: providerKeyForLogs,
-            model_id: modelForLogs,
-            route_mode: null,
-            request_path: requestPath,
-            status_code: 403,
-            block_type: "skill_disabled",
-            prompt_tokens: promptTokens,
-            completion_tokens: null,
-            total_tokens: promptTokens,
-            cost_usd: costUsd,
-            latency_ms: latencyMs,
-            error_snippet: null,
-            client_id: clientTag,
-          }).catch(() => {});
-        } catch {
-          // ignore
-        }
         
         res.status(403).json({
           error: {
@@ -408,44 +370,6 @@ async function forwardChatCompletions(req, res) {
         } catch (logErr) {
           console.log("[LLM Proxy] 拦截日志记录失败:", logErr.message);
         }
-
-        try {
-          const requestPath = req.path || "/";
-          const segments = requestPath.split("/").filter(Boolean);
-          const providerKeyForLogs = segments.length > 0 ? segments[0] : "default";
-          const modelForLogs =
-            typeof body.model === "string" && body.model.trim() ? body.model.trim() : "unknown";
-
-          const maxPromptChars = 20000;
-          const fullPrompt =
-            typeof latestUserText === "string" ? latestUserText : String(latestUserText || "");
-          const promptForLog = fullPrompt.length > maxPromptChars ? fullPrompt.substring(0, maxPromptChars) : fullPrompt;
-          const promptTokens = estimateTokensFromString(promptForLog);
-          const latencyMs = Date.now() - proxyStartMs;
-          const clientTag = `desktop-${os.hostname()}`;
-
-          const { row: costRow } = await resolveLlmBudgetRow(providerKeyForLogs, modelForLogs).catch(() => ({ row: null }));
-          const costUsd = computeLlmCostUsd(costRow, promptTokens, 0);
-
-          await insertProxyRequestLog({
-            created_at: new Date().toISOString(),
-            provider_key: providerKeyForLogs,
-            model_id: modelForLogs,
-            route_mode: null,
-            request_path: requestPath,
-            status_code: 403,
-            block_type: "danger_command",
-            prompt_tokens: promptTokens,
-            completion_tokens: null,
-            total_tokens: promptTokens,
-            cost_usd: costUsd,
-            latency_ms: latencyMs,
-            error_snippet: null,
-            client_id: clientTag,
-          }).catch(() => {});
-        } catch {
-          // ignore
-        }
         
         res.status(403).json({
           error: {
@@ -507,42 +431,6 @@ async function forwardChatCompletions(req, res) {
             .catch(() => null);
         } catch {
           // ignore log failure
-        }
-
-        try {
-          const maxPromptChars = 20000;
-          const fullPrompt =
-            typeof latestUserText === "string" && latestUserText
-              ? latestUserText
-              : typeof combinedText === "string"
-                ? combinedText
-                : "";
-          const promptForLog = fullPrompt.length > maxPromptChars ? fullPrompt.substring(0, maxPromptChars) : fullPrompt;
-          const promptTokens = estimateTokensFromString(promptForLog);
-          const latencyMs = Date.now() - proxyStartMs;
-          const clientTag = `desktop-${os.hostname()}`;
-
-          const { row: costRow } = await resolveLlmBudgetRow(providerKeyForBudget, modelForBudget).catch(() => ({ row: null }));
-          const costUsd = computeLlmCostUsd(costRow, promptTokens, 0);
-
-          await insertProxyRequestLog({
-            created_at: new Date().toISOString(),
-            provider_key: providerKeyForBudget,
-            model_id: modelForBudget,
-            route_mode: null,
-            request_path: originalPath,
-            status_code: 403,
-            block_type: "budget_exceeded",
-            prompt_tokens: promptTokens,
-            completion_tokens: null,
-            total_tokens: promptTokens,
-            cost_usd: costUsd,
-            latency_ms: latencyMs,
-            error_snippet: null,
-            client_id: clientTag,
-          }).catch(() => {});
-        } catch {
-          // ignore
         }
 
         res.status(403).json({
@@ -675,23 +563,6 @@ async function forwardChatCompletions(req, res) {
         upstreamRes.status >= 400
           ? String(respStr || "").substring(0, 512)
           : null;
-
-      await insertProxyRequestLog({
-        created_at: new Date().toISOString(),
-        provider_key: providerKeyForBudget,
-        model_id: modelResolved,
-        route_mode: routeMode,
-        request_path: originalPath,
-        status_code: upstreamRes.status,
-        block_type: null,
-        prompt_tokens: promptTokens,
-        completion_tokens: completionTokens,
-        total_tokens: totalTokens,
-        cost_usd: costUsd,
-        latency_ms: latencyMs,
-        error_snippet: errorSnippet,
-        client_id: clientTag,
-      }).catch(() => {});
 
       let ins = null;
       if (upstreamRes.status >= 200 && upstreamRes.status < 300) {

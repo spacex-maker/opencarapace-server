@@ -1,16 +1,74 @@
-const { app, BrowserWindow } = require("electron");
+const { app, BrowserWindow, dialog, nativeImage } = require("electron");
 const { startServer } = require("./server");
 const path = require("path");
+const fs = require("fs");
 
 let mainWindow = null;
 
+function getRendererIndexPath() {
+  if (process.env.ELECTRON_DEV === "true") {
+    return null;
+  }
+  if (app.isPackaged) {
+    const p = path.join(app.getAppPath(), "frontend", "dist", "index.html");
+    if (fs.existsSync(p)) return p;
+  }
+  return path.join(__dirname, "..", "frontend", "dist", "index.html");
+}
+
+function getAppIconPath() {
+  if (app.isPackaged) {
+    const p = path.join(app.getAppPath(), "build", "icon.png");
+    if (fs.existsSync(p)) return p;
+  }
+  const dev = path.join(__dirname, "..", "build", "icon.png");
+  if (fs.existsSync(dev)) return dev;
+  return undefined;
+}
+
+function logFatal(err) {
+  const msg = err && (err.stack || err.message || String(err));
+  console.error(msg);
+  try {
+    const dir = path.join(app.getPath("userData"), "logs");
+    fs.mkdirSync(dir, { recursive: true });
+    fs.appendFileSync(path.join(dir, "startup.log"), `[${new Date().toISOString()}]\n${msg}\n\n`);
+  } catch {
+    // ignore
+  }
+  try {
+    dialog.showErrorBox(
+      "ClawHeart Desktop 启动失败",
+      `无法启动应用。可能原因：原生模块未针对本版本 Electron 编译、或前端资源缺失。\n\n日志：${path.join(
+        app.getPath("userData"),
+        "logs",
+        "startup.log"
+      )}\n\n${String(msg).slice(0, 900)}`
+    );
+  } catch {
+    // ignore
+  }
+}
+
 async function createWindow() {
   await startServer();
+
+  const iconPath = getAppIconPath();
+  let icon;
+  if (iconPath) {
+    try {
+      icon = nativeImage.createFromPath(iconPath);
+      if (icon.isEmpty()) icon = undefined;
+    } catch {
+      icon = undefined;
+    }
+  }
 
   mainWindow = new BrowserWindow({
     width: 1024,
     height: 720,
     backgroundColor: "#020617",
+    ...(icon ? { icon } : {}),
     webPreferences: {
       contextIsolation: true,
       webSecurity: false, // 允许加载本地 iframe（OpenClaw）
@@ -21,16 +79,16 @@ async function createWindow() {
   const isDev = process.env.ELECTRON_DEV === "true";
 
   if (isDev) {
-    // 开发模式：加载 Vite dev server，实现热更新
     const devUrl = process.env.ELECTRON_RENDERER_URL || "http://localhost:5199";
     await mainWindow.loadURL(devUrl);
   } else {
-    // 生产模式：加载打包好的前端静态文件
-    const indexHtml = path.join(__dirname, "../frontend/dist/index.html");
+    const indexHtml = getRendererIndexPath();
+    if (!indexHtml || !fs.existsSync(indexHtml)) {
+      throw new Error(`找不到前端页面: ${indexHtml || "(null)"}`);
+    }
     await mainWindow.loadFile(indexHtml);
   }
 
-  // 开发模式下自动打开开发者工具
   if (isDev) {
     mainWindow.webContents.openDevTools();
   }
@@ -40,7 +98,7 @@ async function createWindow() {
   });
 }
 
-app.whenReady().then(createWindow);
+app.whenReady().then(() => createWindow().catch(logFatal));
 
 app.on("window-all-closed", () => {
   if (process.platform !== "darwin") {
@@ -50,7 +108,6 @@ app.on("window-all-closed", () => {
 
 app.on("activate", () => {
   if (mainWindow === null) {
-    void createWindow();
+    void createWindow().catch(logFatal);
   }
 });
-

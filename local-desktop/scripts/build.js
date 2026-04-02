@@ -46,6 +46,16 @@ if (!fs.existsSync(openclawPath)) {
 }
 console.log("   ✓ OpenClaw 已安装");
 
+// 4c. 原生模块（如 sqlite3）须与当前 Electron 版本 ABI 一致，否则安装后双击无窗口、进程立即退出
+console.log("\n4c. 为 Electron 重新编译原生模块（sqlite3）...");
+try {
+  execSync("npx --yes electron-builder install-app-deps", { cwd: rootDir, stdio: "inherit" });
+  console.log("   ✓ install-app-deps 完成");
+} catch (e) {
+  console.error("   ✗ install-app-deps 失败：请确保已安装 Python/VS Build Tools（Windows）或 Xcode CLI（macOS），然后重试。");
+  process.exit(1);
+}
+
 // 5b. 内置 Node（OpenClaw 子进程专用，不依赖用户本机 Node）
 console.log("\n4b. 确保内置 Node runtime（resources/node.exe）...");
 execSync("node scripts/ensure-bundled-node.js", { cwd: rootDir, stdio: "inherit" });

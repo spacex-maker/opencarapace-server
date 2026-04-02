@@ -17,6 +17,7 @@ import { SettingsPage } from "./pages/SettingsPage";
 import { ApiKeysPage } from "./pages/ApiKeysPage";
 import { OfficialIntroPage } from "./pages/OfficialIntroPage";
 import { TokenUsagesPage } from "./pages/TokenUsagesPage";
+import { DownloadPage } from "./pages/DownloadPage";
 import { ProtectedRoute } from "./components/ProtectedRoute";
 import { AdminRoute } from "./components/AdminRoute";
 import { ConfirmProvider } from "./contexts/ConfirmContext";
@@ -30,6 +31,7 @@ function App() {
           {/* 根路径：官网（无侧栏）；旧 /intro 重定向到 / */}
           <Route path="/" element={<OfficialIntroPage />} />
           <Route path="/intro" element={<Navigate to="/" replace />} />
+          <Route path="/download" element={<DownloadPage />} />
           <Route path="/login" element={<LoginPage />} />
           <Route path="/register" element={<RegisterPage />} />
           {/* 后台：侧栏 + 顶栏；需从官网或侧栏进入 /dashboard 等 */}

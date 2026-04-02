@@ -9,6 +9,7 @@
     "dev": "concurrently -k -n renderer,electron -c cyan,green \"npm run dev:renderer\" \"npm run dev:electron\"",
     "start": "electron src/main.js",
     "postinstall": "node scripts/setup-openclaw.js",
+    "rebuild:native": "electron-builder install-app-deps",
     "ensure-node": "node scripts/ensure-bundled-node.js",
     "build": "node scripts/build.js",
     "build:dir": "node scripts/build.js dir",
@@ -29,9 +30,10 @@
     "electron": "^31.0.0",
     "electron-builder": "^25.1.8"
   },
-  "build": {
+    "build": {
     "appId": "com.clawheart.desktop",
     "productName": "ClawHeart Desktop",
+    "icon": "build/icon.png",
     "asar": true,
     "asarUnpack": [
       "node_modules/**/*"
@@ -42,6 +44,7 @@
     "files": [
       "src/**/*",
       "frontend/dist/**/*",
+      "build/icon.png",
       "scripts/**/*",
       "node_modules/**/*",
       "package.json"

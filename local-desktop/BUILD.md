@@ -3,7 +3,8 @@
 ## 前置条件
 
 1. 确保已安装 Node.js（推荐 v18 或更高版本）
-2. 确保已安装所有依赖：
+2. **Windows**：为编译 `sqlite3` 等原生模块，建议安装 [Visual Studio Build Tools](https://visualstudio.microsoft.com/visual-cpp-build-tools/)（含 “使用 C++ 的桌面开发” 工作负载）。缺失时安装包能打出，但安装后双击**无窗口**、进程秒退。
+3. 确保已安装所有依赖：
    ```bash
    npm install
    cd frontend && npm install && cd ..
@@ -61,6 +62,24 @@ npm run build:dir
 - **安装程序类型**: NSIS（支持自定义安装路径）
 
 ## 注意事项
+
+### 原生模块（sqlite3）与 Electron ABI
+
+桌面端启动时会立刻加载 SQLite。`sqlite3` **必须按当前 `electron` 版本重新编译**。正式打包前，`scripts/build.js` 会自动执行：
+
+`npx electron-builder install-app-deps`
+
+若你本地只改了依赖、未完整跑 `npm run build`，可手动执行：
+
+```bash
+npm run rebuild:native
+```
+
+若安装后仍无法启动，请到用户数据目录查看日志：`startup.log`（路径形如 `%APPDATA%/ClawHeart Desktop/logs/startup.log`，以 Electron `userData` 为准）。自新版本起启动失败会弹出错误框并写入该文件。
+
+### 应用图标
+
+安装包与快捷方式使用 `build/icon.png`（由 electron-builder 生成各平台图标）。请勿删除该文件；更换品牌图时替换同名 PNG 后重新打包即可。
 
 ### OpenClaw 依赖
 

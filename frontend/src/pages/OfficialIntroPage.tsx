@@ -23,6 +23,7 @@ import {
   ChevronRight,
   Monitor,
   Package,
+  Download,
 } from "lucide-react";
 import { useTheme } from "../contexts/ThemeContext";
 import { useAuth } from "../contexts/AuthContext";
@@ -218,6 +219,13 @@ export const OfficialIntroPage = () => {
             </div>
           </Link>
           <div className="flex items-center gap-0.5 sm:gap-1">
+            <Link
+              to="/download"
+              className="hidden sm:inline-flex items-center gap-1.5 px-3 py-2 rounded-full text-sm text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800/80"
+            >
+              <Download className="w-4 h-4" />
+              下载
+            </Link>
             {isAuthenticated && user ? (
               <>
                 <Link

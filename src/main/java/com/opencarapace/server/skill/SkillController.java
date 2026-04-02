@@ -64,7 +64,16 @@ public class SkillController {
              * - true/false：有显式用户配置
              * - null：没有用户配置（前端可理解为“默认启用”）
              */
-            Boolean userEnabled
+            Boolean userEnabled,
+            boolean marketFeatured,
+            boolean marketSafeRecommended,
+            double hotScore,
+            Long downloadCount,
+            Long favoriteCount,
+            Double starRating,
+            boolean publisherVerified,
+            String securityGrade,
+            String publishedAt
     ) {
         static SkillDto fromEntity(Skill s, Boolean userEnabled, String userSafetyLabel) {
             String sourceName = null;
@@ -90,7 +99,16 @@ public class SkillController {
                     s.getSafeMarkCount() != null ? s.getSafeMarkCount() : 0L,
                     s.getUnsafeMarkCount() != null ? s.getUnsafeMarkCount() : 0L,
                     userSafetyLabel,
-                    userEnabled
+                    userEnabled,
+                    s.isMarketFeatured(),
+                    s.isMarketSafeRecommended(),
+                    s.getHotScore(),
+                    s.getDownloadCount(),
+                    s.getFavoriteCount(),
+                    s.getStarRating(),
+                    s.isPublisherVerified(),
+                    s.getSecurityGrade(),
+                    s.getPublishedAt() != null ? s.getPublishedAt().toString() : null
             );
         }
     }
@@ -111,7 +129,17 @@ public class SkillController {
             Long safeMarkCount,
             Long unsafeMarkCount,
             String userSafetyLabel,
-            Boolean userEnabled
+            Boolean userEnabled,
+            boolean marketFeatured,
+            boolean marketSafeRecommended,
+            double hotScore,
+            Long downloadCount,
+            Long favoriteCount,
+            Double starRating,
+            boolean publisherVerified,
+            String securityGrade,
+            String publishedAt,
+            String updatedAt
     ) {
         static MergedSkillDto from(Skill s, Boolean userEnabled, String userSafetyLabel) {
             String sourceName = null;
@@ -134,7 +162,17 @@ public class SkillController {
                     s.getSafeMarkCount() != null ? s.getSafeMarkCount() : 0L,
                     s.getUnsafeMarkCount() != null ? s.getUnsafeMarkCount() : 0L,
                     userSafetyLabel,
-                    userEnabled
+                    userEnabled,
+                    s.isMarketFeatured(),
+                    s.isMarketSafeRecommended(),
+                    s.getHotScore(),
+                    s.getDownloadCount(),
+                    s.getFavoriteCount(),
+                    s.getStarRating(),
+                    s.isPublisherVerified(),
+                    s.getSecurityGrade(),
+                    s.getPublishedAt() != null ? s.getPublishedAt().toString() : null,
+                    s.getUpdatedAt() != null ? s.getUpdatedAt().toString() : null
             );
         }
     }

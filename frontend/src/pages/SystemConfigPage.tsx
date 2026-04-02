@@ -18,9 +18,9 @@ const KEY_LABELS: Record<string, string> = {
   "deepseek.api_key": "DeepSeek API Key",
   "tavily.api_key": "Tavily API Key",
   "danger_commands.sync.use_internet": "危险指令库 · 是否启用互联网更新",
-  "llm_proxy.upstream_url": "大模型代理 · 上游地址",
-  "llm_proxy.upstream_api_key": "大模型代理 · 上游 API Key",
-  "llm_proxy.enabled": "大模型代理 · 是否启用",
+  "llm_proxy.upstream_url": "代理中转 · 上游地址",
+  "llm_proxy.upstream_api_key": "代理中转 · 上游 API Key",
+  "llm_proxy.enabled": "代理中转开关",
   "llm_proxy.supervision.enabled": "监管层 · 是否启用",
   "llm_proxy.supervision.block_levels": "监管层 · 拦截风险等级",
   "llm_proxy.intent.enabled": "意图层 · 是否启用 AI 意图判断",
@@ -33,7 +33,7 @@ const KEY_HINTS: Record<string, string> = {
   "danger_commands.sync.use_internet": "true=启用 Tavily+DeepSeek 定时更新，false=仅用本地数据",
   "llm_proxy.upstream_url": "默认上游；如 https://api.deepseek.com，不传 X-LLM-Backend 时使用",
   "llm_proxy.upstream_api_key": "可选：默认上游 Key；不填则请求时需带 Authorization",
-  "llm_proxy.enabled": "true=启用中转；请求需 X-OC-API-KEY，可选 X-LLM-Backend 指定厂商",
+  "llm_proxy.enabled": "true=开启代理中转；请求需 X-OC-API-KEY，可选 X-LLM-Backend 指定厂商",
   "llm_proxy.backend": "多后端：配置 llm_proxy.backend.{name}.url 与 .api_key，请求头 X-LLM-Backend=name 选择厂商",
   "llm_proxy.supervision.enabled": "true=对代理请求/响应做危险指令库匹配，触犯 block_levels 则拦截",
   "llm_proxy.supervision.block_levels": "触犯时拦截的等级，如 CRITICAL 或 CRITICAL,HIGH",
@@ -48,7 +48,7 @@ function isSecretKey(key: string): boolean {
 function getConfigLabel(key: string): string {
   if (KEY_LABELS[key]) return KEY_LABELS[key];
   const m = key.match(/^llm_proxy\.backend\.([a-z0-9_-]+)\.(url|api_key)$/);
-  if (m) return `大模型代理 · 后端 ${m[1]} · ${m[2] === "url" ? "URL" : "API Key"}`;
+  if (m) return `代理中转 · 后端 ${m[1]} · ${m[2] === "url" ? "URL" : "API Key"}`;
   return key;
 }
 
@@ -438,7 +438,7 @@ export const SystemConfigPage = () => {
         )}
       </section>
 
-      {/* 大模型代理 - 独立卡片 */}
+      {/* 代理中转开关 - 独立卡片 */}
       <section className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900/50 p-5 shadow-sm">
         <div className="flex items-start justify-between gap-2 mb-4">
           <div className="flex items-center gap-2">
@@ -446,9 +446,9 @@ export const SystemConfigPage = () => {
               <Zap className="w-4 h-4 text-blue-600 dark:text-blue-400" />
             </div>
             <div>
-              <h3 className="text-base font-semibold text-slate-900 dark:text-white">大模型代理</h3>
+              <h3 className="text-base font-semibold text-slate-900 dark:text-white">代理中转开关</h3>
               <p className="text-xs text-slate-500 dark:text-slate-400">
-                仅控制是否启用中转。上游地址与 API Key 均由调用方在请求头中传入（X-LLM-Upstream-Url + Authorization）。
+                控制是否启用请求中转。上游地址与 API Key 均由调用方在请求头中传入（X-LLM-Upstream-Url + Authorization）。
               </p>
             </div>
           </div>
@@ -469,7 +469,7 @@ export const SystemConfigPage = () => {
         ) : grouped?.llmProxy ? (
           <div className="space-y-4 max-w-lg">
             <div className="flex items-center justify-between">
-              <label className="text-sm font-medium text-slate-700 dark:text-slate-200">启用中转</label>
+              <label className="text-sm font-medium text-slate-700 dark:text-slate-200">启用代理中转</label>
               <button
                 type="button"
                 role="switch"

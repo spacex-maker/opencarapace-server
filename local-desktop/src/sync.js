@@ -1,4 +1,31 @@
 const axios = require("axios");
+
+function mergedSkillToLocalRow(s) {
+  return {
+    id: s.id,
+    slug: s.slug,
+    name: s.name || null,
+    type: s.type || null,
+    category: s.category || null,
+    status: s.status || "ACTIVE",
+    short_desc: s.shortDesc || null,
+    updated_at: s.updatedAt || null,
+    source_name: s.sourceName || null,
+    safe_mark_count: s.safeMarkCount || 0,
+    unsafe_mark_count: s.unsafeMarkCount || 0,
+    user_safety_label: s.userSafetyLabel || null,
+    market_featured: s.marketFeatured === true,
+    market_safe_recommended: s.marketSafeRecommended === true,
+    hot_score: typeof s.hotScore === "number" ? s.hotScore : 0,
+    download_count: typeof s.downloadCount === "number" ? s.downloadCount : Number(s.downloadCount || 0) || 0,
+    favorite_count: typeof s.favoriteCount === "number" ? s.favoriteCount : Number(s.favoriteCount || 0) || 0,
+    star_rating: s.starRating != null ? Number(s.starRating) : null,
+    publisher_verified: s.publisherVerified === true,
+    security_grade: s.securityGrade || null,
+    published_at: s.publishedAt || null,
+  };
+}
+
 const {
   replaceDangerCommands,
   upsertDangerCommands,
@@ -172,39 +199,9 @@ async function syncSystemSkillsStatusFromServer(apiKey, onProgress) {
 
     // 写入/更新本地 skills 表（与 Web 端字段保持一致）
     if (lastUpdatedAt == null && page === 0) {
-      await replaceSkills(
-        batch.map((s) => ({
-          id: s.id,
-          slug: s.slug,
-          name: s.name || null,
-          type: s.type || null,
-          category: s.category || null,
-          status: s.status || "ACTIVE",
-          short_desc: s.shortDesc || null,
-          updated_at: s.updatedAt || null,
-          source_name: s.sourceName || null,
-          safe_mark_count: s.safeMarkCount || 0,
-          unsafe_mark_count: s.unsafeMarkCount || 0,
-          user_safety_label: s.userSafetyLabel || null,
-        }))
-      );
+      await replaceSkills(batch.map((s) => mergedSkillToLocalRow(s)));
     } else {
-      await upsertSkills(
-        batch.map((s) => ({
-          id: s.id,
-          slug: s.slug,
-          name: s.name || null,
-          type: s.type || null,
-          category: s.category || null,
-          status: s.status || "ACTIVE",
-          short_desc: s.shortDesc || null,
-          updated_at: s.updatedAt || null,
-          source_name: s.sourceName || null,
-          safe_mark_count: s.safeMarkCount || 0,
-          unsafe_mark_count: s.unsafeMarkCount || 0,
-          user_safety_label: s.userSafetyLabel || null,
-        }))
-      );
+      await upsertSkills(batch.map((s) => mergedSkillToLocalRow(s)));
     }
 
     if (res.data.last || res.data.number + 1 >= res.data.totalPages) break;

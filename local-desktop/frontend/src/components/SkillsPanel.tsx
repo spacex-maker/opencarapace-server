@@ -1,4 +1,75 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+
+type MarketTab = "featured" | "safe" | "hot" | "new";
+
+type SkillRow = {
+  id: number | null;
+  slug: string;
+  name: string | null;
+  type: string | null;
+  category: string | null;
+  systemStatus: string;
+  shortDesc: string | null;
+  updatedAt: string | null;
+  userEnabled: number | null;
+  sourceName: string | null;
+  safeMarkCount: number;
+  unsafeMarkCount: number;
+  userSafetyLabel: "SAFE" | "UNSAFE" | null;
+  marketFeatured: boolean;
+  marketSafeRecommended: boolean;
+  hotScore: number;
+  downloadCount: number;
+  favoriteCount: number;
+  starRating: number | null;
+  publisherVerified: boolean;
+  securityGrade: string | null;
+  publishedAt: string | null;
+};
+
+function applyMarketTab(items: SkillRow[], tab: MarketTab): SkillRow[] {
+  const copy = [...items];
+  switch (tab) {
+    case "featured": {
+      const f = copy.filter((s) => s.marketFeatured);
+      return f.length ? f : copy.filter((s) => s.systemStatus === "NORMAL");
+    }
+    case "safe":
+      return copy.filter(
+        (s) =>
+          s.marketSafeRecommended ||
+          s.securityGrade === "A" ||
+          s.securityGrade === "B" ||
+          ((!s.securityGrade || s.securityGrade === "") &&
+            s.safeMarkCount >= s.unsafeMarkCount &&
+            s.systemStatus === "NORMAL"),
+      );
+    case "hot":
+      return copy.sort((a, b) => {
+        const ha =
+          a.hotScore + a.downloadCount * 0.01 + a.favoriteCount * 0.015 + (a.starRating ?? 0);
+        const hb =
+          b.hotScore + b.downloadCount * 0.01 + b.favoriteCount * 0.015 + (b.starRating ?? 0);
+        if (hb !== ha) return hb - ha;
+        return (b.downloadCount || 0) - (a.downloadCount || 0);
+      });
+    case "new":
+      return copy.sort((a, b) => {
+        const ta = Date.parse(a.publishedAt || a.updatedAt || "") || 0;
+        const tb = Date.parse(b.publishedAt || b.updatedAt || "") || 0;
+        return tb - ta;
+      });
+    default:
+      return copy;
+  }
+}
+
+function formatMarketCount(n: number): string {
+  const x = Math.max(0, Math.floor(Number(n) || 0));
+  if (x >= 1_000_000) return `${(x / 1_000_000).toFixed(1)}M`;
+  if (x >= 1_000) return `${(x / 1_000).toFixed(1)}K`;
+  return String(x);
+}
 
 function FilterSelect(props: {
   value: string;
@@ -93,22 +164,8 @@ export function SkillsPanel({ showAccountSwitchPlaceholder = false }: { showAcco
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
-  const [skills, setSkills] = useState<
-    {
-      id: number | null;
-      slug: string;
-      name: string | null;
-      type: string | null;
-      category: string | null;
-      systemStatus: string;
-      shortDesc: string | null;
-      userEnabled: number | null;
-      sourceName: string | null;
-      safeMarkCount: number;
-      unsafeMarkCount: number;
-      userSafetyLabel: "SAFE" | "UNSAFE" | null;
-    }[]
-  >([]);
+  const [skills, setSkills] = useState<SkillRow[]>([]);
+  const [marketTab, setMarketTab] = useState<MarketTab>("featured");
   const [sync, setSync] = useState<{ running: boolean; total: number; synced: number }>({
     running: false,
     total: 0,
@@ -122,6 +179,10 @@ export function SkillsPanel({ showAccountSwitchPlaceholder = false }: { showAcco
   const [systemStatus, setSystemStatus] = useState("");
   const [userEnabled, setUserEnabled] = useState("");
   const [updatingSlug, setUpdatingSlug] = useState<string | null>(null);
+
+  const displaySkills = useMemo(() => applyMarketTab(skills, marketTab), [skills, marketTab]);
+  const showFeaturedFallbackHint =
+    marketTab === "featured" && skills.length > 0 && !skills.some((s) => s.marketFeatured);
 
   const loadData = async (withFilters = false) => {
     try {
@@ -140,7 +201,33 @@ export function SkillsPanel({ showAccountSwitchPlaceholder = false }: { showAcco
       ]);
       const skillsData = await skillsRes.json();
       const syncJson = await syncRes.json();
-      setSkills(skillsData.items || []);
+      const raw = skillsData.items || [];
+      setSkills(
+        raw.map((it: any) => ({
+          id: it.id ?? null,
+          slug: String(it.slug || ""),
+          name: it.name ?? null,
+          type: it.type ?? null,
+          category: it.category ?? null,
+          systemStatus: it.systemStatus || "NORMAL",
+          shortDesc: it.shortDesc ?? null,
+          updatedAt: it.updatedAt ?? null,
+          userEnabled: it.userEnabled ?? null,
+          sourceName: it.sourceName ?? null,
+          safeMarkCount: Number(it.safeMarkCount || 0),
+          unsafeMarkCount: Number(it.unsafeMarkCount || 0),
+          userSafetyLabel: it.userSafetyLabel ?? null,
+          marketFeatured: !!it.marketFeatured,
+          marketSafeRecommended: !!it.marketSafeRecommended,
+          hotScore: Number(it.hotScore || 0),
+          downloadCount: Number(it.downloadCount || 0),
+          favoriteCount: Number(it.favoriteCount || 0),
+          starRating: it.starRating != null ? Number(it.starRating) : null,
+          publisherVerified: !!it.publisherVerified,
+          securityGrade: it.securityGrade ?? null,
+          publishedAt: it.publishedAt ?? null,
+        })),
+      );
       setSync(syncJson || { running: false, total: 0, synced: 0 });
     } catch (e: any) {
       setError(e?.message ?? "加载本地数据失败");
@@ -364,8 +451,10 @@ export function SkillsPanel({ showAccountSwitchPlaceholder = false }: { showAcco
     >
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
         <div>
-          <h1 style={{ fontSize: 20, margin: "0 0 4px", color: "#f9fafb" }}>Skills 仓库</h1>
-          <p style={{ margin: "4px 0 0", fontSize: 13, color: "#9ca3af" }}>系统禁用 / 不推荐 + 用户偏好视图。</p>
+          <h1 style={{ fontSize: 20, margin: "0 0 4px", color: "#f9fafb" }}>安全市场</h1>
+          <p style={{ margin: "4px 0 0", fontSize: 13, color: "#9ca3af" }}>
+            按「官方精选 / 安全推荐 / 热门 / 最新」浏览技能；启用状态与云端同步策略不变。
+          </p>
         </div>
         <div style={{ display: "flex", gap: 8 }}>
           <button
@@ -406,6 +495,55 @@ export function SkillsPanel({ showAccountSwitchPlaceholder = false }: { showAcco
           </button>
         </div>
       </div>
+
+      <div style={{ display: "flex", gap: 8, marginBottom: 12, flexWrap: "wrap" }}>
+        {(
+          [
+            { id: "featured" as const, label: "官方精选" },
+            { id: "safe" as const, label: "安全推荐" },
+            { id: "hot" as const, label: "热门" },
+            { id: "new" as const, label: "最新" },
+          ] as const
+        ).map((t) => {
+          const active = marketTab === t.id;
+          return (
+            <button
+              key={t.id}
+              type="button"
+              onClick={() => setMarketTab(t.id)}
+              style={{
+                padding: "8px 16px",
+                borderRadius: 999,
+                border: active ? "1px solid rgba(59,130,246,0.5)" : "1px solid #334155",
+                background: active ? "rgba(59,130,246,0.12)" : "rgba(15,23,42,0.5)",
+                color: active ? "#93c5fd" : "#94a3b8",
+                fontSize: 13,
+                fontWeight: active ? 700 : 600,
+                cursor: "pointer",
+              }}
+            >
+              {t.label}
+            </button>
+          );
+        })}
+      </div>
+
+      {showFeaturedFallbackHint && (
+        <div
+          style={{
+            marginBottom: 10,
+            padding: "8px 12px",
+            borderRadius: 10,
+            background: "rgba(59,130,246,0.08)",
+            border: "1px solid rgba(59,130,246,0.25)",
+            color: "#93c5fd",
+            fontSize: 11,
+            lineHeight: 1.5,
+          }}
+        >
+          云端尚未标记「官方精选」项，当前列表为状态「正常」的全部技能；标记同步后将仅显示精选。
+        </div>
+      )}
 
       <div style={{ margin: "6px 0 14px" }}>
         <div
@@ -505,7 +643,7 @@ export function SkillsPanel({ showAccountSwitchPlaceholder = false }: { showAcco
               runQuery();
             }
           }}
-          placeholder="关键词（slug）"
+          placeholder="关键词（名称 / slug）"
           style={{
             flex: "1 1 260px",
             minWidth: 280,
@@ -588,11 +726,12 @@ export function SkillsPanel({ showAccountSwitchPlaceholder = false }: { showAcco
             scrollbarColor: "#475569 #0b1220",
           }}
         >
-        <table style={{ width: "100%", minWidth: 1200, borderCollapse: "collapse" }}>
+        <table style={{ width: "100%", minWidth: 1320, borderCollapse: "collapse" }}>
           <thead style={{ background: "#020617", position: "sticky", top: 0, zIndex: 1 }}>
             <tr>
               <th style={{ padding: "6px 8px", borderBottom: "1px solid #1f2937", textAlign: "left" }}>名称</th>
               <th style={{ padding: "6px 8px", borderBottom: "1px solid #1f2937", textAlign: "left" }}>提供商</th>
+              <th style={{ padding: "6px 8px", borderBottom: "1px solid #1f2937", textAlign: "center", width: 72 }}>等级</th>
               <th style={{ padding: "6px 8px", borderBottom: "1px solid #1f2937", textAlign: "left" }}>状态</th>
               <th style={{ padding: "6px 8px", borderBottom: "1px solid #1f2937", textAlign: "left" }}>简介</th>
               <th
@@ -604,7 +743,7 @@ export function SkillsPanel({ showAccountSwitchPlaceholder = false }: { showAcco
                   minWidth: 84,
                   boxSizing: "border-box",
                   position: "sticky",
-                  right: 84,
+                  right: 200,
                   zIndex: 3,
                   background: "#0b1220",
                   boxShadow: "-1px 0 0 #1f2937, -8px 0 16px rgba(2,6,23,0.28)",
@@ -615,21 +754,24 @@ export function SkillsPanel({ showAccountSwitchPlaceholder = false }: { showAcco
               <th
                 style={{
                   padding: "6px 8px",
-                  width: 84,
-                  minWidth: 84,
+                  width: 200,
+                  minWidth: 200,
                   boxSizing: "border-box",
                   borderBottom: "1px solid #1f2937",
+                  textAlign: "center",
                   position: "sticky",
                   right: 0,
                   zIndex: 4,
                   background: "#0b1220",
                   boxShadow: "-1px 0 0 #1f2937, -8px 0 16px rgba(2,6,23,0.28)",
                 }}
-              />
+              >
+                操作
+              </th>
             </tr>
           </thead>
           <tbody>
-            {skills.map((s) => (
+            {displaySkills.map((s) => (
               <tr key={s.slug} style={{ background: "#020617" }}>
                 <td style={{ padding: "6px 8px", borderBottom: "1px solid #111827", maxWidth: 280 }}>
                   <div
@@ -722,9 +864,105 @@ export function SkillsPanel({ showAccountSwitchPlaceholder = false }: { showAcco
                       不安全 {s.unsafeMarkCount || 0}
                     </span>
                   </div>
+                  <div
+                    style={{
+                      marginTop: 8,
+                      display: "flex",
+                      flexWrap: "wrap",
+                      alignItems: "center",
+                      gap: "4px 10px",
+                      fontSize: 10,
+                      color: "#9ca3af",
+                    }}
+                  >
+                    <span title="累计下载/安装量">
+                      <span style={{ color: "#64748b" }}>下载 </span>
+                      <span
+                        style={{
+                          fontWeight: 600,
+                          color: "#e5e7eb",
+                          fontFamily:
+                            'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
+                        }}
+                      >
+                        {formatMarketCount(s.downloadCount)}
+                      </span>
+                    </span>
+                    <span style={{ color: "#334155", userSelect: "none" }} aria-hidden>
+                      |
+                    </span>
+                    <span title="收藏 / 关注量">
+                      <span style={{ color: "#64748b" }}>收藏 </span>
+                      <span
+                        style={{
+                          fontWeight: 600,
+                          color: "#e5e7eb",
+                          fontFamily:
+                            'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
+                        }}
+                      >
+                        {formatMarketCount(s.favoriteCount)}
+                      </span>
+                    </span>
+                    {s.starRating != null && Number.isFinite(s.starRating) && (
+                      <>
+                        <span style={{ color: "#334155", userSelect: "none" }} aria-hidden>
+                          |
+                        </span>
+                        <span title="星级评分">
+                          <span style={{ color: "#fbbf24" }}>★</span>{" "}
+                          <span
+                            style={{
+                              fontWeight: 600,
+                              color: "#e5e7eb",
+                              fontFamily:
+                                'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
+                            }}
+                          >
+                            {s.starRating.toFixed(1)}
+                          </span>
+                        </span>
+                      </>
+                    )}
+                  </div>
                 </td>
-                <td style={{ padding: "6px 8px", borderBottom: "1px solid #111827", color: "#9ca3af", fontSize: 11, whiteSpace: "nowrap" }}>
-                  {s.sourceName || "-"}
+                <td style={{ padding: "6px 8px", borderBottom: "1px solid #111827", color: "#9ca3af", fontSize: 11 }}>
+                  <div style={{ whiteSpace: "nowrap" }}>{s.sourceName || "-"}</div>
+                  {s.publisherVerified && (
+                    <div style={{ marginTop: 4, fontSize: 9, fontWeight: 600, color: "#86efac" }}>✓ 已验证发布者</div>
+                  )}
+                </td>
+                <td style={{ padding: "6px 8px", borderBottom: "1px solid #111827", textAlign: "center", verticalAlign: "middle" }}>
+                  {s.securityGrade ? (
+                    <div
+                      style={{
+                        display: "inline-flex",
+                        flexDirection: "column",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        minWidth: 40,
+                        padding: "4px 6px",
+                        borderRadius: 6,
+                        fontFamily:
+                          'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
+                        fontWeight: 700,
+                        fontSize: 12,
+                        border: "1px solid",
+                        ...(s.securityGrade === "A"
+                          ? { background: "rgba(34,197,94,0.12)", color: "#86efac", borderColor: "rgba(34,197,94,0.35)" }
+                          : s.securityGrade === "B"
+                            ? { background: "rgba(59,130,246,0.12)", color: "#93c5fd", borderColor: "rgba(59,130,246,0.35)" }
+                            : { background: "rgba(245,158,11,0.12)", color: "#fcd34d", borderColor: "rgba(245,158,11,0.35)" }),
+                      }}
+                    >
+                      <span>{s.securityGrade}</span>
+                      <span style={{ fontSize: 8, fontWeight: 600, opacity: 0.85 }}>
+                        {s.securityGrade === "A" ? "SAFE" : s.securityGrade === "B" ? "GOOD" : "NOTE"}
+                      </span>
+                    </div>
+                  ) : (
+                    <span style={{ color: "#4b5563", fontSize: 11 }}>—</span>
+                  )}
                 </td>
                 <td style={{ padding: "6px 8px", borderBottom: "1px solid #111827", whiteSpace: "nowrap" }}>
                   <span
@@ -742,8 +980,8 @@ export function SkillsPanel({ showAccountSwitchPlaceholder = false }: { showAcco
                     {s.systemStatus === "DISABLED"
                       ? "系统禁用"
                       : s.systemStatus === "DEPRECATED"
-                      ? "系统不推荐"
-                      : "正常"}
+                        ? "系统不推荐"
+                        : "正常"}
                   </span>
                 </td>
                 <td
@@ -775,7 +1013,7 @@ export function SkillsPanel({ showAccountSwitchPlaceholder = false }: { showAcco
                     borderBottom: "1px solid #111827",
                     whiteSpace: "nowrap",
                     position: "sticky",
-                    right: 84,
+                    right: 200,
                     zIndex: 2,
                     background: "#0b1220",
                     boxShadow: "-1px 0 0 #111827, -8px 0 16px rgba(2,6,23,0.22)",
@@ -829,44 +1067,93 @@ export function SkillsPanel({ showAccountSwitchPlaceholder = false }: { showAcco
                     zIndex: 3,
                     background: "#0b1220",
                     boxShadow: "-1px 0 0 #111827, -8px 0 16px rgba(2,6,23,0.22)",
-                    width: 84,
-                    minWidth: 84,
+                    width: 200,
+                    minWidth: 200,
                     boxSizing: "border-box",
+                    verticalAlign: "middle",
                   }}
                 >
-                  <button
-                    type="button"
-                    onClick={() => openDetail(s.slug)}
-                    style={{
-                      height: 24,
-                      minWidth: 64,
-                      padding: "0 12px",
-                      borderRadius: 999,
-                      border: "1px solid #1f2937",
-                      background: "rgba(2,6,23,0.9)",
-                      color: "#e5e7eb",
-                      fontSize: 11,
-                      fontWeight: 600,
-                      boxSizing: "border-box",
-                      display: "inline-flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      lineHeight: 1,
-                      cursor: "pointer",
-                    }}
-                  >
-                    详情
-                  </button>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 6, alignItems: "stretch" }}>
+                    <button
+                      type="button"
+                      disabled
+                      title="即将推出"
+                      style={{
+                        height: 26,
+                        padding: "0 8px",
+                        borderRadius: 8,
+                        border: "1px solid #374151",
+                        background: "rgba(15,23,42,0.6)",
+                        color: "#6b7280",
+                        fontSize: 10,
+                        fontWeight: 600,
+                        cursor: "not-allowed",
+                      }}
+                    >
+                      审计报告
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => void toggleUserEnabled(s.slug, s.userEnabled)}
+                      disabled={
+                        updatingSlug === s.slug || s.userEnabled === null || s.userEnabled === 1 || s.systemStatus !== "NORMAL"
+                      }
+                      title={
+                        s.systemStatus !== "NORMAL"
+                          ? "系统未启用该技能"
+                          : s.userEnabled === 1 || s.userEnabled === null
+                            ? "已启用"
+                            : "启用该技能"
+                      }
+                      style={{
+                        height: 26,
+                        padding: "0 8px",
+                        borderRadius: 8,
+                        border: "none",
+                        background:
+                          s.userEnabled === 0 && s.systemStatus === "NORMAL" ? "#2563eb" : "rgba(30,41,59,0.9)",
+                        color: s.userEnabled === 0 && s.systemStatus === "NORMAL" ? "#fff" : "#64748b",
+                        fontSize: 10,
+                        fontWeight: 700,
+                        cursor:
+                          updatingSlug === s.slug || s.userEnabled !== 0 || s.systemStatus !== "NORMAL"
+                            ? "not-allowed"
+                            : "pointer",
+                        opacity: s.userEnabled === 0 && s.systemStatus === "NORMAL" ? 1 : 0.65,
+                      }}
+                    >
+                      {s.userEnabled === 0 ? "安全安装" : "已启用"}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => openDetail(s.slug)}
+                      style={{
+                        height: 26,
+                        padding: "0 8px",
+                        borderRadius: 8,
+                        border: "1px solid #1f2937",
+                        background: "rgba(2,6,23,0.9)",
+                        color: "#e5e7eb",
+                        fontSize: 10,
+                        fontWeight: 600,
+                        cursor: "pointer",
+                      }}
+                    >
+                      详情
+                    </button>
+                  </div>
                 </td>
               </tr>
             ))}
-            {skills.length === 0 && !loading && (
+            {displaySkills.length === 0 && !loading && (
               <tr>
                 <td
-                  colSpan={6}
+                  colSpan={7}
                   style={{ padding: "8px 10px", textAlign: "center", color: "#6b7280", background: "#020617" }}
                 >
-                  当前本地还没有任何技能状态数据（系统禁用 / 不推荐 / 用户自定义）。
+                  {skills.length === 0
+                    ? "当前本地还没有任何技能数据，请先登录并同步。"
+                    : "当前分类下没有符合条件的技能，可切换上方分类或调整筛选条件。"}
                 </td>
               </tr>
             )}

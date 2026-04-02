@@ -4,7 +4,7 @@ const { getDb, getLocalSettings, getLocalAuth, upsertUserSkill, upsertUserSkillS
 async function requireLoginForCloudSync(res) {
   const auth = await getLocalAuth();
   if (!auth?.token) {
-    res.status(401).json({ error: { message: "请先登录后再从云端同步 Skills 与用户设置" } });
+    res.status(401).json({ error: { message: "请先登录后再从云端同步安全市场数据与用户设置" } });
     return false;
   }
   return true;
@@ -17,7 +17,9 @@ function registerSkillsRoutes(app) {
     const { keyword, systemStatus, userEnabled } = req.query || {};
     const db = getDb();
     db.serialize(() => {
-      db.all("SELECT id, slug, name, type, category, status, short_desc, source_name, safe_mark_count, unsafe_mark_count, user_safety_label FROM skills", (err0, skillRows = []) => {
+      db.all(
+        "SELECT id, slug, name, type, category, status, short_desc, updated_at, source_name, safe_mark_count, unsafe_mark_count, user_safety_label, market_featured, market_safe_recommended, hot_score, download_count, favorite_count, star_rating, publisher_verified, security_grade, published_at FROM skills",
+        (err0, skillRows = []) => {
         if (err0) {
           res.status(500).json({ error: { message: err0.message || "读取 skills 失败" } });
           return;
@@ -41,17 +43,30 @@ function registerSkillsRoutes(app) {
               category: r.category || null,
               systemStatus,
               shortDesc: r.short_desc || null,
+              updatedAt: r.updated_at || null,
               userEnabled,
               sourceName: r.source_name || null,
               safeMarkCount: Number(r.safe_mark_count || 0),
               unsafeMarkCount: Number(r.unsafe_mark_count || 0),
               userSafetyLabel: r.user_safety_label || null,
+              marketFeatured: Number(r.market_featured) === 1,
+              marketSafeRecommended: Number(r.market_safe_recommended) === 1,
+              hotScore: Number(r.hot_score || 0),
+              downloadCount: Number(r.download_count || 0),
+              favoriteCount: Number(r.favorite_count || 0),
+              starRating: r.star_rating != null ? Number(r.star_rating) : null,
+              publisherVerified: Number(r.publisher_verified) === 1,
+              securityGrade: r.security_grade || null,
+              publishedAt: r.published_at || null,
             };
           });
 
           if (typeof keyword === "string" && keyword.trim()) {
             const k = keyword.trim().toLowerCase();
-            items = items.filter((it) => String(it.slug || "").toLowerCase().includes(k));
+            items = items.filter(
+              (it) =>
+                String(it.slug || "").toLowerCase().includes(k) || String(it.name || "").toLowerCase().includes(k)
+            );
           }
           if (typeof systemStatus === "string" && systemStatus.trim()) {
             const s = systemStatus.trim().toUpperCase();

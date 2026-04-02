@@ -391,24 +391,24 @@ export function OverviewPanel(props: Props) {
         width: "100%",
         maxWidth: 1400,
         margin: "0 auto",
-        background: "#0f172a", // 主背景提亮一点点，方便区分模块
+        background: "var(--panel-bg2)", // 主背景提亮一点点，方便区分模块
         borderRadius: 16,
         padding: "clamp(12px, 2.5vw, 32px)",
         boxSizing: "border-box",
         overflowX: "hidden",
         boxShadow: "0 25px 50px -12px rgba(0, 0, 0, 0.5)",
-        color: "#f8fafc",
+        color: "var(--fg)",
         fontFamily: "system-ui, -apple-system, sans-serif",
       }}
     >
       {/* 头部区域 */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 32, flexWrap: "wrap", gap: 16 }}>
         <div>
-          <h1 style={{ fontSize: 24, fontWeight: 700, margin: "0 0 8px", background: "linear-gradient(to right, #f8fafc, #94a3b8)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>
+          <h1 style={{ fontSize: 24, fontWeight: 700, margin: "0 0 8px", background: "linear-gradient(to right, var(--fg), var(--muted))", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>
             ClawHeart 数据看板
           </h1>
           <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-            <p style={{ margin: 0, fontSize: 14, color: "#94a3b8" }}>
+            <p style={{ margin: 0, fontSize: 14, color: "var(--muted)" }}>
               系统运行状态与核心数据统计总览
             </p>
             <div
@@ -451,9 +451,9 @@ export function OverviewPanel(props: Props) {
               padding: "8px 16px",
               fontSize: 13,
               fontWeight: 500,
-              border: "1px solid #334155",
-              background: "#1e293b",
-              color: "#e2e8f0",
+              border: "1px solid var(--panel-border)",
+              background: "var(--panel-bg)",
+              color: "var(--fg)",
               borderRadius: 8,
               cursor: (skillsLoading || dangerLoading || interceptLoading || tokenLoading || interceptTimelineLoading) ? "not-allowed" : "pointer",
               opacity: (skillsLoading || dangerLoading || interceptLoading || tokenLoading || interceptTimelineLoading) ? 0.6 : 1,
@@ -462,12 +462,12 @@ export function OverviewPanel(props: Props) {
               alignItems: "center",
               gap: 6,
             }}
-            onMouseOver={(e) => !e.currentTarget.disabled && (e.currentTarget.style.background = "#334155")}
-            onMouseOut={(e) => !e.currentTarget.disabled && (e.currentTarget.style.background = "#1e293b")}
+            onMouseOver={(e) => !e.currentTarget.disabled && (e.currentTarget.style.background = "var(--panel-bg2)")}
+            onMouseOut={(e) => !e.currentTarget.disabled && (e.currentTarget.style.background = "var(--panel-bg)")}
           >
             {(skillsLoading || dangerLoading || interceptLoading || tokenLoading || interceptTimelineLoading) ? (
               <>
-                <span style={{ display: "inline-block", width: 12, height: 12, border: "2px solid #64748b", borderTopColor: "transparent", borderRadius: "50%", animation: "spin 1s linear infinite" }} />
+                <span style={{ display: "inline-block", width: 12, height: 12, border: "2px solid var(--muted2)", borderTopColor: "transparent", borderRadius: "50%", animation: "spin 1s linear infinite" }} />
                 刷新中...
               </>
             ) : "立即刷新"}
@@ -532,10 +532,10 @@ export function OverviewPanel(props: Props) {
       {/* 底部时间轴图表：单列全宽布局 */}
       <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
         {/* Token 时间轴 */}
-        <div style={{ background: "#020617", border: "1px solid #1e293b", borderRadius: 12, padding: "clamp(12px, 2vw, 24px)" }}>
+        <div style={{ background: "var(--panel-bg)", border: "1px solid var(--panel-border)", borderRadius: 12, padding: "clamp(12px, 2vw, 24px)" }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20, flexWrap: "wrap", gap: 16 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-              <h3 style={{ margin: 0, fontSize: 16, fontWeight: 600, color: "#f8fafc" }}>Token 消耗趋势</h3>
+              <h3 style={{ margin: 0, fontSize: 16, fontWeight: 600, color: "var(--fg)" }}>Token 消耗趋势</h3>
               {dashboardStats.tokenTimeline && (
                 <span style={{ fontSize: 13, color: "#3b82f6", background: "rgba(59, 130, 246, 0.1)", padding: "2px 8px", borderRadius: 6 }}>
                   总计: {dashboardStats.tokenTimeline.totalTokens.toLocaleString()}
@@ -545,7 +545,7 @@ export function OverviewPanel(props: Props) {
             
             {/* 控制器 */}
             <div style={{ display: "flex", gap: 12, flexWrap: "wrap", width: "100%", justifyContent: "flex-end" }}>
-              <div style={{ display: "flex", flexWrap: "wrap", rowGap: 6, background: "#0f172a", borderRadius: 8, padding: 4, border: "1px solid #1e293b", maxWidth: "100%" }}>
+              <div style={{ display: "flex", flexWrap: "wrap", rowGap: 6, background: "var(--panel-bg2)", borderRadius: 8, padding: 4, border: "1px solid var(--panel-border)", maxWidth: "100%" }}>
                 {(["1h", "24h", "7d", "30d"] as const).map((range) => (
                   <button
                     key={range}
@@ -554,8 +554,8 @@ export function OverviewPanel(props: Props) {
                       padding: "4px 12px",
                       fontSize: 12,
                       border: "none",
-                      background: tokenTimeRange === range ? "#1e293b" : "transparent",
-                      color: tokenTimeRange === range ? "#3b82f6" : "#64748b",
+                      background: tokenTimeRange === range ? "var(--panel-bg)" : "transparent",
+                      color: tokenTimeRange === range ? "#3b82f6" : "var(--muted2)",
                       borderRadius: 6,
                       cursor: "pointer",
                       fontWeight: tokenTimeRange === range ? 600 : 400,
@@ -566,7 +566,7 @@ export function OverviewPanel(props: Props) {
                   </button>
                 ))}
               </div>
-              <div style={{ display: "flex", flexWrap: "wrap", rowGap: 6, background: "#0f172a", borderRadius: 8, padding: 4, border: "1px solid #1e293b", maxWidth: "100%" }}>
+              <div style={{ display: "flex", flexWrap: "wrap", rowGap: 6, background: "var(--panel-bg2)", borderRadius: 8, padding: 4, border: "1px solid var(--panel-border)", maxWidth: "100%" }}>
                 {(
                   [
                     { key: "minute", label: "分" },
@@ -583,8 +583,8 @@ export function OverviewPanel(props: Props) {
                       padding: "4px 12px",
                       fontSize: 12,
                       border: "none",
-                      background: tokenGranularity === g.key ? "#1e293b" : "transparent",
-                      color: tokenGranularity === g.key ? "#3b82f6" : "#64748b",
+                      background: tokenGranularity === g.key ? "var(--panel-bg)" : "transparent",
+                      color: tokenGranularity === g.key ? "#3b82f6" : "var(--muted2)",
                       borderRadius: 6,
                       cursor: "pointer",
                       fontWeight: tokenGranularity === g.key ? 600 : 400,
@@ -601,10 +601,10 @@ export function OverviewPanel(props: Props) {
         </div>
 
         {/* 拦截监控时间轴 */}
-        <div style={{ background: "#020617", border: "1px solid #1e293b", borderRadius: 12, padding: "clamp(12px, 2vw, 24px)" }}>
+        <div style={{ background: "var(--panel-bg)", border: "1px solid var(--panel-border)", borderRadius: 12, padding: "clamp(12px, 2vw, 24px)" }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20, flexWrap: "wrap", gap: 16 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-              <h3 style={{ margin: 0, fontSize: 16, fontWeight: 600, color: "#f8fafc" }}>拦截监控时间轴</h3>
+              <h3 style={{ margin: 0, fontSize: 16, fontWeight: 600, color: "var(--fg)" }}>拦截监控时间轴</h3>
               {dashboardStats.interceptTimeline && (
                 <span style={{ fontSize: 13, color: "#ef4444", background: "rgba(239, 68, 68, 0.1)", padding: "2px 8px", borderRadius: 6 }}>
                   总计: {dashboardStats.interceptTimeline.totalIntercepts} 次
@@ -614,7 +614,7 @@ export function OverviewPanel(props: Props) {
             
             {/* 控制器 */}
             <div style={{ display: "flex", gap: 12, flexWrap: "wrap", width: "100%", justifyContent: "flex-end" }}>
-              <div style={{ display: "flex", flexWrap: "wrap", rowGap: 6, background: "#0f172a", borderRadius: 8, padding: 4, border: "1px solid #1e293b", maxWidth: "100%" }}>
+              <div style={{ display: "flex", flexWrap: "wrap", rowGap: 6, background: "var(--panel-bg2)", borderRadius: 8, padding: 4, border: "1px solid var(--panel-border)", maxWidth: "100%" }}>
                 {(["1h", "24h", "7d", "30d"] as const).map((range) => (
                   <button
                     key={range}
@@ -623,8 +623,8 @@ export function OverviewPanel(props: Props) {
                       padding: "4px 12px",
                       fontSize: 12,
                       border: "none",
-                      background: interceptTimeRange === range ? "#2a1215" : "transparent", // 微微偏红的选中背景
-                      color: interceptTimeRange === range ? "#ef4444" : "#64748b",
+                      background: interceptTimeRange === range ? "rgba(239,68,68,0.12)" : "transparent", // 微微偏红的选中背景
+                      color: interceptTimeRange === range ? "#ef4444" : "var(--muted2)",
                       borderRadius: 6,
                       cursor: "pointer",
                       fontWeight: interceptTimeRange === range ? 600 : 400,
@@ -635,7 +635,7 @@ export function OverviewPanel(props: Props) {
                   </button>
                 ))}
               </div>
-              <div style={{ display: "flex", flexWrap: "wrap", rowGap: 6, background: "#0f172a", borderRadius: 8, padding: 4, border: "1px solid #1e293b", maxWidth: "100%" }}>
+              <div style={{ display: "flex", flexWrap: "wrap", rowGap: 6, background: "var(--panel-bg2)", borderRadius: 8, padding: 4, border: "1px solid var(--panel-border)", maxWidth: "100%" }}>
                 {(
                   [
                     { key: "minute", label: "分" },
@@ -652,8 +652,8 @@ export function OverviewPanel(props: Props) {
                       padding: "4px 12px",
                       fontSize: 12,
                       border: "none",
-                      background: interceptGranularity === g.key ? "#2a1215" : "transparent",
-                      color: interceptGranularity === g.key ? "#ef4444" : "#64748b",
+                      background: interceptGranularity === g.key ? "rgba(239,68,68,0.12)" : "transparent",
+                      color: interceptGranularity === g.key ? "#ef4444" : "var(--muted2)",
                       borderRadius: 6,
                       cursor: "pointer",
                       fontWeight: interceptGranularity === g.key ? 600 : 400,

@@ -61,6 +61,9 @@ export function ProxyRequestLogsPanel() {
   const [size] = useState(50);
   const [total, setTotal] = useState(0);
 
+  const [syncing, setSyncing] = useState(false);
+  const [syncMsg, setSyncMsg] = useState<string | null>(null);
+
   const totalPages = useMemo(() => Math.max(1, Math.ceil(total / size)), [total, size]);
 
   const load = async () => {
@@ -93,21 +96,60 @@ export function ProxyRequestLogsPanel() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [page]);
 
+  const syncToCloud = async () => {
+    setSyncing(true);
+    setSyncMsg(null);
+    setError(null);
+    try {
+      const res = await fetch("http://127.0.0.1:19111/api/token-usages/sync", { method: "POST" });
+      const json = await res.json();
+      if (!res.ok) {
+        setError(json?.error?.message || "同步失败");
+        return;
+      }
+      setSyncMsg(
+        `已同步：上送 ${json.pushed ?? 0} 条（回写云端 ID ${json.idMappingsApplied ?? 0} 条），下行入库 ${
+          json.pulled ?? 0
+        } 条。`
+      );
+      await load();
+    } catch (e: any) {
+      setError(e?.message ?? "同步失败");
+    } finally {
+      setSyncing(false);
+    }
+  };
+
   return (
     <div>
-      <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
+      <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap", justifyContent: "flex-end" }}>
+        <button
+          type="button"
+          onClick={() => void syncToCloud()}
+          disabled={loading || syncing}
+          style={{
+            padding: "6px 12px",
+            fontSize: 12,
+            borderRadius: 999,
+            border: "1px solid rgba(34,197,94,0.45)",
+            background: "rgba(34,197,94,0.12)",
+            color: "#86efac",
+            cursor: loading || syncing ? "not-allowed" : "pointer",
+          }}
+        >
+          {syncing ? "同步中…" : "与云端同步"}
+        </button>
         <button
           type="button"
           onClick={() => void load()}
           disabled={loading}
           style={{
-            marginLeft: "auto",
             padding: "6px 12px",
             fontSize: 12,
             borderRadius: 999,
-            border: "1px solid #334155",
-            background: "rgba(15,23,42,0.85)",
-            color: "#e5e7eb",
+            border: "1px solid var(--panel-border)",
+            background: "var(--panel-bg)",
+            color: "var(--fg)",
             cursor: loading ? "not-allowed" : "pointer",
           }}
         >
@@ -115,14 +157,15 @@ export function ProxyRequestLogsPanel() {
         </button>
       </div>
 
+      {syncMsg && <div style={{ marginTop: 10, fontSize: 12, color: "#4ade80" }}>{syncMsg}</div>}
       {error && <div style={{ marginTop: 10, fontSize: 12, color: "#f97373" }}>{error}</div>}
 
       <div
         style={{
           marginTop: 12,
           borderRadius: 12,
-          border: "1px solid #1f2937",
-          background: "rgba(15,23,42,0.85)",
+          border: "1px solid var(--panel-border)",
+          background: "var(--panel-bg)",
           overflow: "hidden",
         }}
       >
@@ -145,10 +188,10 @@ export function ProxyRequestLogsPanel() {
                   style={{
                     textAlign: "left",
                     fontSize: 12,
-                    color: "#9ca3af",
+                    color: "var(--muted)",
                     fontWeight: 700,
                     padding: "10px 12px",
-                    borderBottom: "1px solid rgba(31,41,55,0.8)",
+                    borderBottom: "1px solid var(--panel-border)",
                     whiteSpace: "nowrap",
                   }}
                 >
@@ -161,32 +204,32 @@ export function ProxyRequestLogsPanel() {
           <tbody>
             {items.length === 0 ? (
               <tr>
-                <td colSpan={9} style={{ padding: 16, color: "#94a3b8", fontSize: 12 }}>
+                <td colSpan={9} style={{ padding: 16, color: "var(--muted)", fontSize: 12 }}>
                   暂无请求日志
                 </td>
               </tr>
             ) : (
               items.map((ev) => (
                 <tr key={ev.id}>
-                  <td style={{ padding: "10px 12px", fontSize: 12, color: "#e5e7eb" }}>
+                  <td style={{ padding: "10px 12px", fontSize: 12, color: "var(--fg)" }}>
                     {fmtLocalDateTime(ev.createdAt)}
                   </td>
-                  <td style={{ padding: "10px 12px", fontSize: 12, color: "#e5e7eb" }}>{ev.providerKey}</td>
-                  <td style={{ padding: "10px 12px", fontSize: 12, color: "#e5e7eb" }}>{ev.model || "-"}</td>
-                  <td style={{ padding: "10px 12px", fontSize: 12, color: "#e5e7eb" }}>{ev.routeMode || "-"}</td>
-                  <td style={{ padding: "10px 12px", fontSize: 12, color: "#e5e7eb" }}>
+                  <td style={{ padding: "10px 12px", fontSize: 12, color: "var(--fg)" }}>{ev.providerKey}</td>
+                  <td style={{ padding: "10px 12px", fontSize: 12, color: "var(--fg)" }}>{ev.model || "-"}</td>
+                  <td style={{ padding: "10px 12px", fontSize: 12, color: "var(--fg)" }}>{ev.routeMode || "-"}</td>
+                  <td style={{ padding: "10px 12px", fontSize: 12, color: "var(--fg)" }}>
                     {ev.statusCode ?? "-"}
                   </td>
-                  <td style={{ padding: "10px 12px", fontSize: 12, color: "#e5e7eb" }}>
+                  <td style={{ padding: "10px 12px", fontSize: 12, color: "var(--fg)" }}>
                     {formatBlockType(ev.blockType)}
                   </td>
-                  <td style={{ padding: "10px 12px", fontSize: 12, color: "#e5e7eb" }}>
+                  <td style={{ padding: "10px 12px", fontSize: 12, color: "var(--fg)" }}>
                     {fmtLatencyMs(ev.latencyMs)}
                   </td>
-                  <td style={{ padding: "10px 12px", fontSize: 12, color: "#e5e7eb" }}>
+                  <td style={{ padding: "10px 12px", fontSize: 12, color: "var(--fg)" }}>
                     {fmtUsd(ev.costUsd ?? 0)}
                   </td>
-                  <td style={{ padding: "10px 12px", fontSize: 12, color: "#e5e7eb" }}>
+                  <td style={{ padding: "10px 12px", fontSize: 12, color: "var(--fg)" }}>
                     {ev.totalTokens ?? "-"}
                   </td>
                 </tr>
@@ -205,7 +248,7 @@ export function ProxyRequestLogsPanel() {
           marginTop: 12,
         }}
       >
-        <div style={{ fontSize: 12, color: "#9ca3af", marginRight: 8 }}>
+        <div style={{ fontSize: 12, color: "var(--muted)", marginRight: 8 }}>
           第 {page} / {totalPages} 页（共 {total} 条）
         </div>
         <button
@@ -216,9 +259,9 @@ export function ProxyRequestLogsPanel() {
             padding: "6px 12px",
             fontSize: 12,
             borderRadius: 999,
-            border: "1px solid #334155",
-            background: page <= 1 ? "rgba(15,23,42,0.35)" : "rgba(15,23,42,0.85)",
-            color: "#e5e7eb",
+            border: "1px solid var(--panel-border)",
+            background: page <= 1 ? "var(--panel-bg2)" : "var(--panel-bg)",
+            color: "var(--fg)",
             cursor: page <= 1 ? "not-allowed" : "pointer",
           }}
         >
@@ -232,9 +275,9 @@ export function ProxyRequestLogsPanel() {
             padding: "6px 12px",
             fontSize: 12,
             borderRadius: 999,
-            border: "1px solid #334155",
-            background: page >= totalPages ? "rgba(15,23,42,0.35)" : "rgba(15,23,42,0.85)",
-            color: "#e5e7eb",
+            border: "1px solid var(--panel-border)",
+            background: page >= totalPages ? "var(--panel-bg2)" : "var(--panel-bg)",
+            color: "var(--fg)",
             cursor: page >= totalPages ? "not-allowed" : "pointer",
           }}
         >

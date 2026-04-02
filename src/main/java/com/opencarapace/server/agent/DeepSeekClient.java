@@ -4,6 +4,8 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ArrayNode;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import lombok.Data;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.MediaType;
@@ -37,22 +39,44 @@ public class DeepSeekClient {
                 .defaultHeader("Authorization", "Bearer " + apiKey.trim())
                 .build();
         try {
-            DeepSeekRequest req = new DeepSeekRequest(MODEL, List.of(
-                    new DeepSeekMessage("system", systemPrompt),
-                    new DeepSeekMessage("user", userMessage)
-            ), 4096, new ResponseFormat("json_object"));
-            DeepSeekResponse resp = client.post()
+            // 关键：用 JsonNode/ObjectNode 构造请求体，绕开 WebClient 在序列化内部 DTO
+            // 时触发的 `Type definition error: ... DeepSeekClient$DeepSeekMessage`。
+            ObjectNode reqRoot = objectMapper.createObjectNode();
+            reqRoot.put("model", MODEL);
+            ArrayNode messages = reqRoot.putArray("messages");
+            ObjectNode sys = objectMapper.createObjectNode();
+            sys.put("role", "system");
+            sys.put("content", systemPrompt);
+            ObjectNode usr = objectMapper.createObjectNode();
+            usr.put("role", "user");
+            usr.put("content", userMessage);
+            messages.add(sys);
+            messages.add(usr);
+            reqRoot.put("max_tokens", 4096);
+            ObjectNode respFmt = objectMapper.createObjectNode();
+            respFmt.put("type", "json_object");
+            reqRoot.set("response_format", respFmt);
+
+            String requestJson = objectMapper.writeValueAsString(reqRoot);
+            String respBody = client.post()
                     .contentType(MediaType.APPLICATION_JSON)
-                    .bodyValue(req)
+                    .bodyValue(requestJson)
                     .retrieve()
-                    .bodyToMono(DeepSeekResponse.class)
+                    .bodyToMono(String.class)
                     .block();
-            if (resp == null || resp.getChoices() == null || resp.getChoices().isEmpty()) {
+            if (respBody == null || respBody.isBlank()) {
                 return null;
             }
-            return resp.getChoices().get(0).getMessage().getContent();
+            JsonNode resp = objectMapper.readTree(respBody);
+            JsonNode choices = resp.path("choices");
+            if (!choices.isArray() || choices.isEmpty()) {
+                return null;
+            }
+            return choices.get(0).path("message").path("content").asText(null);
         } catch (WebClientResponseException e) {
             throw new RuntimeException("DeepSeek chat failed: " + e.getStatusCode() + " " + e.getResponseBodyAsString(), e);
+        } catch (Exception e) {
+            throw new RuntimeException("DeepSeek chat failed: " + e.getMessage(), e);
         }
     }
 

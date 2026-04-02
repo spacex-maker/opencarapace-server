@@ -57,6 +57,31 @@ function getDb() {
     );
     db.run("ALTER TABLE local_user_settings ADD COLUMN sync_user_skills_to_cloud INTEGER NOT NULL DEFAULT 1", () => {});
     db.run("ALTER TABLE local_user_settings ADD COLUMN sync_user_dangers_to_cloud INTEGER NOT NULL DEFAULT 1", () => {});
+    // 安全扫描隐私开关：是否允许保存/上传本机对话历史；是否允许读取/上传本机系统配置
+    db.run(
+      "ALTER TABLE local_user_settings ADD COLUMN security_scan_share_history INTEGER NOT NULL DEFAULT 0",
+      () => {}
+    );
+    db.run(
+      "ALTER TABLE local_user_settings ADD COLUMN security_scan_consent_system_config INTEGER NOT NULL DEFAULT 0",
+      () => {}
+    );
+
+    // 历史对话落库（仅当用户开启“共享对话历史用于安全扫描”时才写入）
+    db.run(
+      `CREATE TABLE IF NOT EXISTS conversation_history (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        created_at TEXT NOT NULL,
+        client_id TEXT,
+        provider_key TEXT,
+        model_id TEXT,
+        route_mode TEXT,
+        request_path TEXT,
+        user_text TEXT NOT NULL,
+        assistant_text TEXT NOT NULL
+      )`
+    );
+    db.run("CREATE INDEX IF NOT EXISTS idx_conversation_history_created ON conversation_history (created_at)", () => {});
     db.run(
       `CREATE TABLE IF NOT EXISTS local_llm_mappings (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -710,6 +735,124 @@ function saveLlmRouteMode(mode) {
   });
 }
 
+function getSecurityScanPrivacy() {
+  const database = getDb();
+  return new Promise((resolve) => {
+    database.get(
+      `SELECT security_scan_share_history, security_scan_consent_system_config
+       FROM local_user_settings
+       WHERE id = 1`,
+      (err, row) => {
+        if (err || !row) {
+          resolve({ shareHistoryEnabled: false, consentSystemConfigEnabled: false });
+          return;
+        }
+        resolve({
+          shareHistoryEnabled: Number(row.security_scan_share_history || 0) === 1,
+          consentSystemConfigEnabled: Number(row.security_scan_consent_system_config || 0) === 1,
+        });
+      }
+    );
+  });
+}
+
+function setSecurityScanPrivacy({ shareHistoryEnabled, consentSystemConfigEnabled }) {
+  const database = getDb();
+  const shareVal = shareHistoryEnabled ? 1 : 0;
+  const consentVal = consentSystemConfigEnabled ? 1 : 0;
+  return new Promise((resolve, reject) => {
+    database.run(
+      `INSERT INTO local_user_settings (id, security_scan_share_history, security_scan_consent_system_config)
+       VALUES (1, ?, ?)
+       ON CONFLICT(id) DO UPDATE SET
+         security_scan_share_history = excluded.security_scan_share_history,
+         security_scan_consent_system_config = excluded.security_scan_consent_system_config`,
+      [shareVal, consentVal],
+      (err) => {
+        if (err) reject(err);
+        else resolve();
+      }
+    );
+  });
+}
+
+function insertConversationHistoryTurn({
+  clientId,
+  createdAtIso,
+  providerKey,
+  modelId,
+  routeMode,
+  requestPath,
+  userText,
+  assistantText,
+}) {
+  const database = getDb();
+  const createdAt = createdAtIso || new Date().toISOString();
+  const user = String(userText || "");
+  const assistant = String(assistantText || "");
+  return new Promise((resolve, reject) => {
+    database.run(
+      `INSERT INTO conversation_history (
+        created_at, client_id, provider_key, model_id, route_mode, request_path, user_text, assistant_text
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      [createdAt, clientId || null, providerKey || null, modelId || null, routeMode || null, requestPath || null, user, assistant],
+      (err) => {
+        if (err) {
+          reject(err);
+          return;
+        }
+        // 为了避免表无限增长：最多保留最近 500 条
+        database.run(
+          `DELETE FROM conversation_history
+           WHERE id NOT IN (
+             SELECT id FROM conversation_history ORDER BY created_at DESC, id DESC LIMIT 500
+           )`,
+          () => resolve()
+        );
+      }
+    );
+  });
+}
+
+function listRecentConversationTurns(limit = 10, maxChars = 12000) {
+  const database = getDb();
+  const lim = Math.max(1, Math.min(50, Number(limit) || 10));
+  const max = Math.max(1000, Number(maxChars) || 12000);
+  return new Promise((resolve) => {
+    database.all(
+      `SELECT created_at AS createdAt, user_text AS userText, assistant_text AS assistantText
+       FROM conversation_history
+       ORDER BY created_at DESC, id DESC
+       LIMIT ?`,
+      [lim],
+      (_err, rows = []) => {
+        // rows 是倒序，反转成按时间正序，便于模型理解先后关系
+        const ordered = (rows || []).slice().reverse();
+        let total = 0;
+        const out = [];
+        for (const r of ordered) {
+          const u = String(r.userText || "");
+          const a = String(r.assistantText || "");
+          const chunk = `${u}\n${a}`;
+          if (total >= max) break;
+          if (total + chunk.length <= max) {
+            out.push({ createdAt: r.createdAt, userText: u, assistantText: a });
+            total += chunk.length;
+            continue;
+          }
+          const remaining = max - total;
+          // 如果剩余不足，截断 assistantText 以节省 token
+          const newAssistant = a.length > remaining ? a.slice(0, Math.max(0, remaining - 1)) + "…" : a;
+          out.push({ createdAt: r.createdAt, userText: u, assistantText: newAssistant });
+          total += remaining;
+          break;
+        }
+        resolve(out);
+      }
+    );
+  });
+}
+
 function replaceUserSkills(rows) {
   const database = getDb();
   return new Promise((resolve, reject) => {
@@ -1326,6 +1469,10 @@ module.exports = {
   saveOpenClawSettings,
   getLlmRouteMode,
   saveLlmRouteMode,
+  getSecurityScanPrivacy,
+  setSecurityScanPrivacy,
+  insertConversationHistoryTurn,
+  listRecentConversationTurns,
   listLlmMappings,
   upsertLlmMapping,
   deleteLlmMapping,

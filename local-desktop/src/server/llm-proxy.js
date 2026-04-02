@@ -11,6 +11,8 @@ const {
   computeLlmCostUsd,
   insertLlmUsageCostEvent,
   updateLlmUsageEventCloudId,
+  getSecurityScanPrivacy,
+  insertConversationHistoryTurn,
 } = require("../db.js");
 
 function estimateTokensFromString(s) {
@@ -70,6 +72,31 @@ function extractUsage(responseData) {
     // ignore
   }
   return null;
+}
+
+function extractAssistantText(responseData) {
+  try {
+    const data = typeof responseData === "string" ? JSON.parse(responseData) : responseData;
+    const choices = data?.choices;
+    if (Array.isArray(choices) && choices.length > 0) {
+      const c0 = choices[0] || {};
+      const msg = c0.message;
+      if (msg && typeof msg.content === "string") return msg.content;
+      if (c0 && typeof c0.text === "string") return c0.text;
+      if (msg && Array.isArray(msg.content)) {
+        const texts = msg.content
+          .map((x) => (x && x.type === "text" && typeof x.text === "string" ? x.text : ""))
+          .filter(Boolean);
+        if (texts.length > 0) return texts.join("\n");
+      }
+    }
+    // 兜底：部分供应商可能把输出放到不同字段
+    if (typeof data?.output_text === "string") return data.output_text;
+    if (typeof data?.completion === "string") return data.completion;
+    return null;
+  } catch {
+    return null;
+  }
 }
 
 async function forwardChatCompletions(req, res) {
@@ -579,6 +606,31 @@ async function forwardChatCompletions(req, res) {
           upstream_base: upstreamUrl,
           client_id: clientTag,
         });
+
+        // 当用户开启“共享对话历史用于安全扫描”时，落库最后一条 user + 对应 assistant 输出
+        try {
+          const privacy = await getSecurityScanPrivacy();
+          const wantHistory = !!privacy?.shareHistoryEnabled;
+          const userText = typeof latestUserText === "string" ? latestUserText.trim() : "";
+          if (wantHistory && userText) {
+            const assistantText = extractAssistantText(upstreamRes.data);
+            if (typeof assistantText === "string" && assistantText.trim()) {
+              await insertConversationHistoryTurn({
+                clientId: clientTag,
+                createdAtIso: new Date().toISOString(),
+                providerKey: providerKeyForBudget,
+                modelId: modelResolved,
+                routeMode,
+                requestPath: originalPath,
+                userText,
+                assistantText: assistantText.trim(),
+              });
+            }
+          }
+        } catch (historyErr) {
+          // 落库失败不应影响主链路
+          console.warn("[LLM Proxy] conversation_history 写入失败:", historyErr?.message || historyErr);
+        }
 
         const isCloudRoute = routeMode === "GATEWAY" || (routeMode === "MAPPING" && llmRouteMode === "GATEWAY");
         const auth = await getLocalAuth().catch(() => null);

@@ -271,24 +271,24 @@ export function OpenClawPanel() {
       style={{
         maxWidth: 1100,
         margin: "0 auto",
-        background: "#020617",
+        background: "var(--panel-bg)",
         borderRadius: 16,
         padding: "24px 28px",
-        border: "1px solid #1f2937",
-        boxShadow: "0 20px 40px rgba(15,23,42,0.6)",
+        border: "1px solid var(--panel-border)",
+        boxShadow: "0 20px 40px rgba(0,0,0,0.16)",
         fontSize: 12,
       }}
     >
       <div style={{ marginBottom: 16 }}>
-        <h1 style={{ fontSize: 20, margin: "0 0 4px", color: "#f9fafb" }}>OpenClaw</h1>
-        <p style={{ margin: "4px 0 12px", fontSize: 13, color: "#9ca3af", lineHeight: 1.5 }}>
+        <h1 style={{ fontSize: 20, margin: "0 0 4px", color: "var(--fg)" }}>OpenClaw</h1>
+        <p style={{ margin: "4px 0 12px", fontSize: 13, color: "var(--muted)", lineHeight: 1.5 }}>
           OpenClaw 是一个强大的 AI Agent 框架。
           {hasEmbedded && <span style={{ color: "#4ade80" }}> 已检测到 OpenClaw。</span>}
           {isRunning && <span style={{ color: "#fbbf24", fontWeight: 600 }}> 首次使用需要配置 LLM 提供商。</span>}
         </p>
         
         {/* 标签页切换 */}
-        <div style={{ display: "flex", gap: 8, borderBottom: "1px solid #1f2937", paddingBottom: 8 }}>
+        <div style={{ display: "flex", gap: 8, borderBottom: "1px solid var(--panel-border)", paddingBottom: 8 }}>
           <button
             type="button"
             onClick={() => setActiveSubTab("ui")}
@@ -297,7 +297,7 @@ export function OpenClawPanel() {
               borderRadius: "8px 8px 0 0",
               border: "none",
               background: activeSubTab === "ui" ? "rgba(59,130,246,0.15)" : "transparent",
-              color: activeSubTab === "ui" ? "#60a5fa" : "#9ca3af",
+              color: activeSubTab === "ui" ? "#60a5fa" : "var(--muted)",
               fontSize: 12,
               fontWeight: 600,
               cursor: "pointer",
@@ -317,7 +317,7 @@ export function OpenClawPanel() {
               borderRadius: "8px 8px 0 0",
               border: "none",
               background: activeSubTab === "config" ? "rgba(59,130,246,0.15)" : "transparent",
-              color: activeSubTab === "config" ? "#60a5fa" : "#9ca3af",
+              color: activeSubTab === "config" ? "#60a5fa" : "var(--muted)",
               fontSize: 12,
               fontWeight: 600,
               cursor: "pointer",
@@ -369,7 +369,7 @@ export function OpenClawPanel() {
         <>
           {/* Gateway 状态控制 */}
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, marginBottom: 14 }}>
-            <div style={{ fontSize: 12, color: "#9ca3af" }}>
+            <div style={{ fontSize: 12, color: "var(--muted)" }}>
               Gateway 状态
             </div>
 
@@ -448,9 +448,9 @@ export function OpenClawPanel() {
                 style={{
                   padding: "6px 12px",
                   borderRadius: 999,
-                  border: "1px solid #1f2937",
-                  background: "rgba(15,23,42,0.85)",
-                  color: "#e5e7eb",
+                  border: "1px solid var(--panel-border)",
+                  background: "var(--panel-bg2)",
+                  color: "var(--fg)",
                   fontSize: 11,
                   fontWeight: 600,
                   cursor: loading ? "not-allowed" : "pointer",
@@ -483,13 +483,13 @@ export function OpenClawPanel() {
 
           <div
             style={{
-              border: "1px solid #1f2937",
+              border: "1px solid var(--panel-border)",
               borderRadius: 12,
               padding: "12px 12px",
-              background: "rgba(15,23,42,0.85)",
+              background: "var(--panel-bg2)",
             }}
           >
-            <div style={{ fontSize: 11, color: "#9ca3af", lineHeight: 1.6, marginBottom: 8 }}>
+            <div style={{ fontSize: 11, color: "var(--muted)", lineHeight: 1.6, marginBottom: 8 }}>
               OpenClaw UI 地址: <code style={{ fontSize: 10, wordBreak: "break-all" }}>{uiUrl}</code>
               {uiUrl.includes("token=") && (
                 <span style={{ marginLeft: 8, color: "#4ade80", fontSize: 10 }}>✓ 已包含认证 token</span>
@@ -504,7 +504,7 @@ export function OpenClawPanel() {
                 style={{
                   padding: "7px 12px",
                   borderRadius: 999,
-                  border: "1px solid #374151",
+                  border: "1px solid var(--btn-border)",
                   background: "transparent",
                   color: isRunning ? "#60a5fa" : "#6b7280",
                   fontSize: 11,
@@ -522,9 +522,9 @@ export function OpenClawPanel() {
               style={{
                 minHeight: 520,
                 borderRadius: 12,
-                border: "1px solid #111827",
+                border: "1px solid var(--panel-border)",
                 overflow: "hidden",
-                background: "#000",
+                background: "var(--bg)",
                 display: "flex",
                 flexDirection: "column",
                 justifyContent: "center",
@@ -533,10 +533,10 @@ export function OpenClawPanel() {
             >
               {isRunning ? (
                 <div style={{ textAlign: "center", padding: "20px" }}>
-                  <div style={{ fontSize: 14, color: "#e5e7eb", marginBottom: 12, fontWeight: 600 }}>
+                  <div style={{ fontSize: 14, color: "var(--fg)", marginBottom: 12, fontWeight: 600 }}>
                     OpenClaw UI 已就绪
                   </div>
-                  <div style={{ fontSize: 11, color: "#9ca3af", marginBottom: 20, lineHeight: 1.6 }}>
+                  <div style={{ fontSize: 11, color: "var(--muted)", marginBottom: 20, lineHeight: 1.6 }}>
                     由于安全策略限制，OpenClaw UI 无法在 iframe 中嵌入。
                     <br />
                     请点击下方按钮在新窗口中打开（已自动登录）。
@@ -560,7 +560,7 @@ export function OpenClawPanel() {
                   >
                     在新窗口打开 OpenClaw →
                   </a>
-                  <div style={{ fontSize: 10, color: "#6b7280", marginTop: 16 }}>
+                  <div style={{ fontSize: 10, color: "var(--muted2)", marginTop: 16 }}>
                     URL: {uiUrl}
                   </div>
                 </div>
@@ -570,7 +570,7 @@ export function OpenClawPanel() {
                     width: "100%",
                     boxSizing: "border-box",
                     padding: "16px 14px 14px",
-                    color: "#9ca3af",
+                    color: "var(--muted)",
                     fontSize: 12,
                     display: "flex",
                     flexDirection: "column",
@@ -581,10 +581,10 @@ export function OpenClawPanel() {
                   }}
                 >
                   <div style={{ textAlign: "center" }}>
-                    <div style={{ fontSize: 14, color: "#e5e7eb", marginBottom: 8, fontWeight: 600 }}>
+                    <div style={{ fontSize: 14, color: "var(--fg)", marginBottom: 8, fontWeight: 600 }}>
                       OpenClaw Gateway 未运行
                     </div>
-                    <div style={{ fontSize: 11, color: "#9ca3af", lineHeight: 1.6 }}>
+                    <div style={{ fontSize: 11, color: "var(--muted)", lineHeight: 1.6 }}>
                       {hasEmbedded
                         ? "请点击上方的「启动 Gateway」按钮来启动 OpenClaw 服务。"
                         : "请先运行 npm install 安装 OpenClaw。"}
@@ -597,7 +597,7 @@ export function OpenClawPanel() {
                       style={{
                         padding: "6px 12px",
                         borderRadius: 999,
-                        border: "1px solid #374151",
+                        border: "1px solid var(--btn-border)",
                         background: "rgba(59,130,246,0.15)",
                         color: "#93c5fd",
                         fontSize: 11,
@@ -613,9 +613,9 @@ export function OpenClawPanel() {
                       style={{
                         padding: "6px 12px",
                         borderRadius: 999,
-                        border: "1px solid #374151",
-                        background: "rgba(15,23,42,0.85)",
-                        color: "#e5e7eb",
+                        border: "1px solid var(--btn-border)",
+                        background: "var(--panel-bg2)",
+                        color: "var(--fg)",
                         fontSize: 11,
                         fontWeight: 600,
                         cursor: "pointer",
@@ -624,7 +624,7 @@ export function OpenClawPanel() {
                       刷新日志
                     </button>
                   </div>
-                  <div style={{ fontSize: 10, color: "#6b7280", textAlign: "center" }}>
+                  <div style={{ fontSize: 10, color: "var(--muted2)", textAlign: "center" }}>
                     下方文本框可选中后 Ctrl+C 复制；失败时请整段发给开发者。
                   </div>
                   <textarea
@@ -640,9 +640,9 @@ export function OpenClawPanel() {
                       resize: "vertical",
                       padding: "10px 12px",
                       borderRadius: 8,
-                      border: "1px solid #1f2937",
-                      background: "#0b1220",
-                      color: "#e2e8f0",
+                      border: "1px solid var(--panel-border)",
+                      background: "var(--panel-bg)",
+                      color: "var(--fg)",
                       fontSize: 10,
                       fontFamily: "Consolas, Monaco, 'Courier New', monospace",
                       lineHeight: 1.45,
@@ -660,7 +660,7 @@ export function OpenClawPanel() {
       {activeSubTab === "config" && (
         <div>
           <div style={{ marginBottom: 12 }}>
-            <div style={{ fontSize: 12, color: "#9ca3af", marginBottom: 8 }}>
+            <div style={{ fontSize: 12, color: "var(--muted)", marginBottom: 8 }}>
               配置文件路径: <code style={{ fontSize: 10, color: "#60a5fa" }}>{configPath}</code>
             </div>
             <div style={{ display: "flex", gap: 8, marginBottom: 12, alignItems: "center" }}>
@@ -704,9 +704,9 @@ export function OpenClawPanel() {
                 style={{
                   padding: "6px 14px",
                   borderRadius: 999,
-                  border: "1px solid #374151",
+                  border: "1px solid var(--btn-border)",
                   background: "transparent",
-                  color: "#9ca3af",
+                  color: "var(--muted)",
                   fontSize: 11,
                   fontWeight: 600,
                   cursor: "pointer",
@@ -721,9 +721,9 @@ export function OpenClawPanel() {
                 style={{
                   padding: "6px 14px",
                   borderRadius: 999,
-                  border: "1px solid #374151",
+                  border: "1px solid var(--btn-border)",
                   background: "transparent",
-                  color: "#9ca3af",
+                  color: "var(--muted)",
                   fontSize: 11,
                   fontWeight: 600,
                   cursor: configLoading ? "not-allowed" : "pointer",
@@ -748,9 +748,9 @@ export function OpenClawPanel() {
               height: 600,
               padding: "12px",
               borderRadius: 8,
-              border: "1px solid #374151",
-              background: "#020617",
-              color: "#e5e7eb",
+              border: "1px solid var(--panel-border)",
+              background: "var(--panel-bg)",
+              color: "var(--fg)",
               fontSize: 11,
               fontFamily: "Consolas, Monaco, 'Courier New', monospace",
               lineHeight: 1.6,
@@ -779,7 +779,7 @@ export function OpenClawPanel() {
         </div>
       )}
 
-      {loading && <div style={{ marginTop: 10, fontSize: 11, color: "#6b7280" }}>加载中…</div>}
+      {loading && <div style={{ marginTop: 10, fontSize: 11, color: "var(--muted2)" }}>加载中…</div>}
       {error && <div style={{ marginTop: 6, fontSize: 11, color: "#f97373" }}>{error}</div>}
     </div>
   );

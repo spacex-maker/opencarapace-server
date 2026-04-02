@@ -40,9 +40,9 @@ function FilterSelect(props: {
           height: controlHeight,
           padding: "0 12px",
           borderRadius: 999,
-          border: "1px solid #334155",
-          background: "rgba(2,6,23,0.86)",
-          color: props.value ? "#e5e7eb" : "#6b7280",
+          border: "1px solid var(--panel-border)",
+          background: "var(--panel-bg)",
+          color: props.value ? "var(--fg)" : "var(--muted2)",
           fontSize: 12,
           fontWeight: 500,
           display: "flex",
@@ -53,7 +53,7 @@ function FilterSelect(props: {
         }}
       >
         <span style={{ lineHeight: 1 }}>{current}</span>
-        <span style={{ color: "#6b7280", lineHeight: 1 }}>{open ? "▲" : "▼"}</span>
+        <span style={{ color: "var(--muted2)", lineHeight: 1 }}>{open ? "▲" : "▼"}</span>
       </button>
 
       {open && (
@@ -67,8 +67,8 @@ function FilterSelect(props: {
             maxHeight: 220,
             overflowY: "auto",
             borderRadius: 12,
-            border: "1px solid #1f2937",
-            background: "rgba(2,6,23,0.98)",
+            border: "1px solid var(--panel-border)",
+            background: "var(--panel-bg)",
             boxShadow: "0 12px 30px rgba(0,0,0,0.35)",
           }}
         >
@@ -94,7 +94,7 @@ function FilterSelect(props: {
                     : hovered
                       ? "rgba(148,163,184,0.08)"
                       : "transparent",
-                  color: active ? "#93c5fd" : "#e5e7eb",
+                  color: active ? "#93c5fd" : "var(--fg)",
                   fontSize: 12,
                   textAlign: "left",
                   cursor: "pointer",
@@ -152,9 +152,9 @@ function riskTagStyle(riskLevel: string | null): React.CSSProperties {
     fontSize: 10,
     padding: "2px 6px",
     borderRadius: 999,
-    border: "1px solid #334155",
-    color: "#9ca3af",
-    background: "rgba(148,163,184,0.12)",
+    border: "1px solid var(--panel-border)",
+    color: "var(--muted)",
+    background: "var(--chip-bg)",
     width: "fit-content",
   };
   if (r === "CRITICAL") return { ...base, color: "#fecaca", border: "1px solid rgba(239,68,68,0.55)", background: "rgba(239,68,68,0.14)" };
@@ -244,15 +244,15 @@ export function InterceptLogsPanel({
       style={{
         maxWidth: 980,
         margin: "0 auto",
-        background: "#020617",
+        background: "var(--panel-bg)",
         borderRadius: 16,
         padding: "24px 28px",
-        border: "1px solid #1f2937",
+        border: "1px solid var(--panel-border)",
         boxShadow: "0 20px 40px rgba(15,23,42,0.6)",
       }}
     >
-      <h1 style={{ fontSize: 20, margin: "0 0 6px", color: "#f9fafb" }}>拦截监控</h1>
-      <p style={{ margin: "0 0 12px", fontSize: 12, color: "#9ca3af", lineHeight: 1.5 }}>
+      <h1 style={{ fontSize: 20, margin: "0 0 6px", color: "var(--fg)" }}>拦截监控</h1>
+      <p style={{ margin: "0 0 12px", fontSize: 12, color: "var(--muted)", lineHeight: 1.5 }}>
         查看云端记录的拦截事件，并在此管理「拦截项目」——即参与本地匹配的危险指令规则库（原独立「危险指令库」已并入本页）。
       </p>
 
@@ -275,9 +275,9 @@ export function InterceptLogsPanel({
               style={{
                 padding: "8px 16px",
                 borderRadius: 999,
-                border: active ? "1px solid rgba(34,197,94,0.5)" : "1px solid #334155",
-                background: active ? "rgba(34,197,94,0.12)" : "rgba(15,23,42,0.5)",
-                color: active ? "#86efac" : "#94a3b8",
+                border: active ? "1px solid rgba(34,197,94,0.5)" : "1px solid var(--panel-border)",
+                background: active ? "rgba(34,197,94,0.12)" : "var(--panel-bg2)",
+                color: active ? "#86efac" : "var(--muted)",
                 fontSize: 13,
                 fontWeight: active ? 700 : 600,
                 cursor: "pointer",
@@ -302,7 +302,7 @@ export function InterceptLogsPanel({
       {panelTab === "alerts" && (
         <>
       <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
-        <div style={{ fontSize: 12, color: "#9ca3af" }}>类型</div>
+        <div style={{ fontSize: 12, color: "var(--muted)" }}>类型</div>
         <FilterSelect
           value={blockType}
           onChange={(v) => {
@@ -328,9 +328,9 @@ export function InterceptLogsPanel({
             padding: "6px 12px",
             fontSize: 12,
             borderRadius: 999,
-            border: "1px solid #334155",
-            background: "rgba(15,23,42,0.85)",
-            color: "#e5e7eb",
+            border: "1px solid var(--panel-border)",
+            background: "var(--panel-bg)",
+            color: "var(--fg)",
             cursor: loading ? "not-allowed" : "pointer",
           }}
         >
@@ -344,22 +344,22 @@ export function InterceptLogsPanel({
         style={{
           marginTop: 12,
           borderRadius: 12,
-          border: "1px solid #1f2937",
-          background: "rgba(15,23,42,0.85)",
+          border: "1px solid var(--panel-border)",
+          background: "var(--panel-bg)",
           overflow: "hidden",
         }}
       >
         <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
           <thead>
-            <tr style={{ background: "#020617" }}>
-              <th style={{ textAlign: "left", padding: "8px 10px", color: "#9ca3af", fontWeight: 500, width: 170 }}>
+            <tr style={{ background: "var(--panel-bg)" }}>
+              <th style={{ textAlign: "left", padding: "8px 10px", color: "var(--muted)", fontWeight: 500, width: 170 }}>
                 类型 / 风险
               </th>
-              <th style={{ textAlign: "left", padding: "8px 10px", color: "#9ca3af", fontWeight: 500 }}>
+              <th style={{ textAlign: "left", padding: "8px 10px", color: "var(--muted)", fontWeight: 500 }}>
                 触发原因
               </th>
               <th style={{ width: 84 }} />
-              <th style={{ textAlign: "left", padding: "8px 10px", color: "#9ca3af", fontWeight: 500, width: 170 }}>
+              <th style={{ textAlign: "left", padding: "8px 10px", color: "var(--muted)", fontWeight: 500, width: 170 }}>
                 时间
               </th>
             </tr>
@@ -367,20 +367,20 @@ export function InterceptLogsPanel({
           <tbody>
             {items.length === 0 ? (
               <tr>
-                <td colSpan={4} style={{ padding: "10px", color: "#6b7280" }}>
+                <td colSpan={4} style={{ padding: "10px", color: "var(--muted2)" }}>
                   {loading ? "正在加载…" : "暂无拦截记录。"}
                 </td>
               </tr>
             ) : (
               items.map((it) => (
-                <tr key={it.id} style={{ borderTop: "1px solid #111827" }}>
-                  <td style={{ padding: "8px 10px", color: "#e5e7eb" }}>
+                <tr key={it.id} style={{ borderTop: "1px solid var(--panel-border)" }}>
+                  <td style={{ padding: "8px 10px", color: "var(--fg)" }}>
                     <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                      <div style={{ fontWeight: 600, color: "#e5e7eb" }}>{formatBlockType(it.blockType)}</div>
+                      <div style={{ fontWeight: 600, color: "var(--fg)" }}>{formatBlockType(it.blockType)}</div>
                       <div style={riskTagStyle(it.riskLevel)}>{String(it.riskLevel || "-").toUpperCase()}</div>
                     </div>
                   </td>
-                  <td style={{ padding: "8px 10px", color: "#9ca3af" }}>{it.reasons || "-"}</td>
+                  <td style={{ padding: "8px 10px", color: "var(--muted)" }}>{it.reasons || "-"}</td>
                   <td style={{ padding: "8px 10px", textAlign: "right" }}>
                     <button
                       type="button"
@@ -389,16 +389,16 @@ export function InterceptLogsPanel({
                         fontSize: 11,
                         padding: "4px 10px",
                         borderRadius: 999,
-                        border: "1px solid #334155",
+                        border: "1px solid var(--panel-border)",
                         background: "transparent",
-                        color: "#e5e7eb",
+                        color: "var(--fg)",
                         cursor: "pointer",
                       }}
                     >
                       详情
                     </button>
                   </td>
-                  <td style={{ padding: "8px 10px", color: "#e5e7eb", whiteSpace: "nowrap" }}>
+                  <td style={{ padding: "8px 10px", color: "var(--fg)", whiteSpace: "nowrap" }}>
                     {formatLocalDateTime(it.createdAt)}
                   </td>
                 </tr>
@@ -408,7 +408,7 @@ export function InterceptLogsPanel({
         </table>
       </div>
 
-      <div style={{ marginTop: 12, display: "flex", alignItems: "center", gap: 10, fontSize: 12, color: "#9ca3af" }}>
+      <div style={{ marginTop: 12, display: "flex", alignItems: "center", gap: 10, fontSize: 12, color: "var(--muted)" }}>
         <button
           type="button"
           disabled={loading || page <= 1}
@@ -416,9 +416,9 @@ export function InterceptLogsPanel({
           style={{
             padding: "6px 10px",
             borderRadius: 999,
-            border: "1px solid #334155",
+            border: "1px solid var(--panel-border)",
             background: "transparent",
-            color: "#e5e7eb",
+            color: "var(--fg)",
             cursor: loading || page <= 1 ? "not-allowed" : "pointer",
             opacity: loading || page <= 1 ? 0.5 : 1,
           }}
@@ -426,7 +426,7 @@ export function InterceptLogsPanel({
           上一页
         </button>
         <div>
-          第 <span style={{ color: "#e5e7eb" }}>{page}</span> / {totalPages} 页（共 {total} 条）
+          第 <span style={{ color: "var(--fg)" }}>{page}</span> / {totalPages} 页（共 {total} 条）
         </div>
         <button
           type="button"
@@ -435,9 +435,9 @@ export function InterceptLogsPanel({
           style={{
             padding: "6px 10px",
             borderRadius: 999,
-            border: "1px solid #334155",
+            border: "1px solid var(--panel-border)",
             background: "transparent",
-            color: "#e5e7eb",
+            color: "var(--fg)",
             cursor: loading || page >= totalPages ? "not-allowed" : "pointer",
             opacity: loading || page >= totalPages ? 0.5 : 1,
           }}
@@ -456,7 +456,7 @@ export function InterceptLogsPanel({
           style={{
             position: "fixed",
             inset: 0,
-            background: "rgba(2,6,23,0.72)",
+            background: "rgba(2,6,23,0.58)",
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
@@ -471,21 +471,21 @@ export function InterceptLogsPanel({
               maxHeight: "86vh",
               overflow: "auto",
               borderRadius: 16,
-              border: "1px solid #1f2937",
-              background: "rgba(2,6,23,0.98)",
+              border: "1px solid var(--panel-border)",
+              background: "var(--panel-bg)",
               boxShadow: "0 30px 80px rgba(0,0,0,0.55)",
               padding: "18px 18px",
             }}
           >
             <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12 }}>
               <div>
-                <div style={{ fontSize: 16, fontWeight: 700, color: "#f9fafb" }}>拦截详情</div>
+                <div style={{ fontSize: 16, fontWeight: 700, color: "var(--fg)" }}>拦截详情</div>
                 <div style={{ marginTop: 6, display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
-                  <div style={{ fontSize: 12, color: "#e5e7eb", fontWeight: 600 }}>
+                  <div style={{ fontSize: 12, color: "var(--fg)", fontWeight: 600 }}>
                     {formatBlockType(detail?.blockType || null)}
                   </div>
                   <div style={riskTagStyle(detail?.riskLevel || null)}>{String(detail?.riskLevel || "-").toUpperCase()}</div>
-                  <div style={{ fontSize: 11, color: "#6b7280" }}>ID: {detail?.id ?? "-"}</div>
+                  <div style={{ fontSize: 11, color: "var(--muted2)" }}>ID: {detail?.id ?? "-"}</div>
                 </div>
               </div>
               <button
@@ -494,9 +494,9 @@ export function InterceptLogsPanel({
                 style={{
                   padding: "6px 10px",
                   borderRadius: 999,
-                  border: "1px solid #334155",
+                  border: "1px solid var(--panel-border)",
                   background: "transparent",
-                  color: "#e5e7eb",
+                  color: "var(--fg)",
                   cursor: "pointer",
                   flexShrink: 0,
                 }}
@@ -509,16 +509,16 @@ export function InterceptLogsPanel({
               <div
                 style={{
                   borderRadius: 12,
-                  border: "1px solid #1f2937",
-                  background: "rgba(15,23,42,0.75)",
+                  border: "1px solid var(--panel-border)",
+                  background: "var(--panel-bg2)",
                   padding: "10px 12px",
                 }}
               >
-                <div style={{ fontSize: 11, color: "#9ca3af", marginBottom: 6 }}>时间</div>
+                <div style={{ fontSize: 11, color: "var(--muted)", marginBottom: 6 }}>时间</div>
                 <div
                   style={{
                     fontSize: 12,
-                    color: "#e5e7eb",
+                    color: "var(--fg)",
                     fontFamily:
                       'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
                   }}
@@ -530,13 +530,13 @@ export function InterceptLogsPanel({
               <div
                 style={{
                   borderRadius: 12,
-                  border: "1px solid #1f2937",
-                  background: "rgba(15,23,42,0.75)",
+                  border: "1px solid var(--panel-border)",
+                  background: "var(--panel-bg2)",
                   padding: "10px 12px",
                 }}
               >
-                <div style={{ fontSize: 11, color: "#9ca3af", marginBottom: 6 }}>触发原因</div>
-                <div style={{ fontSize: 12, color: "#e5e7eb", whiteSpace: "pre-wrap", wordBreak: "break-word" }}>
+                <div style={{ fontSize: 11, color: "var(--muted)", marginBottom: 6 }}>触发原因</div>
+                <div style={{ fontSize: 12, color: "var(--fg)", whiteSpace: "pre-wrap", wordBreak: "break-word" }}>
                   {detailLoading ? "加载中…" : detailError ? detailError : detail?.reasons || "-"}
                 </div>
               </div>
@@ -546,13 +546,13 @@ export function InterceptLogsPanel({
               style={{
                 marginTop: 12,
                 borderRadius: 12,
-                border: "1px solid #1f2937",
-                background: "rgba(15,23,42,0.75)",
+                border: "1px solid var(--panel-border)",
+                background: "var(--panel-bg2)",
                 padding: "10px 12px",
               }}
             >
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
-                <div style={{ fontSize: 11, color: "#9ca3af" }}>完整内容</div>
+                <div style={{ fontSize: 11, color: "var(--muted)" }}>完整内容</div>
                 <button
                   type="button"
                   disabled={!detail?.rawInput}
@@ -567,9 +567,9 @@ export function InterceptLogsPanel({
                   style={{
                     padding: "4px 10px",
                     borderRadius: 999,
-                    border: "1px solid #334155",
+                    border: "1px solid var(--panel-border)",
                     background: "transparent",
-                    color: "#e5e7eb",
+                    color: "var(--fg)",
                     cursor: detail?.rawInput ? "pointer" : "not-allowed",
                     opacity: detail?.rawInput ? 1 : 0.5,
                     fontSize: 11,
@@ -584,9 +584,9 @@ export function InterceptLogsPanel({
                   marginTop: 8,
                   padding: "10px 12px",
                   borderRadius: 12,
-                  background: "#020617",
-                  border: "1px solid #111827",
-                  color: "#e5e7eb",
+                  background: "var(--panel-bg)",
+                  border: "1px solid var(--panel-border)",
+                  color: "var(--fg)",
                   fontSize: 11,
                   lineHeight: 1.6,
                   overflowX: "auto",

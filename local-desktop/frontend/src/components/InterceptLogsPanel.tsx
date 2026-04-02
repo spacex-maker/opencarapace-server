@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { DangerPanel } from "./DangerPanel";
 import { BudgetMonitorPanel } from "./BudgetMonitorPanel";
+import { RealtimeOverviewPanel } from "./RealtimeOverviewPanel";
+import { ProxyRequestLogsPanel } from "./ProxyRequestLogsPanel";
 
 function FilterSelect(props: {
   value: string;
@@ -167,7 +169,7 @@ export function InterceptLogsPanel({
 }: {
   showAccountSwitchPlaceholder?: boolean;
 }) {
-  const [panelTab, setPanelTab] = useState<"logs" | "rules" | "budget">("logs");
+  const [panelTab, setPanelTab] = useState<"overview" | "alerts" | "rules" | "requests" | "budget">("overview");
   const [items, setItems] = useState<BlockLog[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -212,9 +214,10 @@ export function InterceptLogsPanel({
   };
 
   useEffect(() => {
+    if (panelTab !== "alerts") return;
     void load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [page, blockType]);
+  }, [panelTab, page, blockType]);
 
   const openDetail = async (id: number) => {
     setDetailOpen(true);
@@ -256,9 +259,11 @@ export function InterceptLogsPanel({
       <div style={{ display: "flex", gap: 8, marginBottom: 16, flexWrap: "wrap" }}>
         {(
           [
-            { id: "logs" as const, label: "拦截记录" },
+            { id: "overview" as const, label: "实时概览" },
+            { id: "alerts" as const, label: "告警记录" },
             { id: "rules" as const, label: "拦截项目" },
-            { id: "budget" as const, label: "用量与预算" },
+            { id: "requests" as const, label: "请求日志" },
+            { id: "budget" as const, label: "预算设置" },
           ]
         ).map((t) => {
           const active = panelTab === t.id;
@@ -290,7 +295,11 @@ export function InterceptLogsPanel({
 
       {panelTab === "budget" && <BudgetMonitorPanel />}
 
-      {panelTab === "logs" && (
+      {panelTab === "overview" && <RealtimeOverviewPanel />}
+
+      {panelTab === "requests" && <ProxyRequestLogsPanel />}
+
+      {panelTab === "alerts" && (
         <>
       <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
         <div style={{ fontSize: 12, color: "#9ca3af" }}>类型</div>

@@ -11,6 +11,7 @@ const {
   computeLlmCostUsd,
   insertLlmUsageCostEvent,
   updateLlmUsageEventCloudId,
+  insertProxyRequestLog,
 } = require("../db.js");
 
 function estimateTokensFromString(s) {
@@ -102,6 +103,7 @@ async function forwardChatCompletions(req, res) {
     console.log("[LLM Proxy] 技能 header:", skillSlugs);
 
     const db = getDb();
+    const proxyStartMs = Date.now();
 
     // 提前提取请求文本内容，用于后续拦截检查和日志记录
     const body = req.body || {};
@@ -248,6 +250,43 @@ async function forwardChatCompletions(req, res) {
         } catch (logErr) {
           console.log("[LLM Proxy] 拦截日志记录失败:", logErr.message);
         }
+
+        try {
+          const requestPath = req.path || "/";
+          const segments = requestPath.split("/").filter(Boolean);
+          const providerKeyForLogs = segments.length > 0 ? segments[0] : "default";
+          const modelForLogs =
+            typeof body.model === "string" && body.model.trim() ? body.model.trim() : "unknown";
+
+          const maxPromptChars = 20000;
+          const fullPrompt = typeof combinedText === "string" ? combinedText : String(combinedText || "");
+          const promptForLog = fullPrompt.length > maxPromptChars ? fullPrompt.substring(0, maxPromptChars) : fullPrompt;
+          const promptTokens = estimateTokensFromString(promptForLog);
+          const latencyMs = Date.now() - proxyStartMs;
+          const clientTag = `desktop-${os.hostname()}`;
+
+          const { row: costRow } = await resolveLlmBudgetRow(providerKeyForLogs, modelForLogs).catch(() => ({ row: null }));
+          const costUsd = computeLlmCostUsd(costRow, promptTokens, 0);
+
+          await insertProxyRequestLog({
+            created_at: new Date().toISOString(),
+            provider_key: providerKeyForLogs,
+            model_id: modelForLogs,
+            route_mode: null,
+            request_path: requestPath,
+            status_code: 403,
+            block_type: "skill_disabled",
+            prompt_tokens: promptTokens,
+            completion_tokens: null,
+            total_tokens: promptTokens,
+            cost_usd: costUsd,
+            latency_ms: latencyMs,
+            error_snippet: null,
+            client_id: clientTag,
+          }).catch(() => {});
+        } catch {
+          // ignore
+        }
         
         res.status(403).json({
           error: {
@@ -369,6 +408,44 @@ async function forwardChatCompletions(req, res) {
         } catch (logErr) {
           console.log("[LLM Proxy] 拦截日志记录失败:", logErr.message);
         }
+
+        try {
+          const requestPath = req.path || "/";
+          const segments = requestPath.split("/").filter(Boolean);
+          const providerKeyForLogs = segments.length > 0 ? segments[0] : "default";
+          const modelForLogs =
+            typeof body.model === "string" && body.model.trim() ? body.model.trim() : "unknown";
+
+          const maxPromptChars = 20000;
+          const fullPrompt =
+            typeof latestUserText === "string" ? latestUserText : String(latestUserText || "");
+          const promptForLog = fullPrompt.length > maxPromptChars ? fullPrompt.substring(0, maxPromptChars) : fullPrompt;
+          const promptTokens = estimateTokensFromString(promptForLog);
+          const latencyMs = Date.now() - proxyStartMs;
+          const clientTag = `desktop-${os.hostname()}`;
+
+          const { row: costRow } = await resolveLlmBudgetRow(providerKeyForLogs, modelForLogs).catch(() => ({ row: null }));
+          const costUsd = computeLlmCostUsd(costRow, promptTokens, 0);
+
+          await insertProxyRequestLog({
+            created_at: new Date().toISOString(),
+            provider_key: providerKeyForLogs,
+            model_id: modelForLogs,
+            route_mode: null,
+            request_path: requestPath,
+            status_code: 403,
+            block_type: "danger_command",
+            prompt_tokens: promptTokens,
+            completion_tokens: null,
+            total_tokens: promptTokens,
+            cost_usd: costUsd,
+            latency_ms: latencyMs,
+            error_snippet: null,
+            client_id: clientTag,
+          }).catch(() => {});
+        } catch {
+          // ignore
+        }
         
         res.status(403).json({
           error: {
@@ -431,6 +508,43 @@ async function forwardChatCompletions(req, res) {
         } catch {
           // ignore log failure
         }
+
+        try {
+          const maxPromptChars = 20000;
+          const fullPrompt =
+            typeof latestUserText === "string" && latestUserText
+              ? latestUserText
+              : typeof combinedText === "string"
+                ? combinedText
+                : "";
+          const promptForLog = fullPrompt.length > maxPromptChars ? fullPrompt.substring(0, maxPromptChars) : fullPrompt;
+          const promptTokens = estimateTokensFromString(promptForLog);
+          const latencyMs = Date.now() - proxyStartMs;
+          const clientTag = `desktop-${os.hostname()}`;
+
+          const { row: costRow } = await resolveLlmBudgetRow(providerKeyForBudget, modelForBudget).catch(() => ({ row: null }));
+          const costUsd = computeLlmCostUsd(costRow, promptTokens, 0);
+
+          await insertProxyRequestLog({
+            created_at: new Date().toISOString(),
+            provider_key: providerKeyForBudget,
+            model_id: modelForBudget,
+            route_mode: null,
+            request_path: originalPath,
+            status_code: 403,
+            block_type: "budget_exceeded",
+            prompt_tokens: promptTokens,
+            completion_tokens: null,
+            total_tokens: promptTokens,
+            cost_usd: costUsd,
+            latency_ms: latencyMs,
+            error_snippet: null,
+            client_id: clientTag,
+          }).catch(() => {});
+        } catch {
+          // ignore
+        }
+
         res.status(403).json({
           error: {
             type: "budget_exceeded",
@@ -543,20 +657,45 @@ async function forwardChatCompletions(req, res) {
 
     // 本地 oc_token_usages 镜像表 llm_usage_cost_events：先写本地，非 GATEWAY 时再 ingest 云端并回写 cloud_id
     try {
+      const usage = extractUsage(upstreamRes.data);
+      const reqStr = JSON.stringify(req.body || {});
+      const respStr = typeof upstreamRes.data === "string" ? upstreamRes.data : JSON.stringify(upstreamRes.data || {});
+      const promptEst = estimateTokensFromString(reqStr);
+      const completionEst = estimateTokensFromString(respStr);
+      const promptTokens = usage?.promptTokens ?? promptEst;
+      const completionTokens = usage?.completionTokens ?? completionEst;
+      const totalTokens = usage?.totalTokens ?? (promptTokens + completionTokens);
+      const modelResolved = usage?.model || modelForBudget;
+      const { row: costRow } = await resolveLlmBudgetRow(providerKeyForBudget, modelResolved).catch(() => ({ row: null }));
+      const costUsd = computeLlmCostUsd(costRow, promptTokens, completionTokens);
+      const clientTag = `desktop-${os.hostname()}`;
+
+      const latencyMs = Date.now() - proxyStartMs;
+      const errorSnippet =
+        upstreamRes.status >= 400
+          ? String(respStr || "").substring(0, 512)
+          : null;
+
+      await insertProxyRequestLog({
+        created_at: new Date().toISOString(),
+        provider_key: providerKeyForBudget,
+        model_id: modelResolved,
+        route_mode: routeMode,
+        request_path: originalPath,
+        status_code: upstreamRes.status,
+        block_type: null,
+        prompt_tokens: promptTokens,
+        completion_tokens: completionTokens,
+        total_tokens: totalTokens,
+        cost_usd: costUsd,
+        latency_ms: latencyMs,
+        error_snippet: errorSnippet,
+        client_id: clientTag,
+      }).catch(() => {});
+
+      let ins = null;
       if (upstreamRes.status >= 200 && upstreamRes.status < 300) {
-        const usage = extractUsage(upstreamRes.data);
-        const reqStr = JSON.stringify(req.body || {});
-        const respStr = typeof upstreamRes.data === "string" ? upstreamRes.data : JSON.stringify(upstreamRes.data || {});
-        const promptEst = estimateTokensFromString(reqStr);
-        const completionEst = estimateTokensFromString(respStr);
-        const promptTokens = usage?.promptTokens ?? promptEst;
-        const completionTokens = usage?.completionTokens ?? completionEst;
-        const totalTokens = usage?.totalTokens ?? (promptTokens + completionTokens);
-        const modelResolved = usage?.model || modelForBudget;
-        const { row: costRow } = await resolveLlmBudgetRow(providerKeyForBudget, modelResolved);
-        const costUsd = computeLlmCostUsd(costRow, promptTokens, completionTokens);
-        const clientTag = `desktop-${os.hostname()}`;
-        const ins = await insertLlmUsageCostEvent({
+        ins = await insertLlmUsageCostEvent({
           provider_key: providerKeyForBudget,
           model_id: modelResolved,
           prompt_tokens: promptTokens,
@@ -565,6 +704,7 @@ async function forwardChatCompletions(req, res) {
           cost_usd: costUsd,
           route_mode: routeMode,
           request_path: originalPath,
+          latency_ms: latencyMs,
           upstream_base: upstreamUrl,
           client_id: clientTag,
         });

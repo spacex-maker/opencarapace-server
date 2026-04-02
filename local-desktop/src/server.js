@@ -9,6 +9,7 @@ const { registerDangerRoutes } = require("./server/danger-routes.js");
 const { forwardChatCompletions } = require("./server/llm-proxy.js");
 const { registerSkillsRoutes } = require("./server/skills-routes.js");
 const { registerInterceptLogsRoutes } = require("./server/intercept-logs-routes.js");
+const { registerProxyRequestLogsRoutes } = require("./server/proxy-request-logs-routes.js");
 const { registerTokenUsageRoutes } = require("./server/token-usage-routes.js");
 const { registerAgentMgmtRoutes } = require("./server/agent-mgmt-routes.js");
 const { registerBudgetRoutes } = require("./server/budget-routes.js");
@@ -143,6 +144,7 @@ async function startServer() {
   registerDangerRoutes(app);
   registerSkillsRoutes(app);
   registerInterceptLogsRoutes(app);
+  registerProxyRequestLogsRoutes(app);
   registerTokenUsageRoutes(app);
   registerSecurityScanRoutes(app);
   registerAgentMgmtRoutes(app);

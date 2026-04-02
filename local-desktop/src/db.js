@@ -191,6 +191,7 @@ function getDb() {
     db.run("ALTER TABLE llm_usage_cost_events ADD COLUMN cloud_id INTEGER", () => {});
     db.run("ALTER TABLE llm_usage_cost_events ADD COLUMN upstream_base TEXT", () => {});
     db.run("ALTER TABLE llm_usage_cost_events ADD COLUMN client_id TEXT", () => {});
+    db.run("ALTER TABLE llm_usage_cost_events ADD COLUMN latency_ms INTEGER", () => {});
     db.run(
       "CREATE INDEX IF NOT EXISTS idx_llm_usage_cost_created ON llm_usage_cost_events (created_at)",
       () => {}
@@ -201,6 +202,37 @@ function getDb() {
     );
     db.run(
       "CREATE UNIQUE INDEX IF NOT EXISTS idx_llm_usage_cloud_id ON llm_usage_cost_events(cloud_id) WHERE cloud_id IS NOT NULL",
+      () => {}
+    );
+    db.run(
+      `CREATE TABLE IF NOT EXISTS proxy_request_logs (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        created_at TEXT NOT NULL,
+        provider_key TEXT NOT NULL,
+        model_id TEXT,
+        route_mode TEXT,
+        request_path TEXT,
+        status_code INTEGER,
+        block_type TEXT,
+        prompt_tokens INTEGER,
+        completion_tokens INTEGER,
+        total_tokens INTEGER,
+        cost_usd REAL NOT NULL DEFAULT 0,
+        latency_ms INTEGER,
+        error_snippet TEXT,
+        client_id TEXT
+      )`
+    );
+    db.run(
+      "CREATE INDEX IF NOT EXISTS idx_proxy_request_created_at ON proxy_request_logs (created_at)",
+      () => {}
+    );
+    db.run(
+      "CREATE INDEX IF NOT EXISTS idx_proxy_request_provider_model ON proxy_request_logs (provider_key, model_id)",
+      () => {}
+    );
+    db.run(
+      "CREATE INDEX IF NOT EXISTS idx_proxy_request_block_type ON proxy_request_logs (block_type)",
       () => {}
     );
     db.get("SELECT COUNT(1) AS c FROM agent_platforms", (seedErr, seedRow) => {
@@ -1048,8 +1080,9 @@ function insertLlmUsageCostEvent(ev) {
     database.run(
       `INSERT INTO llm_usage_cost_events (
         created_at, provider_key, model_id, prompt_tokens, completion_tokens, total_tokens, cost_usd, route_mode, request_path,
+        latency_ms,
         cloud_id, upstream_base, client_id
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         created_at,
         String(ev.provider_key || "default"),
@@ -1060,6 +1093,7 @@ function insertLlmUsageCostEvent(ev) {
         Number(ev.cost_usd) || 0,
         ev.route_mode != null ? String(ev.route_mode) : null,
         ev.request_path != null ? String(ev.request_path) : null,
+        ev.latency_ms != null ? Number(ev.latency_ms) : null,
         ev.cloud_id != null && ev.cloud_id !== "" ? Number(ev.cloud_id) : null,
         ev.upstream_base != null ? String(ev.upstream_base) : null,
         ev.client_id != null ? String(ev.client_id) : null,
@@ -1131,8 +1165,9 @@ function insertLlmUsageFromCloudPull(row) {
       database.run(
         `INSERT INTO llm_usage_cost_events (
           created_at, provider_key, model_id, prompt_tokens, completion_tokens, total_tokens, cost_usd, route_mode, request_path,
+          latency_ms,
           cloud_id, upstream_base, client_id
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           row.createdAt && String(row.createdAt).trim() ? String(row.createdAt) : new Date().toISOString(),
           String(row.providerKey || "default"),
@@ -1143,6 +1178,7 @@ function insertLlmUsageFromCloudPull(row) {
           row.costUsd != null ? Number(row.costUsd) : 0,
           row.routeMode != null ? String(row.routeMode) : null,
           row.requestPath != null ? String(row.requestPath) : null,
+          null,
           cloudId,
           row.upstreamBase != null ? String(row.upstreamBase) : null,
           row.clientId != null ? String(row.clientId) : null,
@@ -1208,7 +1244,9 @@ function aggregateLlmUsageSince(sinceIso) {
         COALESCE(SUM(total_tokens), 0) AS total_tokens,
         COALESCE(SUM(prompt_tokens), 0) AS prompt_tokens,
         COALESCE(SUM(completion_tokens), 0) AS completion_tokens,
-        COUNT(1) AS request_count
+        COUNT(1) AS request_count,
+        COUNT(latency_ms) AS latency_count,
+        AVG(latency_ms) AS avg_latency_ms
        FROM llm_usage_cost_events
        WHERE datetime(created_at) >= datetime(?)`,
       [sinceIso],
@@ -1221,7 +1259,104 @@ function aggregateLlmUsageSince(sinceIso) {
             promptTokens: Number(row?.prompt_tokens || 0),
             completionTokens: Number(row?.completion_tokens || 0),
             requestCount: Number(row?.request_count || 0),
+            avgLatencyMs: Number(row?.latency_count || 0) > 0 ? Number(row?.avg_latency_ms) : null,
           });
+      }
+    );
+  });
+}
+
+function insertProxyRequestLog(ev) {
+  const database = getDb();
+  const created_at = ev.created_at || new Date().toISOString();
+  return new Promise((resolve, reject) => {
+    database.run(
+      `INSERT INTO proxy_request_logs (
+        created_at, provider_key, model_id, route_mode, request_path, status_code, block_type,
+        prompt_tokens, completion_tokens, total_tokens, cost_usd, latency_ms, error_snippet, client_id
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        created_at,
+        String(ev.provider_key || "default"),
+        ev.model_id != null ? String(ev.model_id) : null,
+        ev.route_mode != null ? String(ev.route_mode) : null,
+        ev.request_path != null ? String(ev.request_path) : null,
+        ev.status_code != null ? Number(ev.status_code) : null,
+        ev.block_type != null ? String(ev.block_type) : null,
+        ev.prompt_tokens != null ? Number(ev.prompt_tokens) : null,
+        ev.completion_tokens != null ? Number(ev.completion_tokens) : null,
+        ev.total_tokens != null ? Number(ev.total_tokens) : null,
+        Number(ev.cost_usd) || 0,
+        ev.latency_ms != null ? Number(ev.latency_ms) : null,
+        ev.error_snippet != null ? String(ev.error_snippet) : null,
+        ev.client_id != null ? String(ev.client_id) : null,
+      ],
+      function (err) {
+        if (err) reject(err);
+        else resolve({ id: this.lastID });
+      }
+    );
+  });
+}
+
+function summaryProxyRequestLogsSince(sinceIso) {
+  const database = getDb();
+  return new Promise((resolve, reject) => {
+    database.get(
+      `SELECT
+        COALESCE(SUM(COALESCE(total_tokens, 0)), 0) AS total_tokens,
+        COALESCE(SUM(COALESCE(cost_usd, 0)), 0) AS cost_usd,
+        COUNT(1) AS request_count,
+        COALESCE(AVG(COALESCE(latency_ms, 0)), 0) AS avg_latency_ms
+       FROM proxy_request_logs
+       WHERE datetime(created_at) >= datetime(?)`,
+      [sinceIso],
+      (err, row) => {
+        if (err) reject(err);
+        else
+          resolve({
+            totalTokens: Number(row?.total_tokens || 0),
+            costUsd: Number(row?.cost_usd || 0),
+            requestCount: Number(row?.request_count || 0),
+            avgLatencyMs: Number(row?.avg_latency_ms || 0),
+          });
+      }
+    );
+  });
+}
+
+function countProxyRequestLogs(blockType = null) {
+  const database = getDb();
+  return new Promise((resolve, reject) => {
+    const where = !blockType ? "" : " WHERE block_type = ?";
+    const params = !blockType ? [] : [String(blockType)];
+    database.get(`SELECT COUNT(1) AS c FROM proxy_request_logs${where}`, params, (err, row) => {
+      if (err) reject(err);
+      else resolve(Number(row?.c || 0));
+    });
+  });
+}
+
+/** page 从 1 开始 */
+function listProxyRequestLogsPaged(page, size, blockType = null) {
+  const database = getDb();
+  const safeSize = Math.min(200, Math.max(1, Number(size) || 50));
+  const safePage = Math.max(1, Number(page) || 1);
+  const offset = (safePage - 1) * safeSize;
+  const where = !blockType ? "" : " WHERE block_type = ?";
+  const params = !blockType ? [] : [String(blockType)];
+  return new Promise((resolve, reject) => {
+    database.all(
+      `SELECT
+        id, created_at, provider_key, model_id, route_mode, request_path, status_code, block_type,
+        prompt_tokens, completion_tokens, total_tokens, cost_usd, latency_ms, error_snippet, client_id
+       FROM proxy_request_logs${where}
+       ORDER BY datetime(created_at) DESC, id DESC
+       LIMIT ? OFFSET ?`,
+      [...params, safeSize, offset],
+      (err, rows = []) => {
+        if (err) reject(err);
+        else resolve({ rows, page: safePage, size: safeSize });
       }
     );
   });
@@ -1352,6 +1487,10 @@ module.exports = {
   countLlmUsageCostEvents,
   listLlmUsageCostEventsPaged,
   aggregateLlmUsageSince,
+  insertProxyRequestLog,
+  summaryProxyRequestLogsSince,
+  countProxyRequestLogs,
+  listProxyRequestLogsPaged,
   resolveLlmBudgetRow,
   evaluateLlmBudgetBlock,
   computeLlmCostUsd,

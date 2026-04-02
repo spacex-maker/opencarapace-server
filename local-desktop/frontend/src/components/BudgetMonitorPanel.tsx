@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { BudgetRuleModal } from "./BudgetRuleModal";
 
 type BudgetRow = {
   id: number;
@@ -74,7 +75,6 @@ const EditIcon = () => (
 const TrashIcon = () => (
   <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" /></svg>
 );
-
 export function BudgetMonitorPanel() {
   const [summary, setSummary] = useState<Summary | null>(null);
   const [settings, setSettings] = useState<BudgetRow[]>([]);
@@ -84,8 +84,9 @@ export function BudgetMonitorPanel() {
   const [message, setMessage] = useState<string | null>(null);
 
   const [form, setForm] = useState({
-    provider_key: "default",
-    model_id: "*",
+    // 新增弹窗首次进入：不要自动填充 "default" / "*"，避免用户以为“必须用默认值”
+    provider_key: "",
+    model_id: "",
     input_usd_per_1k: "0",
     output_usd_per_1k: "0",
     budget_day_usd: "",
@@ -97,14 +98,139 @@ export function BudgetMonitorPanel() {
   const [modalOpen, setModalOpen] = useState(false);
   const [modalMode, setModalMode] = useState<"create" | "edit">("create");
 
-  const providerDatalistId = "budget-provider-key-suggestions";
+  const providerModelSuggestions: Record<string, string[]> = useMemo(
+    () => ({
+      // Model ID 的含义是：请求体里的 `body.model`。
+      // 这里提供“常见参考值”，不保证覆盖你实际在系统里用到的所有命名；用户仍可自由输入任意 model_id。
+      default: ["*"],
+      openai: [
+        "gpt-4o",
+        "gpt-4o-mini",
+        "gpt-4.1",
+        "gpt-4.1-mini",
+        "gpt-4-turbo",
+        "gpt-4-turbo-preview",
+        "gpt-3.5-turbo",
+        "o3-mini",
+        "text-embedding-3-small",
+        "text-embedding-3-large",
+        "text-embedding-ada-002",
+      ],
+      codex: ["gpt-4o-mini", "gpt-4.1-mini", "gpt-4o", "gpt-4-turbo"],
+      anthropic: [
+        "claude-3-5-sonnet",
+        "claude-3-5-haiku",
+        "claude-3-opus",
+        "claude-3-sonnet",
+        "claude-3-haiku",
+        "claude-2.1",
+        "claude-opus-4",
+      ],
+      claude: [
+        "claude-3-5-sonnet",
+        "claude-3-5-haiku",
+        "claude-3-opus",
+        "claude-3-sonnet",
+        "claude-3-haiku",
+        "claude-2.1",
+        "claude-opus-4",
+      ],
+      minimax: ["MiniMax-M2.5"],
+      google: ["gemini-1.5-pro", "gemini-1.5-flash", "gemini-1.0-pro", "models/gemini-1.5-pro", "models/gemini-1.5-flash"],
+      gemini: ["gemini-1.5-pro", "gemini-1.5-flash", "gemini-1.0-pro", "models/gemini-1.5-pro", "models/gemini-1.5-flash"],
+      groq: [
+        "llama3-70b-8192",
+        "llama3-8b-8192",
+        "llama-3.3-70b-versatile",
+        "mixtral-8x7b-32768",
+        "gemma2-9b-it",
+        "qwen-2.5-72b",
+        "qwen-2.5-32b",
+      ],
+      openrouter: [
+        "openai/gpt-4o-mini",
+        "openai/gpt-4o",
+        "anthropic/claude-3.5-sonnet",
+        "google/gemini-1.5-pro",
+        "google/gemini-1.5-flash",
+        "groq/llama3-70b-8192",
+        "meta-llama/llama-3.1-70b-instruct",
+        "mistralai/mistral-large-latest",
+      ],
+      bedrock: [
+        "anthropic.claude-3-5-sonnet-20240620-v1:0",
+        "anthropic.claude-3-5-haiku-20241022-v1:0",
+        "anthropic.claude-3-opus-20240229-v1:0",
+        "anthropic.claude-3-sonnet-20240229-v1:0",
+        "meta.llama3-70b-instruct-v1:0",
+        "meta.llama3-8b-instruct-v1:0",
+        "cohere.command-r-plus-v1:0",
+        "cohere.command-r-v1:0",
+        "amazon.titan-text-express-v1",
+      ],
+      ollama: ["llama3.2", "llama3:70b", "llama3.1:8b", "qwen2.5", "qwen2.5-coder", "mistral", "gemma2", "deepseek-coder"],
+      openclaw: ["*"],
+      opencode: ["gpt-4o-mini", "claude-3-5-sonnet", "gemini-1.5-pro", "llama3-70b-8192", "mixtral-8x7b-32768"],
+      // 用于“通配/兜底”的 Provider 仍然允许在 model 输入里手动填自定义值
+    }),
+    []
+  );
+
   const providerSuggestions = useMemo(() => {
-    const common = ["default", "openai", "anthropic", "google", "gemini", "groq", "openrouter", "bedrock", "claude", "codex", "opencode"];
+    const common = [
+      "default",
+      "openai",
+      "anthropic",
+      "claude",
+      "minimax",
+      "groq",
+      "google",
+      "gemini",
+      "openrouter",
+      "bedrock",
+      "azureopenai",
+      "together",
+      "mistral",
+      "cohere",
+      "deepseek",
+      "qwen",
+      "xai",
+      "ollama",
+      "codex",
+      "opencode",
+    ];
     const fromSettings = settings.map((s) => s.provider_key).filter(Boolean);
     const merged = Array.from(new Set([...common, ...fromSettings]));
     merged.sort((a, b) => String(a).localeCompare(String(b), "zh-Hans-CN", { sensitivity: "base" }));
     return merged;
   }, [settings]);
+
+  const modelSuggestions = useMemo(() => {
+    const providerKey = (form.provider_key || "").trim();
+
+    // Provider 为空：显示全量候选（包含各 provider 的预置模型 + 已保存的模型），避免用户被默认 Provider 锁死。
+    if (!providerKey) {
+      const fromSettings = settings.map((s) => s.model_id).filter(Boolean);
+      const fromKnown = Object.values(providerModelSuggestions).flat();
+      const unique = Array.from(new Set(["*", ...fromKnown, ...fromSettings]));
+      const withoutStar = unique.filter((m) => m !== "*");
+      withoutStar.sort((a, b) => String(a).localeCompare(String(b), "zh-Hans-CN", { sensitivity: "base" }));
+      return ["*", ...withoutStar];
+    }
+
+    const fromSettings = settings
+      .filter((s) => String(s.provider_key || "default").trim() === providerKey)
+      .map((s) => s.model_id)
+      .filter(Boolean);
+
+    const known = providerModelSuggestions[providerKey] ?? [];
+
+    // 保证 "*" 总是出现在首位，方便用户快速设置“该 Provider 通配规则”。
+    const withoutStar = Array.from(new Set([...known, ...fromSettings])).filter((m) => m !== "*");
+    withoutStar.sort((a, b) => String(a).localeCompare(String(b), "zh-Hans-CN", { sensitivity: "base" }));
+
+    return ["*", ...withoutStar];
+  }, [form.provider_key, providerModelSuggestions, settings]);
 
   const loadAll = useCallback(async () => {
     setLoading(true);
@@ -184,28 +310,34 @@ export function BudgetMonitorPanel() {
   const progress = summary?.budgetProgress ?? [];
 
   return (
-    <div className="llm-budget-panel" style={{ color: "#e2e8f0", fontFamily: "system-ui, -apple-system, sans-serif" }}>
+    <div className="llm-budget-panel" style={{ color: "var(--fg)", fontFamily: "system-ui, -apple-system, sans-serif" }}>
       <style>{`
         .llm-budget-panel * { box-sizing: border-box; }
         .llm-btn { transition: all 0.2s ease; display: inline-flex; align-items: center; justify-content: center; gap: 6px; }
         .llm-btn:hover:not(:disabled) { filter: brightness(1.2); transform: translateY(-1px); }
         .llm-btn:active:not(:disabled) { transform: translateY(0); }
         .llm-btn:disabled { opacity: 0.5; cursor: not-allowed; }
-        .llm-table-row { transition: background 0.15s ease; border-top: 1px solid #1e293b; }
-        .llm-table-row:hover { background: rgba(30, 41, 59, 0.6); }
+        .llm-table-row { transition: background 0.15s ease; border-top: 1px solid var(--panel-border); }
+        .llm-table-row:hover { background: var(--panel-bg2); }
         .llm-input:focus { outline: none; border-color: #3b82f6 !important; box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2); }
         .llm-scroll::-webkit-scrollbar { width: 6px; height: 6px; }
         .llm-scroll::-webkit-scrollbar-track { background: transparent; }
-        .llm-scroll::-webkit-scrollbar-thumb { background: #334155; border-radius: 4px; }
-        .llm-scroll::-webkit-scrollbar-thumb:hover { background: #475569; }
+        .llm-scroll::-webkit-scrollbar-thumb { background: var(--panel-border); border-radius: 4px; }
+        .llm-scroll::-webkit-scrollbar-thumb:hover { background: var(--muted2); }
+        
+        /* Modal Redesign Styles */
+        .llm-modal-section { background: var(--panel-bg2); border: 1px solid var(--panel-border); border-radius: 16px; padding: 16px; margin-bottom: 16px; }
+        .llm-modal-title { font-size: 12px; font-weight: 600; color: var(--muted2); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 14px; display: flex; align-items: center; gap: 6px; }
+        .llm-input-group { display: flex; flex-direction: column; gap: 6px; }
+        .llm-input-label { font-size: 12px; color: var(--muted); font-weight: 500; }
       `}</style>
 
       {/* 头部与操作栏 */}
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20, flexWrap: "wrap", gap: 12 }}>
         <div>
-          <h2 style={{ margin: "0 0 4px 0", fontSize: 18, fontWeight: 600, color: "#f8fafc" }}>API 预算与消耗控制台</h2>
-          <div style={{ fontSize: 12, color: "#64748b" }}>
-            按路径前缀识别 Provider（如 <code style={{ color: "#94a3b8", background: "#1e293b", padding: "2px 4px", borderRadius: 4 }}>/openai/v1/...</code> 为 openai）；无前缀记为 default。Model 填 <code style={{ color: "#94a3b8", background: "#1e293b", padding: "2px 4px", borderRadius: 4 }}>*</code> 表示通用规则。
+          <h2 style={{ margin: "0 0 4px 0", fontSize: 18, fontWeight: 600, color: "var(--fg)" }}>API 预算与消耗控制台</h2>
+          <div style={{ fontSize: 12, color: "var(--muted2)" }}>
+            按路径前缀识别 Provider（如 <code style={{ color: "var(--muted)", background: "var(--chip-bg)", padding: "2px 4px", borderRadius: 4 }}>/openai/v1/...</code> 为 openai）；无前缀记为 default。Model 填 <code style={{ color: "var(--muted)", background: "var(--chip-bg)", padding: "2px 4px", borderRadius: 4 }}>*</code> 表示通用规则。
           </div>
         </div>
         <button
@@ -213,16 +345,7 @@ export function BudgetMonitorPanel() {
           type="button"
           onClick={() => void loadAll()}
           disabled={loading}
-          style={{
-            padding: "8px 16px",
-            fontSize: 13,
-            fontWeight: 500,
-            borderRadius: 8,
-            border: "1px solid #334155",
-            background: "#0f172a",
-            color: "#e2e8f0",
-            cursor: loading ? "not-allowed" : "pointer",
-          }}
+          style={{ padding: "8px 16px", fontSize: 13, fontWeight: 500, borderRadius: 8, border: "1px solid var(--panel-border)", background: "var(--panel-bg)", color: "var(--fg)", cursor: loading ? "not-allowed" : "pointer" }}
         >
           <RefreshIcon />
           {loading ? "刷新中…" : "刷新数据"}
@@ -233,19 +356,19 @@ export function BudgetMonitorPanel() {
       {error && <div style={{ marginBottom: 16, padding: "10px 14px", borderRadius: 8, background: "rgba(239, 68, 68, 0.1)", border: "1px solid rgba(239, 68, 68, 0.2)", color: "#fca5a5", fontSize: 13 }}>{error}</div>}
       {message && <div style={{ marginBottom: 16, padding: "10px 14px", borderRadius: 8, background: "rgba(16, 185, 129, 0.1)", border: "1px solid rgba(16, 185, 129, 0.2)", color: "#6ee7b7", fontSize: 13 }}>{message}</div>}
 
-      {/* 数据大盘 (新增加的卡片视图) */}
+      {/* 数据大盘 */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: 16, marginBottom: 24 }}>
         {[
           { label: "今日消耗", data: summary?.today },
           { label: "本周消耗", data: summary?.week },
           { label: "本月消耗", data: summary?.month },
         ].map((stat, idx) => (
-          <div key={idx} style={{ background: "#0f172a", border: "1px solid #1e293b", borderRadius: 12, padding: "16px 20px" }}>
-            <div style={{ fontSize: 12, fontWeight: 600, color: "#64748b", marginBottom: 8 }}>{stat.label}</div>
-            <div style={{ fontSize: 24, fontWeight: 700, color: "#f8fafc", fontFamily: "monospace", marginBottom: 4 }}>
+          <div key={idx} style={{ background: "var(--panel-bg)", border: "1px solid var(--panel-border)", borderRadius: 12, padding: "16px 20px" }}>
+            <div style={{ fontSize: 12, fontWeight: 600, color: "var(--muted2)", marginBottom: 8 }}>{stat.label}</div>
+            <div style={{ fontSize: 24, fontWeight: 700, color: "var(--fg)", fontFamily: "monospace", marginBottom: 4 }}>
               {fmtUsd(stat.data?.costUsd)}
             </div>
-            <div style={{ fontSize: 12, color: "#94a3b8", display: "flex", gap: 12 }}>
+            <div style={{ fontSize: 12, color: "var(--muted)", display: "flex", gap: 12 }}>
               <span>Tokens: {fmtKTokens(stat.data?.totalTokens)}</span>
               <span>请求: {stat.data?.requestCount ?? 0}</span>
             </div>
@@ -254,20 +377,20 @@ export function BudgetMonitorPanel() {
       </div>
 
       {/* 预算进度条 */}
-      <div style={{ fontSize: 13, fontWeight: 600, color: "#cbd5e1", marginBottom: 12, display: "flex", alignItems: "center", gap: 8 }}>
+      <div style={{ fontSize: 13, fontWeight: 600, color: "var(--fg)", marginBottom: 12, display: "flex", alignItems: "center", gap: 8 }}>
         <div style={{ width: 4, height: 14, background: "#3b82f6", borderRadius: 2 }}></div>
         各模型预算进度
       </div>
-      <div style={{ borderRadius: 12, border: "1px solid #1e293b", background: "#0f172a", padding: "16px", marginBottom: 24 }}>
+      <div style={{ borderRadius: 12, border: "1px solid var(--panel-border)", background: "var(--panel-bg)", padding: "16px", marginBottom: 24 }}>
         {progress.length === 0 ? (
-          <div style={{ fontSize: 13, color: "#64748b", textAlign: "center", padding: "20px 0" }}>暂无已启用的预算规则，请在下方添加。</div>
+          <div style={{ fontSize: 13, color: "var(--muted2)", textAlign: "center", padding: "20px 0" }}>暂无已启用的预算规则，请在下方添加。</div>
         ) : (
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(320px, 1fr))", gap: 16 }}>
             {progress.map((p) => (
-              <div key={p.id} style={{ background: "#1e293b", padding: 14, borderRadius: 10, border: "1px solid #334155" }}>
-                <div style={{ fontSize: 13, fontWeight: 600, color: "#f8fafc", marginBottom: 12, display: "flex", justifyContent: "space-between" }}>
-                  <span>{p.provider_key} / <span style={{ color: "#94a3b8", fontFamily: "monospace" }}>{p.model_id}</span></span>
-                  {p.enabled === 0 && <span style={{ fontSize: 10, background: "#334155", padding: "2px 6px", borderRadius: 4 }}>已禁用</span>}
+              <div key={p.id} style={{ background: "var(--panel-bg2)", padding: 14, borderRadius: 10, border: "1px solid var(--panel-border)" }}>
+                <div style={{ fontSize: 13, fontWeight: 600, color: "var(--fg)", marginBottom: 12, display: "flex", justifyContent: "space-between" }}>
+                  <span>{p.provider_key} / <span style={{ color: "var(--muted)", fontFamily: "monospace" }}>{p.model_id}</span></span>
+                  {p.enabled === 0 && <span style={{ fontSize: 10, background: "var(--chip-bg)", padding: "2px 6px", borderRadius: 4, color: "var(--chip-fg)" }}>已禁用</span>}
                 </div>
                 {[
                   { k: "日", spent: p.spentDay, lim: p.budget_day_usd, pct: p.pctDay },
@@ -277,13 +400,13 @@ export function BudgetMonitorPanel() {
                   row.lim != null && row.lim > 0 ? (
                     <div key={row.k} style={{ marginBottom: 8 }}>
                       <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, marginBottom: 4 }}>
-                        <span style={{ color: "#94a3b8" }}>{row.k}度预算</span>
-                        <span style={{ fontFamily: "monospace", color: "#cbd5e1" }}>
-                          {fmtUsd(row.spent)} / <span style={{ color: "#64748b" }}>{fmtUsd(row.lim)}</span>
+                        <span style={{ color: "var(--muted)" }}>{row.k}度预算</span>
+                        <span style={{ fontFamily: "monospace", color: "var(--fg)" }}>
+                          {fmtUsd(row.spent)} / <span style={{ color: "var(--muted2)" }}>{fmtUsd(row.lim)}</span>
                         </span>
                       </div>
                       <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                        <div style={{ flex: 1, height: 6, background: "#0f172a", borderRadius: 3, overflow: "hidden" }}>
+                        <div style={{ flex: 1, height: 6, background: "var(--panel-bg)", borderRadius: 3, overflow: "hidden" }}>
                           <div style={{ width: `${Math.min(100, row.pct ?? 0)}%`, height: "100%", borderRadius: 3, background: barColor(row.pct), transition: "width 0.5s ease-out" }} />
                         </div>
                         <span style={{ fontSize: 11, fontWeight: 600, color: barColor(row.pct), width: 36, textAlign: "right", fontFamily: "monospace" }}>
@@ -310,7 +433,7 @@ export function BudgetMonitorPanel() {
           type="button"
           onClick={() => {
             setMessage(null); setError(null);
-            setForm({ provider_key: "default", model_id: "*", input_usd_per_1k: "0", output_usd_per_1k: "0", budget_day_usd: "", budget_week_usd: "", budget_month_usd: "", enabled: true });
+            setForm({ provider_key: "", model_id: "", input_usd_per_1k: "0", output_usd_per_1k: "0", budget_day_usd: "", budget_week_usd: "", budget_month_usd: "", enabled: true });
             setModalMode("create"); setModalOpen(true);
           }}
           style={{ padding: "6px 14px", borderRadius: 8, border: "1px solid rgba(16, 185, 129, 0.3)", background: "rgba(16, 185, 129, 0.1)", color: "#34d399", fontSize: 12, fontWeight: 600 }}
@@ -319,35 +442,35 @@ export function BudgetMonitorPanel() {
         </button>
       </div>
       
-      <div className="llm-scroll" style={{ borderRadius: 12, border: "1px solid #1e293b", background: "#0f172a", overflowX: "auto", marginBottom: 24 }}>
+      <div className="llm-scroll" style={{ borderRadius: 12, border: "1px solid var(--panel-border)", background: "var(--panel-bg)", overflowX: "auto", marginBottom: 24 }}>
         <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12, textAlign: "left", whiteSpace: "nowrap" }}>
           <thead>
-            <tr style={{ background: "#020617" }}>
-              <th style={{ padding: "12px 16px", color: "#64748b", fontWeight: 500 }}>Provider</th>
-              <th style={{ padding: "12px 16px", color: "#64748b", fontWeight: 500 }}>Model</th>
-              <th style={{ padding: "12px 16px", color: "#64748b", fontWeight: 500, textAlign: "right" }}>单价 ($/1K) 入 / 出</th>
-              <th style={{ padding: "12px 16px", color: "#64748b", fontWeight: 500, textAlign: "right" }}>预算上限 日 / 周 / 月</th>
-              <th style={{ padding: "12px 16px", color: "#64748b", fontWeight: 500, textAlign: "center", width: 80 }}>状态</th>
-              <th style={{ padding: "12px 16px", color: "#64748b", fontWeight: 500, textAlign: "right", width: 140 }}>操作</th>
+            <tr style={{ background: "var(--panel-bg2)" }}>
+              <th style={{ padding: "12px 16px", color: "var(--muted2)", fontWeight: 500 }}>Provider</th>
+              <th style={{ padding: "12px 16px", color: "var(--muted2)", fontWeight: 500 }}>Model</th>
+              <th style={{ padding: "12px 16px", color: "var(--muted2)", fontWeight: 500, textAlign: "right" }}>单价 ($/1K) 入 / 出</th>
+              <th style={{ padding: "12px 16px", color: "var(--muted2)", fontWeight: 500, textAlign: "right" }}>预算上限 日 / 周 / 月</th>
+              <th style={{ padding: "12px 16px", color: "var(--muted2)", fontWeight: 500, textAlign: "center", width: 80 }}>状态</th>
+              <th style={{ padding: "12px 16px", color: "var(--muted2)", fontWeight: 500, textAlign: "right", width: 140 }}>操作</th>
             </tr>
           </thead>
           <tbody>
             {settings.length === 0 ? (
-              <tr><td colSpan={6} style={{ padding: "24px", color: "#64748b", textAlign: "center" }}>暂无配置规则</td></tr>
+              <tr><td colSpan={6} style={{ padding: "24px", color: "var(--muted2)", textAlign: "center" }}>暂无配置规则</td></tr>
             ) : (
               settings.map((r) => (
                 <tr key={r.id} className="llm-table-row">
-                  <td style={{ padding: "12px 16px", color: "#f8fafc" }}>{r.provider_key}</td>
-                  <td style={{ padding: "12px 16px", color: "#94a3b8", fontFamily: "monospace" }}>{r.model_id}</td>
-                  <td style={{ padding: "12px 16px", textAlign: "right", color: "#cbd5e1", fontFamily: "monospace" }}>
-                    <span style={{ color: "#34d399" }}>{r.input_usd_per_1k}</span> <span style={{ color: "#64748b" }}>/</span> <span style={{ color: "#60a5fa" }}>{r.output_usd_per_1k}</span>
+                  <td style={{ padding: "12px 16px", color: "var(--fg)" }}>{r.provider_key}</td>
+                  <td style={{ padding: "12px 16px", color: "var(--muted)", fontFamily: "monospace" }}>{r.model_id}</td>
+                  <td style={{ padding: "12px 16px", textAlign: "right", color: "var(--fg)", fontFamily: "monospace" }}>
+                    <span style={{ color: "#34d399" }}>{r.input_usd_per_1k}</span> <span style={{ color: "var(--muted2)" }}>/</span> <span style={{ color: "#60a5fa" }}>{r.output_usd_per_1k}</span>
                   </td>
-                  <td style={{ padding: "12px 16px", textAlign: "right", color: "#94a3b8", fontFamily: "monospace" }}>
-                    {r.budget_day_usd ?? "—"} <span style={{ color: "#475569" }}>/</span> {r.budget_week_usd ?? "—"} <span style={{ color: "#475569" }}>/</span> {r.budget_month_usd ?? "—"}
+                  <td style={{ padding: "12px 16px", textAlign: "right", color: "var(--muted)", fontFamily: "monospace" }}>
+                    {r.budget_day_usd ?? "—"} <span style={{ color: "var(--muted2)" }}>/</span> {r.budget_week_usd ?? "—"} <span style={{ color: "var(--muted2)" }}>/</span> {r.budget_month_usd ?? "—"}
                   </td>
                   <td style={{ padding: "12px 16px", textAlign: "center" }}>
                     {r.enabled ? <span style={{ display: "inline-block", width: 8, height: 8, borderRadius: "50%", background: "#10b981" }} title="已启用" /> 
-                               : <span style={{ display: "inline-block", width: 8, height: 8, borderRadius: "50%", background: "#475569" }} title="未启用" />}
+                               : <span style={{ display: "inline-block", width: 8, height: 8, borderRadius: "50%", background: "var(--muted2)" }} title="未启用" />}
                   </td>
                   <td style={{ padding: "12px 16px", textAlign: "right" }}>
                     <button
@@ -381,34 +504,34 @@ export function BudgetMonitorPanel() {
       </div>
 
       {/* 最近费用流水 */}
-      <div style={{ fontSize: 13, fontWeight: 600, color: "#cbd5e1", marginBottom: 12, display: "flex", alignItems: "center", gap: 8 }}>
+      <div style={{ fontSize: 13, fontWeight: 600, color: "var(--fg)", marginBottom: 12, display: "flex", alignItems: "center", gap: 8 }}>
         <div style={{ width: 4, height: 14, background: "#8b5cf6", borderRadius: 2 }}></div>
         最近调用流水 (Top 40)
       </div>
-      <div className="llm-scroll" style={{ borderRadius: 12, border: "1px solid #1e293b", background: "#0f172a", overflowX: "auto" }}>
+      <div className="llm-scroll" style={{ borderRadius: 12, border: "1px solid var(--panel-border)", background: "var(--panel-bg)", overflowX: "auto" }}>
         <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12, textAlign: "left", whiteSpace: "nowrap" }}>
           <thead>
-            <tr style={{ background: "#020617" }}>
-              <th style={{ padding: "12px 16px", color: "#64748b", fontWeight: 500 }}>请求时间</th>
-              <th style={{ padding: "12px 16px", color: "#64748b", fontWeight: 500 }}>Provider</th>
-              <th style={{ padding: "12px 16px", color: "#64748b", fontWeight: 500 }}>Model</th>
-              <th style={{ padding: "12px 16px", color: "#64748b", fontWeight: 500, textAlign: "right" }}>总 Tokens</th>
-              <th style={{ padding: "12px 16px", color: "#64748b", fontWeight: 500, textAlign: "right" }}>预估费用</th>
-              <th style={{ padding: "12px 16px", color: "#64748b", fontWeight: 500, textAlign: "right" }}>云端ID</th>
+            <tr style={{ background: "var(--panel-bg2)" }}>
+              <th style={{ padding: "12px 16px", color: "var(--muted2)", fontWeight: 500 }}>请求时间</th>
+              <th style={{ padding: "12px 16px", color: "var(--muted2)", fontWeight: 500 }}>Provider</th>
+              <th style={{ padding: "12px 16px", color: "var(--muted2)", fontWeight: 500 }}>Model</th>
+              <th style={{ padding: "12px 16px", color: "var(--muted2)", fontWeight: 500, textAlign: "right" }}>总 Tokens</th>
+              <th style={{ padding: "12px 16px", color: "var(--muted2)", fontWeight: 500, textAlign: "right" }}>预估费用</th>
+              <th style={{ padding: "12px 16px", color: "var(--muted2)", fontWeight: 500, textAlign: "right" }}>云端ID</th>
             </tr>
           </thead>
           <tbody>
             {(summary?.recentEvents ?? []).length === 0 ? (
-              <tr><td colSpan={6} style={{ padding: "24px", color: "#64748b", textAlign: "center" }}>暂无成功响应的本地流水记录</td></tr>
+              <tr><td colSpan={6} style={{ padding: "24px", color: "var(--muted2)", textAlign: "center" }}>暂无成功响应的本地流水记录</td></tr>
             ) : (
               (summary?.recentEvents ?? []).map((ev) => (
                 <tr key={ev.id} className="llm-table-row">
-                  <td style={{ padding: "10px 16px", color: "#94a3b8", fontFamily: "monospace" }}>{ev.createdAt?.replace("T", " ").slice(0, 19) ?? "-"}</td>
-                  <td style={{ padding: "10px 16px", color: "#f8fafc" }}>{ev.providerKey}</td>
-                  <td style={{ padding: "10px 16px", color: "#cbd5e1", fontFamily: "monospace" }}>{ev.model}</td>
-                  <td style={{ padding: "10px 16px", textAlign: "right", color: "#94a3b8", fontFamily: "monospace" }}>{ev.totalTokens ?? "-"}</td>
+                  <td style={{ padding: "10px 16px", color: "var(--muted)", fontFamily: "monospace" }}>{ev.createdAt?.replace("T", " ").slice(0, 19) ?? "-"}</td>
+                  <td style={{ padding: "10px 16px", color: "var(--fg)" }}>{ev.providerKey}</td>
+                  <td style={{ padding: "10px 16px", color: "var(--fg)", fontFamily: "monospace" }}>{ev.model}</td>
+                  <td style={{ padding: "10px 16px", textAlign: "right", color: "var(--muted)", fontFamily: "monospace" }}>{ev.totalTokens ?? "-"}</td>
                   <td style={{ padding: "10px 16px", textAlign: "right", color: "#34d399", fontFamily: "monospace", fontWeight: 500 }}>{fmtUsd(ev.costUsd)}</td>
-                  <td style={{ padding: "10px 16px", textAlign: "right", color: "#475569", fontFamily: "monospace" }}>{ev.cloudId != null ? ev.cloudId : "—"}</td>
+                  <td style={{ padding: "10px 16px", textAlign: "right", color: "var(--muted2)", fontFamily: "monospace" }}>{ev.cloudId != null ? ev.cloudId : "—"}</td>
                 </tr>
               ))
             )}
@@ -416,89 +539,17 @@ export function BudgetMonitorPanel() {
         </table>
       </div>
 
-      {/* 新增/编辑弹窗 */}
       {modalOpen && (
-        <div
-          onMouseDown={(e) => { if (e.target === e.currentTarget) setModalOpen(false); }}
-          style={{ position: "fixed", inset: 0, background: "rgba(2, 6, 23, 0.7)", backdropFilter: "blur(4px)", zIndex: 50, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}
-        >
-          <div style={{ width: "min(680px, 100%)", borderRadius: 16, border: "1px solid #1e293b", background: "#0f172a", padding: 24, boxShadow: "0 25px 50px -12px rgba(0, 0, 0, 0.5)" }}>
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20 }}>
-              <div style={{ fontSize: 16, fontWeight: 600, color: "#f8fafc" }}>{modalMode === "create" ? "新增费率与预算规则" : "编辑规则"}</div>
-              <button
-                type="button"
-                className="llm-btn"
-                onClick={() => setModalOpen(false)}
-                disabled={saving}
-                style={{ width: 28, height: 28, borderRadius: 8, border: "none", background: "transparent", color: "#64748b", cursor: saving ? "not-allowed" : "pointer" }}
-              >
-                ✕
-              </button>
-            </div>
-
-            <datalist id={providerDatalistId}>
-              {providerSuggestions.map((p) => <option key={p} value={p} />)}
-            </datalist>
-
-            <div style={{ display: "grid", gap: 16, gridTemplateColumns: "repeat(2, minmax(0, 1fr))" }}>
-              {(
-                [
-                  ["provider_key", "Provider 提供商", "text", form.provider_key, (v: string) => setForm((f) => ({ ...f, provider_key: v }))],
-                  ["model_id", "Model ID (* 为通配)", "text", form.model_id, (v: string) => setForm((f) => ({ ...f, model_id: v }))],
-                  ["input_usd_per_1k", "输入计费 ($/1K Tokens)", "number", form.input_usd_per_1k, (v: string) => setForm((f) => ({ ...f, input_usd_per_1k: v }))],
-                  ["output_usd_per_1k", "输出计费 ($/1K Tokens)", "number", form.output_usd_per_1k, (v: string) => setForm((f) => ({ ...f, output_usd_per_1k: v }))],
-                  ["budget_day_usd", "每日预算上限 ($)", "number", form.budget_day_usd, (v: string) => setForm((f) => ({ ...f, budget_day_usd: v }))],
-                  ["budget_week_usd", "每周预算上限 ($)", "number", form.budget_week_usd, (v: string) => setForm((f) => ({ ...f, budget_week_usd: v }))],
-                  ["budget_month_usd", "每月预算上限 ($)", "number", form.budget_month_usd, (v: string) => setForm((f) => ({ ...f, budget_month_usd: v }))],
-                ] as const
-              ).map(([key, label, type, val, onChange]) => (
-                <label key={key} style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                  <span style={{ fontSize: 12, color: "#94a3b8", fontWeight: 500 }}>{label}</span>
-                  <input
-                    className="llm-input"
-                    type={type}
-                    step={type === "number" ? "any" : undefined}
-                    value={val}
-                    onChange={(e) => onChange(e.target.value)}
-                    list={key === "provider_key" ? providerDatalistId : undefined}
-                    style={{ padding: "10px 12px", borderRadius: 8, border: "1px solid #334155", background: "#020617", color: "#e2e8f0", fontSize: 13, transition: "border-color 0.2s" }}
-                  />
-                </label>
-              ))}
-
-              <label style={{ display: "flex", alignItems: "center", gap: 10, gridColumn: "1 / -1", padding: "8px 0" }}>
-                <input 
-                  type="checkbox" 
-                  checked={form.enabled} 
-                  onChange={(e) => setForm((f) => ({ ...f, enabled: e.target.checked }))} 
-                  style={{ width: 16, height: 16, accentColor: "#3b82f6" }}
-                />
-                <span style={{ fontSize: 13, color: "#cbd5e1" }}>启用此规则（取消勾选将停止预算拦截与计费统计）</span>
-              </label>
-            </div>
-
-            <div style={{ display: "flex", justifyContent: "flex-end", gap: 12, marginTop: 24, paddingTop: 16, borderTop: "1px solid #1e293b" }}>
-              <button
-                type="button"
-                className="llm-btn"
-                onClick={() => setModalOpen(false)}
-                disabled={saving}
-                style={{ padding: "8px 16px", borderRadius: 8, border: "1px solid #334155", background: "transparent", color: "#94a3b8", fontSize: 13 }}
-              >
-                取消
-              </button>
-              <button
-                type="button"
-                className="llm-btn"
-                disabled={saving}
-                onClick={() => void saveRule()}
-                style={{ padding: "8px 20px", borderRadius: 8, border: "none", background: "#3b82f6", color: "#ffffff", fontSize: 13, fontWeight: 500 }}
-              >
-                {saving ? "保存中…" : "确认保存"}
-              </button>
-            </div>
-          </div>
-        </div>
+        <BudgetRuleModal
+          modalMode={modalMode}
+          saving={saving}
+          form={form}
+          setForm={setForm}
+          providerSuggestions={providerSuggestions}
+          modelSuggestions={modelSuggestions}
+          onClose={() => setModalOpen(false)}
+          onSave={() => void saveRule()}
+        />
       )}
     </div>
   );

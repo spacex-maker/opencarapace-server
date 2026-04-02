@@ -8,6 +8,7 @@ function FilterSelect(props: {
   options: { label: string; value: string }[];
   placeholder: string;
 }) {
+  const controlHeight = 34;
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement | null>(null);
   useEffect(() => {
@@ -30,18 +31,23 @@ function FilterSelect(props: {
         onClick={() => setOpen((v) => !v)}
         style={{
           width: "100%",
-          padding: "6px 10px",
+          height: controlHeight,
+          padding: "0 12px",
           borderRadius: 999,
-          border: "1px solid #1f2937",
-          background: "#020617",
-          color: props.value ? "#e5e7eb" : "#6b7280",
-          fontSize: 11,
+          border: "1px solid var(--panel-border)",
+          background: "var(--panel-bg)",
+          color: props.value ? "var(--fg)" : "var(--muted2)",
+          fontSize: 12,
           textAlign: "left",
           cursor: "pointer",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          boxSizing: "border-box",
         }}
       >
-        {current}
-        <span style={{ float: "right", color: "#6b7280" }}>{open ? "▲" : "▼"}</span>
+        <span style={{ lineHeight: 1 }}>{current}</span>
+        <span style={{ color: "var(--muted2)", lineHeight: 1 }}>{open ? "▲" : "▼"}</span>
       </button>
       {open && (
         <div
@@ -52,11 +58,11 @@ function FilterSelect(props: {
             top: "calc(100% + 6px)",
             left: 0,
             right: 0,
-            maxHeight: 220,
+            maxHeight: 260,
             overflowY: "auto",
             borderRadius: 10,
-            border: "1px solid #1f2937",
-            background: "rgba(2,6,23,0.98)",
+            border: "1px solid var(--panel-border)",
+            background: "var(--panel-bg)",
             boxShadow: "0 12px 30px rgba(0,0,0,0.35)",
           }}
         >
@@ -70,11 +76,11 @@ function FilterSelect(props: {
               }}
               style={{
                 width: "100%",
-                padding: "8px 10px",
+                padding: "10px 12px",
                 border: "none",
                 background: o.value === props.value ? "rgba(34,197,94,0.12)" : "transparent",
-                color: o.value === props.value ? "#bbf7d0" : "#e5e7eb",
-                fontSize: 11,
+                color: o.value === props.value ? "#bbf7d0" : "var(--fg)",
+                fontSize: 12,
                 textAlign: "left",
                 cursor: "pointer",
               }}
@@ -293,10 +299,10 @@ export function DangerPanel({
     : {
         maxWidth: 960,
         margin: "0 auto",
-        background: "#020617",
+        background: "var(--panel-bg)",
         borderRadius: 16,
         padding: "24px 28px",
-        border: "1px solid #1f2937",
+        border: "1px solid var(--panel-border)",
         boxShadow: "0 20px 40px rgba(15,23,42,0.6)",
         fontSize: 12,
       };
@@ -309,13 +315,13 @@ export function DangerPanel({
             style={{
               fontSize: embedded ? 16 : 20,
               margin: "0 0 4px",
-              color: "#f9fafb",
+              color: "var(--fg)",
               fontWeight: 700,
             }}
           >
             {embedded ? "拦截项目" : "危险指令库"}
           </h1>
-          <p style={{ margin: "4px 0 0", fontSize: embedded ? 12 : 13, color: "#9ca3af", lineHeight: 1.45 }}>
+          <p style={{ margin: "4px 0 0", fontSize: embedded ? 12 : 13, color: "var(--muted)", lineHeight: 1.45 }}>
             {embedded
               ? "以下为参与本地拦截匹配的「危险指令」规则：从云端同步至本地，可配置用户级启用/禁用。"
               : "从云端增量同步至本地 SQLite，每批次 10 条。"}
@@ -347,8 +353,8 @@ export function DangerPanel({
           style={{
             height: 6,
             borderRadius: 999,
-            background: "#020617",
-            border: "1px solid #111827",
+            background: "var(--panel-bg2)",
+            border: "1px solid var(--panel-border)",
             overflow: "hidden",
           }}
         >
@@ -361,14 +367,14 @@ export function DangerPanel({
             }}
           />
         </div>
-        <div style={{ marginTop: 4, fontSize: 11, color: "#6b7280" }}>
+        <div style={{ marginTop: 4, fontSize: 11, color: "var(--muted2)" }}>
           {sync.running
             ? `同步中：${sync.synced}/${sync.total || "?"} 条`
             : `已同步：${sync.synced} 条（总计：${sync.total || dangerCommands.length}）`}
         </div>
       </div>
 
-      {loading && <div style={{ color: "#9ca3af", marginBottom: 8 }}>加载中…</div>}
+      {loading && <div style={{ color: "var(--muted)", marginBottom: 8 }}>加载中…</div>}
       {error && (
         <div
           style={{
@@ -439,13 +445,15 @@ export function DangerPanel({
           style={{
             flex: "1 1 220px",
             minWidth: 220,
-            background: "#020617",
+            background: "var(--panel-bg)",
             borderRadius: 999,
-            border: "1px solid #1f2937",
-            padding: "6px 10px",
-            fontSize: 11,
-            color: "#e5e7eb",
+            border: "1px solid var(--panel-border)",
+            height: 34,
+            padding: "0 12px",
+            fontSize: 12,
+            color: "var(--fg)",
             outline: "none",
+            boxSizing: "border-box",
           }}
         />
 
@@ -502,11 +510,12 @@ export function DangerPanel({
           onClick={runQuery}
           disabled={loading}
           style={{
+            marginLeft: "auto",
             padding: "6px 12px",
             borderRadius: 999,
-            border: "1px solid #1f2937",
-            background: loading ? "#111827" : "rgba(15,23,42,0.85)",
-            color: "#e5e7eb",
+            border: "1px solid var(--panel-border)",
+            background: loading ? "var(--panel-bg2)" : "var(--panel-bg)",
+            color: "var(--fg)",
             fontSize: 11,
             fontWeight: 600,
             cursor: loading ? "not-allowed" : "pointer",
@@ -519,31 +528,31 @@ export function DangerPanel({
       <div
         style={{
           borderRadius: 10,
-          border: "1px solid #1f2937",
+          border: "1px solid var(--panel-border)",
           overflow: "hidden",
         }}
       >
         <table style={{ width: "100%", borderCollapse: "collapse" }}>
-          <thead style={{ background: "#020617" }}>
+          <thead style={{ background: "var(--panel-bg)" }}>
             <tr>
-              <th style={{ padding: "6px 8px", borderBottom: "1px solid #1f2937", textAlign: "left" }}>ID</th>
-              <th style={{ padding: "6px 8px", borderBottom: "1px solid #1f2937", textAlign: "left" }}>规则片段</th>
-              <th style={{ padding: "6px 8px", borderBottom: "1px solid #1f2937", textAlign: "left" }}>系统</th>
-              <th style={{ padding: "6px 8px", borderBottom: "1px solid #1f2937", textAlign: "left" }}>分类</th>
-              <th style={{ padding: "6px 8px", borderBottom: "1px solid #1f2937", textAlign: "left" }}>风险等级</th>
-              <th style={{ padding: "6px 8px", borderBottom: "1px solid #1f2937", textAlign: "left" }}>官方状态</th>
-              <th style={{ padding: "6px 8px", borderBottom: "1px solid #1f2937", textAlign: "left" }}>用户启用</th>
+              <th style={{ padding: "6px 8px", borderBottom: "1px solid var(--panel-border)", textAlign: "left", color: "var(--muted)" }}>ID</th>
+              <th style={{ padding: "6px 8px", borderBottom: "1px solid var(--panel-border)", textAlign: "left", color: "var(--muted)" }}>规则片段</th>
+              <th style={{ padding: "6px 8px", borderBottom: "1px solid var(--panel-border)", textAlign: "left", color: "var(--muted)" }}>系统</th>
+              <th style={{ padding: "6px 8px", borderBottom: "1px solid var(--panel-border)", textAlign: "left", color: "var(--muted)" }}>分类</th>
+              <th style={{ padding: "6px 8px", borderBottom: "1px solid var(--panel-border)", textAlign: "left", color: "var(--muted)" }}>风险等级</th>
+              <th style={{ padding: "6px 8px", borderBottom: "1px solid var(--panel-border)", textAlign: "left", color: "var(--muted)" }}>官方状态</th>
+              <th style={{ padding: "6px 8px", borderBottom: "1px solid var(--panel-border)", textAlign: "left", color: "var(--muted)" }}>用户启用</th>
             </tr>
           </thead>
           <tbody>
             {dangerCommands.map((r) => (
-              <tr key={r.id} style={{ background: "#020617" }}>
-                <td style={{ padding: "6px 8px", borderBottom: "1px solid #111827", color: "#9ca3af" }}>{r.id}</td>
+              <tr key={r.id} style={{ background: "var(--panel-bg)" }}>
+                <td style={{ padding: "6px 8px", borderBottom: "1px solid var(--panel-border)", color: "var(--muted)" }}>{r.id}</td>
                 <td
                   style={{
                     padding: "6px 8px",
-                    borderBottom: "1px solid #111827",
-                    color: "#e5e7eb",
+                    borderBottom: "1px solid var(--panel-border)",
+                    color: "var(--fg)",
                     maxWidth: 420,
                     whiteSpace: "nowrap",
                     textOverflow: "ellipsis",
@@ -555,16 +564,16 @@ export function DangerPanel({
                 >
                   {r.command_pattern}
                 </td>
-                <td style={{ padding: "6px 8px", borderBottom: "1px solid #111827", color: "#9ca3af" }}>
+                <td style={{ padding: "6px 8px", borderBottom: "1px solid var(--panel-border)", color: "var(--muted)" }}>
                   {r.system_type}
                 </td>
-                <td style={{ padding: "6px 8px", borderBottom: "1px solid #111827", color: "#9ca3af" }}>
+                <td style={{ padding: "6px 8px", borderBottom: "1px solid var(--panel-border)", color: "var(--muted)" }}>
                   {r.category}
                 </td>
-                <td style={{ padding: "6px 8px", borderBottom: "1px solid #111827", color: "#fbbf24" }}>
+                <td style={{ padding: "6px 8px", borderBottom: "1px solid var(--panel-border)", color: "#fbbf24" }}>
                   {r.risk_level}
                 </td>
-                <td style={{ padding: "6px 8px", borderBottom: "1px solid #111827", whiteSpace: "nowrap" }}>
+                <td style={{ padding: "6px 8px", borderBottom: "1px solid var(--panel-border)", whiteSpace: "nowrap" }}>
                   <span
                     style={{
                       fontSize: 10,
@@ -578,9 +587,9 @@ export function DangerPanel({
                     {r.enabled ? "正常" : "禁用"}
                   </span>
                 </td>
-                <td style={{ padding: "6px 8px", borderBottom: "1px solid #111827", whiteSpace: "nowrap" }}>
+                <td style={{ padding: "6px 8px", borderBottom: "1px solid var(--panel-border)", whiteSpace: "nowrap" }}>
                   {r.enabled === 0 ? (
-                    <div style={{ fontSize: 10, color: "#6b7280" }}>（系统禁用）</div>
+                    <div style={{ fontSize: 10, color: "var(--muted2)" }}>（系统禁用）</div>
                   ) : (
                     <button
                       type="button"
@@ -619,7 +628,7 @@ export function DangerPanel({
               <tr>
                 <td
                   colSpan={7}
-                  style={{ padding: "8px 10px", textAlign: "center", color: "#6b7280", background: "#020617" }}
+                  style={{ padding: "8px 10px", textAlign: "center", color: "var(--muted2)", background: "var(--panel-bg)" }}
                 >
                   当前本地还没有同步到危险指令规则。
                 </td>

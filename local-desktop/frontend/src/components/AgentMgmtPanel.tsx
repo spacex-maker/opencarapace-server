@@ -141,10 +141,10 @@ export function AgentMgmtPanel() {
         width: "100%",
         maxWidth: 1280,
         margin: "0 auto",
-        background: "#020617",
+        background: "var(--panel-bg)",
         borderRadius: 16,
-        border: "1px solid #1f2937",
-        boxShadow: "0 20px 40px rgba(15,23,42,0.6)",
+        border: "1px solid var(--panel-border)",
+        boxShadow: "0 20px 40px rgba(0,0,0,0.16)",
         fontSize: 12,
         boxSizing: "border-box",
         minHeight: 480,
@@ -152,9 +152,9 @@ export function AgentMgmtPanel() {
         flexDirection: "column",
       }}
     >
-      <div style={{ padding: "16px 20px 12px", borderBottom: "1px solid #1f2937" }}>
-        <h1 style={{ fontSize: 20, margin: "0 0 4px", color: "#f9fafb" }}>Agent 管理</h1>
-        <p style={{ margin: 0, fontSize: 12, color: "#9ca3af", lineHeight: 1.5 }}>
+      <div style={{ padding: "16px 20px 12px", borderBottom: "1px solid var(--panel-border)" }}>
+        <h1 style={{ fontSize: 20, margin: "0 0 4px", color: "var(--fg)" }}>Agent 管理</h1>
+        <p style={{ margin: 0, fontSize: 12, color: "var(--muted)", lineHeight: 1.5 }}>
           按 Agent 平台浏览 Providers、Skills、Prompts、MCP 与 Sessions；数据存于本机库，可与云端账户扩展同步。
         </p>
       </div>
@@ -181,13 +181,13 @@ export function AgentMgmtPanel() {
           style={{
             width: 200,
             flexShrink: 0,
-            borderRight: "1px solid #1f2937",
+            borderRight: "1px solid var(--panel-border)",
             overflowY: "auto",
             padding: "10px 6px",
-            background: "rgba(15,23,42,0.5)",
+            background: "var(--panel-bg2)",
           }}
         >
-          {loading && <div style={{ padding: 8, color: "#6b7280", fontSize: 11 }}>加载中…</div>}
+          {loading && <div style={{ padding: 8, color: "var(--muted2)", fontSize: 11 }}>加载中…</div>}
           {!loading &&
             platforms.map((p) => {
               const open = openAgents.has(p.code);
@@ -207,7 +207,7 @@ export function AgentMgmtPanel() {
                       border: "none",
                       background:
                         selectedPlatform === p.code && open ? "rgba(51,65,85,0.5)" : "transparent",
-                      color: selectedPlatform === p.code ? "#f1f5f9" : "#cbd5e1",
+                      color: selectedPlatform === p.code ? "var(--fg)" : "var(--muted)",
                       fontSize: 12,
                       fontWeight: 600,
                       cursor: "pointer",
@@ -255,7 +255,7 @@ export function AgentMgmtPanel() {
                               borderRadius: 5,
                               border: "none",
                               background: active ? "rgba(59,130,246,0.15)" : "transparent",
-                              color: active ? "#93c5fd" : "#94a3b8",
+                              color: active ? "#93c5fd" : "var(--muted)",
                               fontSize: 11,
                               fontWeight: active ? 700 : 500,
                               cursor: "pointer",
@@ -272,8 +272,8 @@ export function AgentMgmtPanel() {
                                 fontWeight: 700,
                                 padding: "0 4px",
                                 borderRadius: 3,
-                                background: "#1e293b",
-                                color: "#94a3b8",
+                                background: "var(--chip-bg)",
+                                color: "var(--chip-fg)",
                                 lineHeight: "14px",
                               }}
                             >
@@ -293,14 +293,14 @@ export function AgentMgmtPanel() {
         <div style={{ flex: 1, minWidth: 0, overflowY: "auto", padding: "14px 18px" }}>
           <div style={{ display: "flex", alignItems: "flex-start", gap: 10, marginBottom: 14 }}>
             <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ fontSize: 15, fontWeight: 600, color: "#f9fafb", display: "flex", alignItems: "center", gap: 6 }}>
+              <div style={{ fontSize: 15, fontWeight: 600, color: "var(--fg)", display: "flex", alignItems: "center", gap: 6 }}>
                 <span style={{ display: "flex", opacity: 0.55 }}>{featMeta.icon}</span>
                 {platformDisplayName} · {featMeta.featTitle}
               </div>
               <div
                 style={{
                   fontSize: 10,
-                  color: "#64748b",
+                  color: "var(--muted2)",
                   marginTop: 4,
                   fontFamily: "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace",
                 }}
@@ -316,9 +316,9 @@ export function AgentMgmtPanel() {
                 style={{
                   padding: "6px 12px",
                   borderRadius: 999,
-                  border: "1px solid #334155",
-                  background: "rgba(30,41,59,0.6)",
-                  color: "#64748b",
+                  border: "1px solid var(--btn-border)",
+                  background: "var(--panel-bg2)",
+                  color: "var(--muted2)",
                   fontSize: 11,
                   fontWeight: 600,
                   cursor: "not-allowed",
@@ -342,8 +342,8 @@ export function AgentMgmtPanel() {
                       gap: 10,
                       padding: "10px 12px",
                       borderRadius: 8,
-                      border: on ? "1px solid rgba(34,197,94,0.35)" : "1px solid #1f2937",
-                      background: on ? "rgba(34,197,94,0.06)" : "rgba(15,23,42,0.6)",
+                      border: on ? "1px solid rgba(34,197,94,0.35)" : "1px solid var(--panel-border)",
+                      background: on ? "rgba(34,197,94,0.06)" : "var(--panel-bg2)",
                       boxShadow: "0 1px 2px rgba(0,0,0,0.2)",
                     }}
                   >
@@ -365,11 +365,11 @@ export function AgentMgmtPanel() {
                       {initials(it.name)}
                     </div>
                     <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontSize: 12, fontWeight: 600, color: "#e5e7eb" }}>{it.name}</div>
+                      <div style={{ fontSize: 12, fontWeight: 600, color: "var(--fg)" }}>{it.name}</div>
                       <div
                         style={{
                           fontSize: 10,
-                          color: "#64748b",
+                          color: "var(--muted2)",
                           fontFamily: "ui-monospace, monospace",
                           marginTop: 2,
                           overflow: "hidden",
@@ -388,7 +388,7 @@ export function AgentMgmtPanel() {
                           padding: "2px 6px",
                           borderRadius: 4,
                           background: on ? "rgba(34,197,94,0.15)" : "rgba(51,65,85,0.8)",
-                          color: on ? "#86efac" : "#94a3b8",
+                          color: on ? "#86efac" : "var(--muted)",
                           whiteSpace: "nowrap",
                         }}
                       >
@@ -415,8 +415,8 @@ export function AgentMgmtPanel() {
                       gap: 10,
                       padding: "10px 12px",
                       borderRadius: 8,
-                      border: "1px solid #1f2937",
-                      background: "rgba(15,23,42,0.6)",
+                      border: "1px solid var(--panel-border)",
+                      background: "var(--panel-bg2)",
                     }}
                   >
                     <div
@@ -437,8 +437,8 @@ export function AgentMgmtPanel() {
                       {initials(it.name)}
                     </div>
                     <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontSize: 12, fontWeight: 600, color: "#e5e7eb" }}>{it.name}</div>
-                      <div style={{ fontSize: 10, color: "#64748b", marginTop: 2 }}>{it.subtitle || "—"}</div>
+                      <div style={{ fontSize: 12, fontWeight: 600, color: "var(--fg)" }}>{it.name}</div>
+                      <div style={{ fontSize: 10, color: "var(--muted2)", marginTop: 2 }}>{it.subtitle || "—"}</div>
                     </div>
                     {it.statusLabel && (
                       <span
@@ -471,8 +471,8 @@ export function AgentMgmtPanel() {
                     gap: 10,
                     padding: "10px 12px",
                     borderRadius: 8,
-                    border: "1px solid #1f2937",
-                    background: "rgba(15,23,42,0.6)",
+                    border: "1px solid var(--panel-border)",
+                    background: "var(--panel-bg2)",
                   }}
                 >
                   <div
@@ -490,8 +490,8 @@ export function AgentMgmtPanel() {
                     <MdDescription style={{ fontSize: 16 }} />
                   </div>
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontSize: 12, fontWeight: 600, color: "#e5e7eb" }}>{it.name}</div>
-                    <div style={{ fontSize: 10, color: "#64748b", marginTop: 2 }}>{it.subtitle || "—"}</div>
+                    <div style={{ fontSize: 12, fontWeight: 600, color: "var(--fg)" }}>{it.name}</div>
+                    <div style={{ fontSize: 10, color: "var(--muted2)", marginTop: 2 }}>{it.subtitle || "—"}</div>
                   </div>
                   <button
                     type="button"
@@ -499,9 +499,9 @@ export function AgentMgmtPanel() {
                     style={{
                       padding: "4px 10px",
                       borderRadius: 6,
-                      border: "1px solid #334155",
+                      border: "1px solid var(--btn-border)",
                       background: "transparent",
-                      color: "#64748b",
+                      color: "var(--muted2)",
                       fontSize: 10,
                       cursor: "not-allowed",
                     }}
@@ -527,8 +527,8 @@ export function AgentMgmtPanel() {
                       gap: 10,
                       padding: "10px 12px",
                       borderRadius: 8,
-                      border: "1px solid #1f2937",
-                      background: "rgba(15,23,42,0.6)",
+                      border: "1px solid var(--panel-border)",
+                      background: "var(--panel-bg2)",
                     }}
                   >
                     <div
@@ -546,11 +546,11 @@ export function AgentMgmtPanel() {
                       <MdMemory style={{ fontSize: 16 }} />
                     </div>
                     <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontSize: 12, fontWeight: 600, color: "#e5e7eb" }}>{it.name}</div>
+                      <div style={{ fontSize: 12, fontWeight: 600, color: "var(--fg)" }}>{it.name}</div>
                       <div
                         style={{
                           fontSize: 10,
-                          color: "#64748b",
+                          color: "var(--muted2)",
                           fontFamily: "ui-monospace, monospace",
                           marginTop: 2,
                           overflow: "hidden",
@@ -587,14 +587,14 @@ export function AgentMgmtPanel() {
                     gap: 10,
                     padding: "8px 12px",
                     borderRadius: 8,
-                    border: "1px solid #1f2937",
-                    background: "rgba(15,23,42,0.6)",
+                      border: "1px solid var(--panel-border)",
+                      background: "var(--panel-bg2)",
                   }}
                 >
                   <span
                     style={{
                       fontSize: 10,
-                      color: "#64748b",
+                      color: "var(--muted2)",
                       fontFamily: "ui-monospace, monospace",
                       minWidth: 56,
                       flexShrink: 0,
@@ -603,11 +603,11 @@ export function AgentMgmtPanel() {
                     —
                   </span>
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontSize: 12, fontWeight: 600, color: "#e5e7eb" }}>{it.name}</div>
-                    <div style={{ fontSize: 10, color: "#64748b", marginTop: 2 }}>{it.subtitle || "—"}</div>
+                    <div style={{ fontSize: 12, fontWeight: 600, color: "var(--fg)" }}>{it.name}</div>
+                    <div style={{ fontSize: 10, color: "var(--muted2)", marginTop: 2 }}>{it.subtitle || "—"}</div>
                   </div>
                   {it.statusLabel && (
-                    <span style={{ fontSize: 10, fontFamily: "ui-monospace, monospace", color: "#94a3b8", flexShrink: 0 }}>
+                    <span style={{ fontSize: 10, fontFamily: "ui-monospace, monospace", color: "var(--muted)", flexShrink: 0 }}>
                       {it.statusLabel}
                     </span>
                   )}
@@ -617,7 +617,7 @@ export function AgentMgmtPanel() {
           )}
 
           {!itemsLoading && items.length === 0 && (
-            <div style={{ textAlign: "center", padding: "40px 16px", color: "#64748b", fontSize: 12 }}>暂无条目</div>
+            <div style={{ textAlign: "center", padding: "40px 16px", color: "var(--muted2)", fontSize: 12 }}>暂无条目</div>
           )}
         </div>
       </div>

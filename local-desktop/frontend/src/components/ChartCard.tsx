@@ -14,11 +14,11 @@ export function ChartCard({ title, option, height = 300, loading = false }: Prop
   return (
     <div
       style={{
-        background: "#0f172a",
+        background: "var(--panel-bg2)",
         borderRadius: 12,
         padding: "16px 20px",
-        border: "1px solid #1e293b",
-        boxShadow: "0 4px 12px rgba(0,0,0,0.3)",
+        border: "1px solid var(--panel-border)",
+        boxShadow: "0 4px 12px rgba(0,0,0,0.18)",
         minWidth: 0,
       }}
     >
@@ -27,7 +27,7 @@ export function ChartCard({ title, option, height = 300, loading = false }: Prop
           style={{
             fontSize: 14,
             fontWeight: 600,
-            color: "#f1f5f9",
+            color: "var(--fg)",
             marginBottom: 12,
           }}
         >
@@ -38,7 +38,7 @@ export function ChartCard({ title, option, height = 300, loading = false }: Prop
         <div
           style={{
             height,
-            background: "linear-gradient(90deg, #0f172a 25%, #1e293b 50%, #0f172a 75%)",
+            background: "linear-gradient(90deg, var(--panel-bg2) 25%, var(--panel-bg) 50%, var(--panel-bg2) 75%)",
             backgroundSize: "200% 100%",
             animation: "shimmer 1.5s infinite",
             borderRadius: 8,

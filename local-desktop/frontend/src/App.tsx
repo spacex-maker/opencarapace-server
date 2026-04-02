@@ -6,19 +6,19 @@ import { AuthPanel } from "./components/AuthPanel";
 import { SettingsPanel } from "./components/SettingsPanel";
 import { OpenClawPanel } from "./components/OpenClawPanel";
 import { InterceptLogsPanel } from "./components/InterceptLogsPanel";
-import { TokenBillPanel } from "./components/TokenBillPanel";
 import { SecurityScanPanel } from "./components/SecurityScanPanel";
 import { AgentMgmtPanel } from "./components/AgentMgmtPanel";
 import {
   MdDashboard,
   MdStorefront,
   MdBlock,
-  MdAttachMoney,
   MdSettings,
   MdApps,
   MdShield,
   MdManageSearch,
   MdAccountTree,
+  MdLightMode,
+  MdDarkMode,
 } from "react-icons/md";
 
 export function App() {
@@ -32,7 +32,6 @@ export function App() {
     | "skills"
     | "securityScan"
     | "interceptLogs"
-    | "tokenBill"
     | "openclaw"
     | "settings"
     | "auth"
@@ -47,6 +46,22 @@ export function App() {
   const lastAuthEmailRef = useRef<string | null>(null);
   const [logoutConfirmOpen, setLogoutConfirmOpen] = useState(false);
   const [logoutSubmitting, setLogoutSubmitting] = useState(false);
+  const [theme, setTheme] = useState<"dark" | "light">(() => {
+    try {
+      const v = localStorage.getItem("oc_theme");
+      return v === "light" ? "light" : "dark";
+    } catch {
+      return "dark";
+    }
+  });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem("oc_theme", theme);
+    } catch {
+      // ignore
+    }
+  }, [theme]);
 
   useEffect(() => {
     const load = async () => {
@@ -223,13 +238,29 @@ export function App() {
     <div
       style={{
         height: "100%",
-        background: "#020617",
-        color: "#e5e7eb",
+        background: "var(--bg)",
+        color: "var(--fg)",
         fontFamily:
           'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
         display: "flex",
         flexDirection: "column",
         overflow: "hidden",
+        colorScheme: theme,
+
+        // theme variables
+        ["--bg" as any]: theme === "light" ? "#f8fafc" : "#020617",
+        ["--fg" as any]: theme === "light" ? "#0f172a" : "#e5e7eb",
+        ["--muted" as any]: theme === "light" ? "#475569" : "#94a3b8",
+        ["--muted2" as any]: theme === "light" ? "#64748b" : "#64748b",
+        ["--border" as any]: theme === "light" ? "rgba(15,23,42,0.12)" : "rgba(31,41,55,1)",
+        ["--topbar-bg" as any]: theme === "light" ? "rgba(248,250,252,0.92)" : "rgba(2,6,23,0.92)",
+        ["--panel-bg" as any]: theme === "light" ? "rgba(255,255,255,0.9)" : "rgba(15,23,42,0.85)",
+        ["--panel-bg2" as any]: theme === "light" ? "rgba(248,250,252,0.9)" : "rgba(15,23,42,0.55)",
+        ["--panel-border" as any]: theme === "light" ? "rgba(15,23,42,0.12)" : "rgba(51,65,85,0.9)",
+        ["--chip-bg" as any]: theme === "light" ? "rgba(15,23,42,0.04)" : "rgba(51,65,85,0.6)",
+        ["--chip-fg" as any]: theme === "light" ? "#475569" : "#94a3b8",
+        ["--btn-bg" as any]: theme === "light" ? "rgba(248,250,252,0.85)" : "rgba(15,23,42,0.6)",
+        ["--btn-border" as any]: theme === "light" ? "rgba(15,23,42,0.14)" : "rgba(71,85,105,1)",
       }}
     >
       {/* 顶部横向导航栏 */}
@@ -242,8 +273,8 @@ export function App() {
           gap: 14,
           padding: "10px 14px",
           boxSizing: "border-box",
-          borderBottom: "1px solid #1f2937",
-          background: "rgba(2,6,23,0.92)",
+          borderBottom: "1px solid var(--border)",
+          background: "var(--topbar-bg)",
           backdropFilter: "blur(10px)",
         }}
       >
@@ -274,7 +305,7 @@ export function App() {
             <MdShield style={{ fontSize: 22, color: "#ffffff", filter: "drop-shadow(0 1px 2px rgba(0,0,0,0.2))" }} />
           </div>
           <div style={{ minWidth: 0 }}>
-            <div style={{ fontSize: 14, fontWeight: 800, letterSpacing: "-0.02em", color: "#f8fafc", lineHeight: 1.1 }}>
+            <div style={{ fontSize: 14, fontWeight: 800, letterSpacing: "-0.02em", color: theme === "light" ? "#0f172a" : "#f8fafc", lineHeight: 1.1 }}>
               ClawHeart
             </div>
             <div
@@ -282,7 +313,7 @@ export function App() {
                 fontSize: 9,
                 fontWeight: 700,
                 letterSpacing: "0.14em",
-                color: "#64748b",
+                color: "var(--muted2)",
                 textTransform: "uppercase",
                 marginTop: 2,
                 whiteSpace: "nowrap",
@@ -311,7 +342,6 @@ export function App() {
               { key: "overview", label: "总览", icon: <MdDashboard /> },
               { key: "securityScan", label: "安全扫描", icon: <MdManageSearch /> },
               { key: "interceptLogs", label: "拦截监控", icon: <MdBlock /> },
-              { key: "tokenBill", label: "Token 账单", icon: <MdAttachMoney /> },
               { key: "openclaw", label: "OpenClaw", icon: <MdApps /> },
               { key: "skills", label: "安全市场", icon: <MdStorefront /> },
               { key: "agentMgmt", label: "Agent 管理", icon: <MdAccountTree /> },
@@ -330,8 +360,8 @@ export function App() {
                   padding: "10px 12px",
                   borderRadius: 999,
                   border: isActive ? "1px solid rgba(34,197,94,0.45)" : "1px solid rgba(51,65,85,0.7)",
-                  background: isActive ? "rgba(34,197,94,0.12)" : "rgba(15,23,42,0.55)",
-                  color: isActive ? "#86efac" : "#e5e7eb",
+                  background: isActive ? "rgba(34,197,94,0.12)" : "var(--panel-bg2)",
+                  color: isActive ? "#16a34a" : "var(--fg)",
                   fontSize: 13,
                   fontWeight: isActive ? 700 : 600,
                   cursor: "pointer",
@@ -339,7 +369,7 @@ export function App() {
                   boxShadow: isActive ? "0 0 0 1px rgba(255,255,255,0.04) inset" : "none",
                 }}
               >
-                <span style={{ display: "flex", fontSize: 16, color: isActive ? "#86efac" : "#cbd5e1" }}>{item.icon}</span>
+                <span style={{ display: "flex", fontSize: 16, color: isActive ? "#16a34a" : theme === "light" ? "#334155" : "#cbd5e1" }}>{item.icon}</span>
                 <span style={{ whiteSpace: "nowrap" }}>{item.label}</span>
               </button>
             );
@@ -354,9 +384,11 @@ export function App() {
             gap: 10,
             padding: "8px 10px",
             borderRadius: 14,
-            border: "1px solid #1f2937",
-            background: "linear-gradient(180deg, rgba(15,23,42,0.62) 0%, rgba(2,6,23,0.92) 100%)",
-            boxShadow: "0 0 0 1px rgba(255,255,255,0.03) inset",
+            border: "1px solid var(--border)",
+            background: theme === "light"
+              ? "linear-gradient(180deg, rgba(255,255,255,0.78) 0%, rgba(248,250,252,0.92) 100%)"
+              : "linear-gradient(180deg, rgba(15,23,42,0.62) 0%, rgba(2,6,23,0.92) 100%)",
+            boxShadow: theme === "light" ? "0 0 0 1px rgba(15,23,42,0.04) inset" : "0 0 0 1px rgba(255,255,255,0.03) inset",
             flexShrink: 0,
           }}
         >
@@ -387,19 +419,44 @@ export function App() {
           <div style={{ minWidth: 0, maxWidth: 210, lineHeight: 1.15 }}>
             {status?.auth?.email ? (
               <>
-                <div style={{ fontSize: 11, fontWeight: 700, color: "#f1f5f9", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                <div style={{ fontSize: 11, fontWeight: 700, color: theme === "light" ? "#0f172a" : "#f1f5f9", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
                   {(status.auth.displayName?.trim() || status.auth.email) as any}
                 </div>
-                <div style={{ fontSize: 10, color: "#64748b", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }} title={status.auth.email}>
+                <div style={{ fontSize: 10, color: "var(--muted2)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }} title={status.auth.email}>
                   {status.auth.email}
                 </div>
               </>
             ) : (
-              <div style={{ fontSize: 11, color: "#64748b", whiteSpace: "nowrap" }}>未登录</div>
+              <div style={{ fontSize: 11, color: "var(--muted2)", whiteSpace: "nowrap" }}>未登录</div>
             )}
           </div>
 
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <button
+              type="button"
+              title={theme === "light" ? "切换到暗黑主题" : "切换到明亮主题"}
+              aria-label="切换主题"
+              onClick={() => setTheme((t) => (t === "light" ? "dark" : "light"))}
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: 6,
+                padding: "8px 10px",
+                borderRadius: 999,
+                border: "1px solid var(--btn-border)",
+                background: "var(--btn-bg)",
+                color: "var(--fg)",
+                fontSize: 12,
+                fontWeight: 700,
+                cursor: "pointer",
+                transition: "border-color 0.15s, background 0.15s, color 0.15s",
+              }}
+            >
+              {theme === "light" ? <MdDarkMode style={{ fontSize: 16 }} /> : <MdLightMode style={{ fontSize: 16 }} />}
+              <span style={{ whiteSpace: "nowrap" }}>{theme === "light" ? "暗黑" : "明亮"}</span>
+            </button>
+
             <button
               type="button"
               title="设置"
@@ -414,7 +471,7 @@ export function App() {
                 borderRadius: 999,
                 border: activeTab === "settings" ? "1px solid rgba(34,197,94,0.55)" : "1px solid rgba(51,65,85,0.75)",
                 background: activeTab === "settings" ? "rgba(34,197,94,0.12)" : "rgba(30,41,59,0.5)",
-                color: activeTab === "settings" ? "#86efac" : "#cbd5e1",
+                color: activeTab === "settings" ? "#16a34a" : "var(--fg)",
                 fontSize: 12,
                 fontWeight: 700,
                 cursor: "pointer",
@@ -452,9 +509,9 @@ export function App() {
                 style={{
                   padding: "8px 12px",
                   borderRadius: 999,
-                  border: "1px solid #475569",
-                  background: "rgba(15,23,42,0.6)",
-                  color: "#e2e8f0",
+                  border: "1px solid var(--btn-border)",
+                  background: "var(--btn-bg)",
+                  color: "var(--fg)",
                   fontSize: 12,
                   fontWeight: 700,
                   cursor: "pointer",
@@ -486,7 +543,6 @@ export function App() {
         {activeTab === "skills" && <SkillsPanel showAccountSwitchPlaceholder={accountSwitchSyncing} />}
         {activeTab === "securityScan" && <SecurityScanPanel status={status} />}
         {activeTab === "interceptLogs" && <InterceptLogsPanel showAccountSwitchPlaceholder={accountSwitchSyncing} />}
-        {activeTab === "tokenBill" && <TokenBillPanel />}
         {activeTab === "openclaw" && <OpenClawPanel />}
         {activeTab === "agentMgmt" && <AgentMgmtPanel />}
         {activeTab === "settings" && <SettingsPanel onApiBaseChanged={refreshStatus} status={status} />}
@@ -501,13 +557,13 @@ export function App() {
           bottom: 16,
           padding: "6px 10px",
           borderRadius: 999,
-          background: "rgba(15,23,42,0.96)",
-          border: "1px solid #111827",
+          background: theme === "light" ? "rgba(255,255,255,0.9)" : "rgba(15,23,42,0.96)",
+          border: "1px solid var(--border)",
           display: "inline-flex",
           alignItems: "center",
           gap: 6,
           fontSize: 11,
-          color: "#9ca3af",
+          color: theme === "light" ? "#334155" : "#9ca3af",
           pointerEvents: "none",
         }}
       >
@@ -568,19 +624,23 @@ export function App() {
               width: "100%",
               maxWidth: 360,
               borderRadius: 14,
-              border: "1px solid #334155",
-              background: "linear-gradient(180deg, #0f172a 0%, #020617 100%)",
-              boxShadow: "0 24px 48px rgba(0,0,0,0.45), 0 0 0 1px rgba(255,255,255,0.04) inset",
+              border: "1px solid var(--panel-border)",
+              background: theme === "light"
+                ? "linear-gradient(180deg, #ffffff 0%, #f8fafc 100%)"
+                : "linear-gradient(180deg, #0f172a 0%, #020617 100%)",
+              boxShadow: theme === "light"
+                ? "0 24px 48px rgba(2,6,23,0.12), 0 0 0 1px rgba(15,23,42,0.04) inset"
+                : "0 24px 48px rgba(0,0,0,0.45), 0 0 0 1px rgba(255,255,255,0.04) inset",
               padding: "22px 22px 18px",
             }}
           >
             <div
               id="logout-confirm-title"
-              style={{ fontSize: 16, fontWeight: 700, color: "#f1f5f9", marginBottom: 8 }}
+              style={{ fontSize: 16, fontWeight: 700, color: theme === "light" ? "#0f172a" : "#f1f5f9", marginBottom: 8 }}
             >
               退出登录？
             </div>
-            <div style={{ fontSize: 13, color: "#94a3b8", lineHeight: 1.5, marginBottom: 20 }}>
+            <div style={{ fontSize: 13, color: "var(--muted)", lineHeight: 1.5, marginBottom: 20 }}>
               确定要退出当前云端账号吗？本地设置不会清除。
             </div>
             <div style={{ display: "flex", justifyContent: "flex-end", gap: 10 }}>

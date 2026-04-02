@@ -16,8 +16,8 @@ export function NavButton(props: { label: string; active: boolean; onClick: () =
         marginBottom: 4,
         borderRadius: 8,
         border: "none",
-        background: props.active ? "#1f2937" : "transparent",
-        color: "#e5e7eb",
+        background: props.active ? "var(--chip-bg)" : "transparent",
+        color: "var(--fg)",
         fontSize: 13,
         cursor: "pointer",
       }}
@@ -34,8 +34,8 @@ export function StatCard({ label, value }: { label: string; value: string | numb
       style={{
         padding: "10px 12px",
         borderRadius: 10,
-        background: "rgba(15,23,42,0.9)",
-        border: "1px solid #1f2937",
+        background: "var(--panel-bg2)",
+        border: "1px solid var(--panel-border)",
       }}
     >
       <div
@@ -43,13 +43,13 @@ export function StatCard({ label, value }: { label: string; value: string | numb
           fontSize: 11,
           textTransform: "uppercase",
           letterSpacing: "0.08em",
-          color: "#6b7280",
+          color: "var(--muted)",
           marginBottom: 4,
         }}
       >
         {label}
       </div>
-      <div style={{ fontSize: 18, fontWeight: 600, color: "#e5e7eb" }}>{value}</div>
+      <div style={{ fontSize: 18, fontWeight: 600, color: "var(--fg)" }}>{value}</div>
     </div>
   );
 }
@@ -69,7 +69,7 @@ export function Field({
         style={{
           display: "block",
           fontSize: 12,
-          color: "#9ca3af",
+          color: "var(--muted)",
           marginBottom: 4,
         }}
       >
@@ -82,9 +82,9 @@ export function Field({
           width: "100%",
           padding: "7px 9px",
           borderRadius: 8,
-          border: "1px solid #1f2937",
-          background: "#020617",
-          color: "#e5e7eb",
+          border: "1px solid var(--panel-border)",
+          background: "var(--panel-bg)",
+          color: "var(--fg)",
           fontSize: 13,
         }}
       />

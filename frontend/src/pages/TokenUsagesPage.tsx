@@ -270,10 +270,12 @@ export const TokenUsagesPage = () => {
               <tr>
                 <th className="px-3 py-2 text-left">时间</th>
                 <th className="px-3 py-2 text-left">来源</th>
+                <th className="px-3 py-2 text-left">Provider</th>
                 <th className="px-3 py-2 text-left">模型 / 上游</th>
                 <th className="px-3 py-2 text-right">Prompt</th>
                 <th className="px-3 py-2 text-right">Completion</th>
                 <th className="px-3 py-2 text-right">Total</th>
+                <th className="px-3 py-2 text-right">费用($)</th>
               </tr>
             </thead>
             <tbody>
@@ -293,15 +295,24 @@ export const TokenUsagesPage = () => {
                         </span>
                       </div>
                     </td>
+                    <td className="px-3 py-2 text-slate-600 dark:text-slate-400 whitespace-nowrap">
+                      {it.providerKey || "—"}
+                    </td>
                     <td className="px-3 py-2 text-slate-600 dark:text-slate-400">
                       <div className="text-slate-900 dark:text-white">{it.model || "—"}</div>
                       <div className="text-[11px] text-slate-500 dark:text-slate-400 truncate max-w-[520px]">
                         {it.upstreamBase || "—"}
                       </div>
+                      {it.requestPath && (
+                        <div className="text-[10px] text-slate-500 dark:text-slate-500 truncate max-w-[520px]">{it.requestPath}</div>
+                      )}
                     </td>
                     <td className="px-3 py-2 text-right whitespace-nowrap">{it.promptTokens ?? "—"}</td>
                     <td className="px-3 py-2 text-right whitespace-nowrap">{it.completionTokens ?? "—"}</td>
                     <td className="px-3 py-2 text-right whitespace-nowrap font-semibold">{it.totalTokens ?? "—"}</td>
+                    <td className="px-3 py-2 text-right whitespace-nowrap tabular-nums text-slate-600 dark:text-slate-400">
+                      {it.costUsd != null && it.costUsd !== undefined ? it.costUsd.toFixed(4) : "—"}
+                    </td>
                   </tr>
                 );
               })}

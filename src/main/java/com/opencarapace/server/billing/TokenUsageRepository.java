@@ -22,6 +22,7 @@ public interface TokenUsageRepository extends JpaRepository<TokenUsageRecord, Lo
                     LOWER(r.model) LIKE :keywordPattern
                  OR LOWER(r.upstreamBase) LIKE :keywordPattern
                  OR LOWER(COALESCE(r.requestPath, '')) LIKE :keywordPattern
+                 OR LOWER(COALESCE(r.providerKey, '')) LIKE :keywordPattern
               ))
               AND (:estimated IS NULL OR r.estimated = :estimated)
             ORDER BY r.createdAt DESC
@@ -60,5 +61,7 @@ public interface TokenUsageRepository extends JpaRepository<TokenUsageRecord, Lo
             @Param("userId") Long userId,
             @Param("startTime") Instant startTime
     );
+
+    Page<TokenUsageRecord> findByUser_IdAndIdGreaterThanOrderByIdAsc(Long userId, Long id, Pageable pageable);
 }
 

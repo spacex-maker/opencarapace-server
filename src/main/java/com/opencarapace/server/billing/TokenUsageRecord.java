@@ -40,6 +40,10 @@ public class TokenUsageRecord {
     @Column(length = 128)
     private String model;
 
+    /** 与本地网关一致：URL 路径前缀，如 openai；无前缀请求为 default */
+    @Column(name = "provider_key", length = 128)
+    private String providerKey;
+
     private Integer promptTokens;
     private Integer completionTokens;
     private Integer totalTokens;
@@ -49,6 +53,10 @@ public class TokenUsageRecord {
 
     @Column(length = 512)
     private String requestPath;
+
+    /** 按本地费率规则估算的美元费用，可空 */
+    @Column(name = "cost_usd")
+    private Double costUsd;
 
     @CreationTimestamp
     private Instant createdAt;

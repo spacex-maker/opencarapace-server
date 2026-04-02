@@ -53,7 +53,7 @@ server/
 - `GET/POST /api/user-settings/llm-route-mode`: LLM 路由模式管理
 - `GET/POST /api/user-settings/sync-user-skills-to-cloud`: Skills 云端同步开关
 - `GET/POST /api/user-settings/sync-user-dangers-to-cloud`: 危险指令云端同步开关
-- `GET/POST /api/llm-mappings`: LLM 映射配置管理
+- `GET/POST /api/llm-mappings`: 网络映射配置管理（路径名 `llm-mappings` 为历史兼容）
 - `GET/POST /api/user-settings/check-version`: 版本检查与更新
 
 ### danger-routes.js

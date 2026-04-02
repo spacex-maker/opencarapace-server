@@ -409,7 +409,7 @@ export function OverviewPanel(props: Props) {
           </h1>
           <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
             <p style={{ margin: 0, fontSize: 14, color: "#94a3b8" }}>
-              系统运行状态与核心数据统计概览
+              系统运行状态与核心数据统计总览
             </p>
             <div
               style={{
@@ -522,7 +522,7 @@ export function OverviewPanel(props: Props) {
           height={300}
         />
         <ChartCard
-          title="拦截日志风险分布"
+          title="拦截监控风险分布"
           option={getInterceptRiskChartOption()}
           loading={interceptLoading}
           height={300}
@@ -600,11 +600,11 @@ export function OverviewPanel(props: Props) {
           <ChartCard title="Token 消耗趋势图" option={getTokenTimelineChartOption()} loading={tokenLoading} height={260} />
         </div>
 
-        {/* 拦截日志时间轴 */}
+        {/* 拦截监控时间轴 */}
         <div style={{ background: "#020617", border: "1px solid #1e293b", borderRadius: 12, padding: "clamp(12px, 2vw, 24px)" }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20, flexWrap: "wrap", gap: 16 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-              <h3 style={{ margin: 0, fontSize: 16, fontWeight: 600, color: "#f8fafc" }}>拦截日志时间轴</h3>
+              <h3 style={{ margin: 0, fontSize: 16, fontWeight: 600, color: "#f8fafc" }}>拦截监控时间轴</h3>
               {dashboardStats.interceptTimeline && (
                 <span style={{ fontSize: 13, color: "#ef4444", background: "rgba(239, 68, 68, 0.1)", padding: "2px 8px", borderRadius: 6 }}>
                   总计: {dashboardStats.interceptTimeline.totalIntercepts} 次
@@ -666,7 +666,7 @@ export function OverviewPanel(props: Props) {
               </div>
             </div>
           </div>
-          <ChartCard title="拦截日志趋势图" option={getInterceptTimelineChartOption()} loading={interceptTimelineLoading} height={260} />
+          <ChartCard title="拦截监控趋势图" option={getInterceptTimelineChartOption()} loading={interceptTimelineLoading} height={260} />
         </div>
       </div>
       

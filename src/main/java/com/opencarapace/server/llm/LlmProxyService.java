@@ -182,11 +182,13 @@ public class LlmProxyService {
                     r.setRouteMode("GATEWAY");
                     r.setUpstreamBase(baseUrl);
                     r.setRequestPath(normalizedPath);
+                    r.setProviderKey(extractProviderKeyFromPath(normalizedPath));
                     r.setModel(usage.model());
                     r.setPromptTokens(usage.promptTokens());
                     r.setCompletionTokens(usage.completionTokens());
                     r.setTotalTokens(usage.totalTokens());
                     r.setEstimated(usage.estimated());
+                    r.setCostUsd(null);
                     tokenUsageRepository.save(r);
                 }
             } catch (Exception ignored) {
@@ -206,6 +208,19 @@ public class LlmProxyService {
 
     public Optional<String> getConfigValue(String key) {
         return configService.getValue(key);
+    }
+
+    /** 与本地网关一致：取路径首段为 provider，如 /openai/v1 → openai */
+    private static String extractProviderKeyFromPath(String normalizedPath) {
+        if (normalizedPath == null || normalizedPath.isBlank()) {
+            return "default";
+        }
+        String p = normalizedPath.startsWith("/") ? normalizedPath.substring(1) : normalizedPath;
+        int slash = p.indexOf('/');
+        if (slash <= 0) {
+            return "default";
+        }
+        return p.substring(0, slash).toLowerCase(Locale.ROOT);
     }
 
     private static String buildSupervisionBlockMessage(LlmSupervisionService.SupervisionResult result, boolean isRequest) {

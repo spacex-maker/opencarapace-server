@@ -65,13 +65,13 @@ export function RealtimeOverviewPanel() {
         <div
           style={{
             borderRadius: 12,
-            border: "1px solid #1f2937",
-            background: "rgba(15,23,42,0.85)",
+            border: "1px solid var(--panel-border)",
+            background: "var(--panel-bg)",
             padding: "14px 16px",
           }}
         >
-          <div style={{ fontSize: 12, color: "#9ca3af" }}>今日 Token</div>
-          <div style={{ fontSize: 18, fontWeight: 800, color: "#e5e7eb", marginTop: 6 }}>
+          <div style={{ fontSize: 12, color: "var(--muted)" }}>今日 Token</div>
+          <div style={{ fontSize: 18, fontWeight: 800, color: "var(--fg)", marginTop: 6 }}>
             {summary ? fmtKTokens(summary.todayToken) : loading ? "…" : "-"}
           </div>
         </div>
@@ -79,13 +79,13 @@ export function RealtimeOverviewPanel() {
         <div
           style={{
             borderRadius: 12,
-            border: "1px solid #1f2937",
-            background: "rgba(15,23,42,0.85)",
+            border: "1px solid var(--panel-border)",
+            background: "var(--panel-bg)",
             padding: "14px 16px",
           }}
         >
-          <div style={{ fontSize: 12, color: "#9ca3af" }}>今日费用</div>
-          <div style={{ fontSize: 18, fontWeight: 800, color: "#e5e7eb", marginTop: 6 }}>
+          <div style={{ fontSize: 12, color: "var(--muted)" }}>今日费用</div>
+          <div style={{ fontSize: 18, fontWeight: 800, color: "var(--fg)", marginTop: 6 }}>
             {summary ? fmtUsd(summary.todayCostUsd) : loading ? "…" : "-"}
           </div>
         </div>
@@ -93,13 +93,13 @@ export function RealtimeOverviewPanel() {
         <div
           style={{
             borderRadius: 12,
-            border: "1px solid #1f2937",
-            background: "rgba(15,23,42,0.85)",
+            border: "1px solid var(--panel-border)",
+            background: "var(--panel-bg)",
             padding: "14px 16px",
           }}
         >
-          <div style={{ fontSize: 12, color: "#9ca3af" }}>请求次数</div>
-          <div style={{ fontSize: 18, fontWeight: 800, color: "#e5e7eb", marginTop: 6 }}>
+          <div style={{ fontSize: 12, color: "var(--muted)" }}>请求次数</div>
+          <div style={{ fontSize: 18, fontWeight: 800, color: "var(--fg)", marginTop: 6 }}>
             {summary ? summary.requestCount : loading ? "…" : "-"}
           </div>
         </div>
@@ -107,13 +107,13 @@ export function RealtimeOverviewPanel() {
         <div
           style={{
             borderRadius: 12,
-            border: "1px solid #1f2937",
-            background: "rgba(15,23,42,0.85)",
+            border: "1px solid var(--panel-border)",
+            background: "var(--panel-bg)",
             padding: "14px 16px",
           }}
         >
-          <div style={{ fontSize: 12, color: "#9ca3af" }}>平均延时</div>
-          <div style={{ fontSize: 18, fontWeight: 800, color: "#e5e7eb", marginTop: 6 }}>
+          <div style={{ fontSize: 12, color: "var(--muted)" }}>平均延时</div>
+          <div style={{ fontSize: 18, fontWeight: 800, color: "var(--fg)", marginTop: 6 }}>
             {summary ? fmtLatencyMs(summary.avgLatencyMs) : loading ? "…" : "-"}
           </div>
         </div>

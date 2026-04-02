@@ -101,9 +101,9 @@ function FilterSelect(props: {
           height: controlHeight,
           padding: "0 12px",
           borderRadius: 999,
-          border: "1px solid #334155",
-          background: "rgba(2,6,23,0.86)",
-          color: props.value ? "#e5e7eb" : "#6b7280",
+          border: "1px solid var(--panel-border)",
+          background: "var(--panel-bg)",
+          color: props.value ? "var(--fg)" : "var(--muted2)",
           fontSize: 12,
           fontWeight: 500,
           display: "flex",
@@ -114,7 +114,7 @@ function FilterSelect(props: {
         }}
       >
         <span style={{ lineHeight: 1 }}>{current}</span>
-        <span style={{ color: "#6b7280", lineHeight: 1 }}>{open ? "▲" : "▼"}</span>
+        <span style={{ color: "var(--muted2)", lineHeight: 1 }}>{open ? "▲" : "▼"}</span>
       </button>
       {open && (
         <div
@@ -127,9 +127,9 @@ function FilterSelect(props: {
             maxHeight: 220,
             overflowY: "auto",
             borderRadius: 10,
-            border: "1px solid #1f2937",
-            background: "rgba(2,6,23,0.98)",
-            boxShadow: "0 12px 30px rgba(0,0,0,0.35)",
+            border: "1px solid var(--panel-border)",
+            background: "var(--panel-bg)",
+            boxShadow: "0 12px 30px rgba(0,0,0,0.18)",
           }}
         >
           {props.options.map((o) => (
@@ -145,7 +145,7 @@ function FilterSelect(props: {
                 padding: "8px 10px",
                 border: "none",
                 background: o.value === props.value ? "rgba(34,197,94,0.12)" : "transparent",
-                color: o.value === props.value ? "#bbf7d0" : "#e5e7eb",
+                color: o.value === props.value ? "#bbf7d0" : "var(--fg)",
                 fontSize: 11,
                 textAlign: "left",
                 cursor: "pointer",
@@ -440,19 +440,19 @@ export function SkillsPanel({ showAccountSwitchPlaceholder = false }: { showAcco
         width: "100%",
         maxWidth: 1280,
         margin: "0 auto",
-        background: "#020617",
+        background: "var(--panel-bg)",
         borderRadius: 16,
         padding: "clamp(12px, 2vw, 24px)",
-        border: "1px solid #1f2937",
-        boxShadow: "0 20px 40px rgba(15,23,42,0.6)",
+        border: "1px solid var(--panel-border)",
+        boxShadow: "0 20px 40px rgba(0,0,0,0.16)",
         fontSize: 12,
         boxSizing: "border-box",
       }}
     >
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
         <div>
-          <h1 style={{ fontSize: 20, margin: "0 0 4px", color: "#f9fafb" }}>安全市场</h1>
-          <p style={{ margin: "4px 0 0", fontSize: 13, color: "#9ca3af" }}>
+          <h1 style={{ fontSize: 20, margin: "0 0 4px", color: "var(--fg)" }}>安全市场</h1>
+          <p style={{ margin: "4px 0 0", fontSize: 13, color: "var(--muted)" }}>
             按「官方精选 / 安全推荐 / 热门 / 最新」浏览技能；启用状态与云端同步策略不变。
           </p>
         </div>
@@ -482,9 +482,9 @@ export function SkillsPanel({ showAccountSwitchPlaceholder = false }: { showAcco
             style={{
               padding: "6px 12px",
               borderRadius: 999,
-              border: "1px solid #374151",
-              background: "#020617",
-              color: "#e5e7eb",
+              border: "1px solid var(--btn-border)",
+              background: "var(--panel-bg)",
+              color: "var(--fg)",
               fontSize: 12,
               fontWeight: 500,
               cursor: sync.running ? "not-allowed" : "pointer",
@@ -514,9 +514,9 @@ export function SkillsPanel({ showAccountSwitchPlaceholder = false }: { showAcco
               style={{
                 padding: "8px 16px",
                 borderRadius: 999,
-                border: active ? "1px solid rgba(59,130,246,0.5)" : "1px solid #334155",
-                background: active ? "rgba(59,130,246,0.12)" : "rgba(15,23,42,0.5)",
-                color: active ? "#93c5fd" : "#94a3b8",
+                border: active ? "1px solid rgba(59,130,246,0.5)" : "1px solid var(--panel-border)",
+                background: active ? "rgba(59,130,246,0.12)" : "var(--panel-bg2)",
+                color: active ? "#93c5fd" : "var(--muted)",
                 fontSize: 13,
                 fontWeight: active ? 700 : 600,
                 cursor: "pointer",
@@ -550,8 +550,8 @@ export function SkillsPanel({ showAccountSwitchPlaceholder = false }: { showAcco
           style={{
             height: 6,
             borderRadius: 999,
-            background: "#020617",
-            border: "1px solid #111827",
+            background: "var(--panel-bg)",
+            border: "1px solid var(--panel-border)",
             overflow: "hidden",
           }}
         >
@@ -564,14 +564,14 @@ export function SkillsPanel({ showAccountSwitchPlaceholder = false }: { showAcco
             }}
           />
         </div>
-        <div style={{ marginTop: 4, fontSize: 11, color: "#6b7280" }}>
+        <div style={{ marginTop: 4, fontSize: 11, color: "var(--muted2)" }}>
           {sync.running
             ? `同步中：${sync.synced}/${sync.total || "?"} 条`
             : `已同步：${sync.synced} 条（总计：${sync.total || skills.length}）`}
         </div>
       </div>
 
-      {loading && <div style={{ color: "#9ca3af", marginBottom: 8 }}>加载中…</div>}
+      {loading && <div style={{ color: "var(--muted)", marginBottom: 8 }}>加载中…</div>}
       {error && (
         <div
           style={{
@@ -629,9 +629,9 @@ export function SkillsPanel({ showAccountSwitchPlaceholder = false }: { showAcco
           marginBottom: 14,
           padding: "12px",
           borderRadius: 12,
-          background: "linear-gradient(135deg, rgba(15,23,42,0.92), rgba(2,6,23,0.92))",
-          border: "1px solid #1e293b",
-          boxShadow: "inset 0 1px 0 rgba(148,163,184,0.08), 0 8px 24px rgba(2,6,23,0.28)",
+          background: "var(--panel-bg2)",
+          border: "1px solid var(--panel-border)",
+          boxShadow: "inset 0 1px 0 rgba(148,163,184,0.08), 0 8px 24px rgba(0,0,0,0.12)",
         }}
       >
         <input
@@ -648,15 +648,15 @@ export function SkillsPanel({ showAccountSwitchPlaceholder = false }: { showAcco
             flex: "1 1 260px",
             minWidth: 280,
             height: 36,
-            background: "rgba(2,6,23,0.86)",
+            background: "var(--panel-bg)",
             borderRadius: 999,
-            border: "1px solid #334155",
+            border: "1px solid var(--panel-border)",
             padding: "0 14px",
             fontSize: 12,
             fontWeight: 500,
-            color: "#f1f5f9",
+            color: "var(--fg)",
             outline: "none",
-            boxShadow: "inset 0 1px 2px rgba(0,0,0,0.45)",
+            boxShadow: "inset 0 1px 2px rgba(0,0,0,0.14)",
           }}
         />
 
@@ -690,9 +690,9 @@ export function SkillsPanel({ showAccountSwitchPlaceholder = false }: { showAcco
             height: 36,
             padding: "0 16px",
             borderRadius: 999,
-            border: "1px solid #334155",
+            border: "1px solid var(--btn-border)",
             background: loading
-              ? "linear-gradient(135deg, #111827, #0b1220)"
+              ? "var(--panel-bg2)"
               : "linear-gradient(135deg, #2563eb, #1d4ed8)",
             color: "#f8fafc",
             fontSize: 12,
@@ -711,7 +711,7 @@ export function SkillsPanel({ showAccountSwitchPlaceholder = false }: { showAcco
       <div
         style={{
           borderRadius: 10,
-          border: "1px solid #1f2937",
+          border: "1px solid var(--panel-border)",
           overflow: "hidden",
         }}
       >
@@ -723,21 +723,21 @@ export function SkillsPanel({ showAccountSwitchPlaceholder = false }: { showAcco
             overflowY: "auto",
             overflowX: "auto",
             scrollbarWidth: "thin",
-            scrollbarColor: "#475569 #0b1220",
+            scrollbarColor: "var(--muted2) var(--panel-bg)",
           }}
         >
         <table style={{ width: "100%", minWidth: 1320, borderCollapse: "collapse" }}>
-          <thead style={{ background: "#020617", position: "sticky", top: 0, zIndex: 1 }}>
+          <thead style={{ background: "var(--panel-bg)", position: "sticky", top: 0, zIndex: 1 }}>
             <tr>
-              <th style={{ padding: "6px 8px", borderBottom: "1px solid #1f2937", textAlign: "left" }}>名称</th>
-              <th style={{ padding: "6px 8px", borderBottom: "1px solid #1f2937", textAlign: "left" }}>提供商</th>
-              <th style={{ padding: "6px 8px", borderBottom: "1px solid #1f2937", textAlign: "center", width: 72 }}>等级</th>
-              <th style={{ padding: "6px 8px", borderBottom: "1px solid #1f2937", textAlign: "left" }}>状态</th>
-              <th style={{ padding: "6px 8px", borderBottom: "1px solid #1f2937", textAlign: "left" }}>简介</th>
+              <th style={{ padding: "6px 8px", borderBottom: "1px solid var(--panel-border)", textAlign: "left", color: "var(--muted)" }}>名称</th>
+              <th style={{ padding: "6px 8px", borderBottom: "1px solid var(--panel-border)", textAlign: "left", color: "var(--muted)" }}>提供商</th>
+              <th style={{ padding: "6px 8px", borderBottom: "1px solid var(--panel-border)", textAlign: "center", width: 72, color: "var(--muted)" }}>等级</th>
+              <th style={{ padding: "6px 8px", borderBottom: "1px solid var(--panel-border)", textAlign: "left", color: "var(--muted)" }}>状态</th>
+              <th style={{ padding: "6px 8px", borderBottom: "1px solid var(--panel-border)", textAlign: "left", color: "var(--muted)" }}>简介</th>
               <th
                 style={{
                   padding: "6px 8px",
-                  borderBottom: "1px solid #1f2937",
+                  borderBottom: "1px solid var(--panel-border)",
                   textAlign: "center",
                   width: 84,
                   minWidth: 84,
@@ -745,8 +745,9 @@ export function SkillsPanel({ showAccountSwitchPlaceholder = false }: { showAcco
                   position: "sticky",
                   right: 200,
                   zIndex: 3,
-                  background: "#0b1220",
-                  boxShadow: "-1px 0 0 #1f2937, -8px 0 16px rgba(2,6,23,0.28)",
+                  background: "var(--panel-bg)",
+                  boxShadow: "-1px 0 0 var(--panel-border), -8px 0 16px rgba(0,0,0,0.10)",
+                  color: "var(--muted)",
                 }}
               >
                 启用
@@ -757,13 +758,14 @@ export function SkillsPanel({ showAccountSwitchPlaceholder = false }: { showAcco
                   width: 200,
                   minWidth: 200,
                   boxSizing: "border-box",
-                  borderBottom: "1px solid #1f2937",
+                  borderBottom: "1px solid var(--panel-border)",
                   textAlign: "center",
                   position: "sticky",
                   right: 0,
                   zIndex: 4,
-                  background: "#0b1220",
-                  boxShadow: "-1px 0 0 #1f2937, -8px 0 16px rgba(2,6,23,0.28)",
+                  background: "var(--panel-bg)",
+                  boxShadow: "-1px 0 0 var(--panel-border), -8px 0 16px rgba(0,0,0,0.10)",
+                  color: "var(--muted)",
                 }}
               >
                 操作
@@ -772,11 +774,11 @@ export function SkillsPanel({ showAccountSwitchPlaceholder = false }: { showAcco
           </thead>
           <tbody>
             {displaySkills.map((s) => (
-              <tr key={s.slug} style={{ background: "#020617" }}>
-                <td style={{ padding: "6px 8px", borderBottom: "1px solid #111827", maxWidth: 280 }}>
+              <tr key={s.slug} style={{ background: "var(--panel-bg)" }}>
+                <td style={{ padding: "6px 8px", borderBottom: "1px solid var(--panel-border)", maxWidth: 280 }}>
                   <div
                     style={{
-                      color: "#e5e7eb",
+                      color: "var(--fg)",
                       fontWeight: 500,
                       fontSize: 12,
                       whiteSpace: "nowrap",
@@ -790,7 +792,7 @@ export function SkillsPanel({ showAccountSwitchPlaceholder = false }: { showAcco
                   <div
                     style={{
                       fontSize: 10,
-                      color: "#6b7280",
+                      color: "var(--muted2)",
                       marginTop: 3,
                       fontFamily:
                         'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
@@ -872,15 +874,15 @@ export function SkillsPanel({ showAccountSwitchPlaceholder = false }: { showAcco
                       alignItems: "center",
                       gap: "4px 10px",
                       fontSize: 10,
-                      color: "#9ca3af",
+                      color: "var(--muted)",
                     }}
                   >
                     <span title="累计下载/安装量">
-                      <span style={{ color: "#64748b" }}>下载 </span>
+                      <span style={{ color: "var(--muted2)" }}>下载 </span>
                       <span
                         style={{
                           fontWeight: 600,
-                          color: "#e5e7eb",
+                          color: "var(--fg)",
                           fontFamily:
                             'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
                         }}
@@ -888,15 +890,15 @@ export function SkillsPanel({ showAccountSwitchPlaceholder = false }: { showAcco
                         {formatMarketCount(s.downloadCount)}
                       </span>
                     </span>
-                    <span style={{ color: "#334155", userSelect: "none" }} aria-hidden>
+                    <span style={{ color: "var(--panel-border)", userSelect: "none" }} aria-hidden>
                       |
                     </span>
                     <span title="收藏 / 关注量">
-                      <span style={{ color: "#64748b" }}>收藏 </span>
+                      <span style={{ color: "var(--muted2)" }}>收藏 </span>
                       <span
                         style={{
                           fontWeight: 600,
-                          color: "#e5e7eb",
+                          color: "var(--fg)",
                           fontFamily:
                             'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
                         }}
@@ -906,7 +908,7 @@ export function SkillsPanel({ showAccountSwitchPlaceholder = false }: { showAcco
                     </span>
                     {s.starRating != null && Number.isFinite(s.starRating) && (
                       <>
-                        <span style={{ color: "#334155", userSelect: "none" }} aria-hidden>
+                        <span style={{ color: "var(--panel-border)", userSelect: "none" }} aria-hidden>
                           |
                         </span>
                         <span title="星级评分">
@@ -914,7 +916,7 @@ export function SkillsPanel({ showAccountSwitchPlaceholder = false }: { showAcco
                           <span
                             style={{
                               fontWeight: 600,
-                              color: "#e5e7eb",
+                              color: "var(--fg)",
                               fontFamily:
                                 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
                             }}
@@ -926,13 +928,13 @@ export function SkillsPanel({ showAccountSwitchPlaceholder = false }: { showAcco
                     )}
                   </div>
                 </td>
-                <td style={{ padding: "6px 8px", borderBottom: "1px solid #111827", color: "#9ca3af", fontSize: 11 }}>
+                <td style={{ padding: "6px 8px", borderBottom: "1px solid var(--panel-border)", color: "var(--muted)", fontSize: 11 }}>
                   <div style={{ whiteSpace: "nowrap" }}>{s.sourceName || "-"}</div>
                   {s.publisherVerified && (
                     <div style={{ marginTop: 4, fontSize: 9, fontWeight: 600, color: "#86efac" }}>✓ 已验证发布者</div>
                   )}
                 </td>
-                <td style={{ padding: "6px 8px", borderBottom: "1px solid #111827", textAlign: "center", verticalAlign: "middle" }}>
+                <td style={{ padding: "6px 8px", borderBottom: "1px solid var(--panel-border)", textAlign: "center", verticalAlign: "middle" }}>
                   {s.securityGrade ? (
                     <div
                       style={{
@@ -961,19 +963,19 @@ export function SkillsPanel({ showAccountSwitchPlaceholder = false }: { showAcco
                       </span>
                     </div>
                   ) : (
-                    <span style={{ color: "#4b5563", fontSize: 11 }}>—</span>
+                    <span style={{ color: "var(--muted2)", fontSize: 11 }}>—</span>
                   )}
                 </td>
-                <td style={{ padding: "6px 8px", borderBottom: "1px solid #111827", whiteSpace: "nowrap" }}>
+                <td style={{ padding: "6px 8px", borderBottom: "1px solid var(--panel-border)", whiteSpace: "nowrap" }}>
                   <span
                     style={{
                       display: "inline-block",
                       padding: "3px 10px",
                       borderRadius: 6,
-                      border: "1px solid #374151",
+                      border: "1px solid var(--btn-border)",
                       fontSize: 11,
                       fontWeight: 600,
-                      color: "#e5e7eb",
+                      color: "var(--fg)",
                       whiteSpace: "nowrap",
                     }}
                   >
@@ -987,14 +989,14 @@ export function SkillsPanel({ showAccountSwitchPlaceholder = false }: { showAcco
                 <td
                   style={{
                     padding: "6px 8px",
-                    borderBottom: "1px solid #111827",
+                    borderBottom: "1px solid var(--panel-border)",
                     maxWidth: 260,
                   }}
                 >
                   <div
                     style={{
                       fontSize: 11,
-                      color: "#9ca3af",
+                      color: "var(--muted)",
                       overflow: "hidden",
                       textOverflow: "ellipsis",
                       display: "-webkit-box",
@@ -1010,13 +1012,13 @@ export function SkillsPanel({ showAccountSwitchPlaceholder = false }: { showAcco
                 <td
                   style={{
                     padding: "6px 8px",
-                    borderBottom: "1px solid #111827",
+                    borderBottom: "1px solid var(--panel-border)",
                     whiteSpace: "nowrap",
                     position: "sticky",
                     right: 200,
                     zIndex: 2,
-                    background: "#0b1220",
-                    boxShadow: "-1px 0 0 #111827, -8px 0 16px rgba(2,6,23,0.22)",
+                    background: "var(--panel-bg)",
+                    boxShadow: "-1px 0 0 var(--panel-border), -8px 0 16px rgba(0,0,0,0.10)",
                     width: 84,
                     minWidth: 84,
                     boxSizing: "border-box",
@@ -1024,7 +1026,7 @@ export function SkillsPanel({ showAccountSwitchPlaceholder = false }: { showAcco
                   }}
                 >
                   {s.userEnabled === null ? (
-                    <div style={{ fontSize: 10, color: "#6b7280" }}>（未配置）</div>
+                    <div style={{ fontSize: 10, color: "var(--muted2)" }}>（未配置）</div>
                   ) : (
                     <button
                       type="button"
@@ -1060,13 +1062,13 @@ export function SkillsPanel({ showAccountSwitchPlaceholder = false }: { showAcco
                 <td
                   style={{
                     padding: "6px 8px",
-                    borderBottom: "1px solid #111827",
+                    borderBottom: "1px solid var(--panel-border)",
                     textAlign: "center",
                     position: "sticky",
                     right: 0,
                     zIndex: 3,
-                    background: "#0b1220",
-                    boxShadow: "-1px 0 0 #111827, -8px 0 16px rgba(2,6,23,0.22)",
+                    background: "var(--panel-bg)",
+                    boxShadow: "-1px 0 0 var(--panel-border), -8px 0 16px rgba(0,0,0,0.10)",
                     width: 200,
                     minWidth: 200,
                     boxSizing: "border-box",
@@ -1082,9 +1084,9 @@ export function SkillsPanel({ showAccountSwitchPlaceholder = false }: { showAcco
                         height: 26,
                         padding: "0 8px",
                         borderRadius: 8,
-                        border: "1px solid #374151",
-                        background: "rgba(15,23,42,0.6)",
-                        color: "#6b7280",
+                        border: "1px solid var(--btn-border)",
+                        background: "var(--panel-bg2)",
+                        color: "var(--muted2)",
                         fontSize: 10,
                         fontWeight: 600,
                         cursor: "not-allowed",
@@ -1112,7 +1114,7 @@ export function SkillsPanel({ showAccountSwitchPlaceholder = false }: { showAcco
                         border: "none",
                         background:
                           s.userEnabled === 0 && s.systemStatus === "NORMAL" ? "#2563eb" : "rgba(30,41,59,0.9)",
-                        color: s.userEnabled === 0 && s.systemStatus === "NORMAL" ? "#fff" : "#64748b",
+                        color: s.userEnabled === 0 && s.systemStatus === "NORMAL" ? "#fff" : "var(--muted2)",
                         fontSize: 10,
                         fontWeight: 700,
                         cursor:
@@ -1131,9 +1133,9 @@ export function SkillsPanel({ showAccountSwitchPlaceholder = false }: { showAcco
                         height: 26,
                         padding: "0 8px",
                         borderRadius: 8,
-                        border: "1px solid #1f2937",
-                        background: "rgba(2,6,23,0.9)",
-                        color: "#e5e7eb",
+                        border: "1px solid var(--btn-border)",
+                        background: "var(--panel-bg)",
+                        color: "var(--fg)",
                         fontSize: 10,
                         fontWeight: 600,
                         cursor: "pointer",
@@ -1149,7 +1151,7 @@ export function SkillsPanel({ showAccountSwitchPlaceholder = false }: { showAcco
               <tr>
                 <td
                   colSpan={7}
-                  style={{ padding: "8px 10px", textAlign: "center", color: "#6b7280", background: "#020617" }}
+                  style={{ padding: "8px 10px", textAlign: "center", color: "var(--muted2)", background: "var(--panel-bg)" }}
                 >
                   {skills.length === 0
                     ? "当前本地还没有任何技能数据，请先登录并同步。"

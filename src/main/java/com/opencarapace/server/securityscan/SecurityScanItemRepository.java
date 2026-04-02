@@ -2,6 +2,7 @@ package com.opencarapace.server.securityscan;
 
 import org.springframework.data.jpa.repository.JpaRepository;
 
+import java.util.Optional;
 import java.util.Collection;
 import java.util.List;
 
@@ -10,4 +11,6 @@ public interface SecurityScanItemRepository extends JpaRepository<SecurityScanIt
     List<SecurityScanItem> findByEnabledTrueOrderBySortOrderAscIdAsc();
 
     List<SecurityScanItem> findByCodeInAndEnabledTrue(Collection<String> codes);
+
+    Optional<SecurityScanItem> findByCode(String code);
 }

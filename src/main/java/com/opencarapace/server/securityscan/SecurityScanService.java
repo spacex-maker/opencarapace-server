@@ -86,7 +86,8 @@ public class SecurityScanService {
                             "scannerType=" + item.getScannerType(), "请联系管理员更新扫描项配置", ""));
                 }
             } catch (Exception e) {
-                log.warn("Scan item failed: {} {}", item.getCode(), e.getMessage());
+                // 把堆栈打到日志里，便于定位 DeepSeek/序列化/网络等具体失败点
+                log.warn("Scan item failed: {} {}", item.getCode(), e.getMessage(), e);
                 findings.add(simpleFinding(item.getCode(), "WARN", "扫描项执行失败",
                         e.getMessage(), "检查云端扫描项 spec_json 或 DeepSeek 配置", ""));
             }

@@ -418,16 +418,16 @@ export function SettingsPanel(props: Props) {
       style={{
         maxWidth: 920,
         margin: "0 auto",
-        background: "#020617",
+        background: "var(--panel-bg)",
         borderRadius: 16,
         padding: "24px 28px",
-        border: "1px solid #1f2937",
-        boxShadow: "0 20px 40px rgba(15,23,42,0.6)",
+        border: "1px solid var(--panel-border)",
+        boxShadow: "0 20px 40px rgba(0,0,0,0.16)",
         fontSize: 12,
       }}
     >
-      <h1 style={{ fontSize: 20, margin: "0 0 4px", color: "#f9fafb" }}>设置</h1>
-      <p style={{ margin: "4px 0 12px", fontSize: 13, color: "#9ca3af" }}>
+      <h1 style={{ fontSize: 20, margin: "0 0 4px", color: "var(--fg)" }}>设置</h1>
+      <p style={{ margin: "4px 0 12px", fontSize: 13, color: "var(--muted)" }}>
         在这里选择本地客户端调用 LLM 时的路由模式，并配置自定义转发映射。使用说明请切换到「文档与使用说明」。
       </p>
 
@@ -448,8 +448,8 @@ export function SettingsPanel(props: Props) {
                 padding: "8px 14px",
                 borderRadius: 999,
                 border: active ? "1px solid rgba(34,197,94,0.45)" : "1px solid rgba(51,65,85,0.7)",
-                background: active ? "rgba(34,197,94,0.12)" : "rgba(15,23,42,0.55)",
-                color: active ? "#86efac" : "#e5e7eb",
+                background: active ? "rgba(34,197,94,0.12)" : "var(--panel-bg2)",
+                color: active ? "#86efac" : "var(--fg)",
                 fontSize: 12,
                 fontWeight: active ? 700 : 600,
                 cursor: "pointer",
@@ -466,7 +466,7 @@ export function SettingsPanel(props: Props) {
           style={{
             marginTop: 12,
             paddingTop: 14,
-            borderTop: "1px solid #1f2937",
+            borderTop: "1px solid var(--panel-border)",
             maxHeight: "min(70vh, 720px)",
             overflowY: "auto",
             paddingRight: 4,
@@ -482,11 +482,11 @@ export function SettingsPanel(props: Props) {
         style={{
           marginTop: 8,
           paddingTop: 12,
-          borderTop: "1px solid #1f2937",
+          borderTop: "1px solid var(--panel-border)",
         }}
       >
-        <div style={{ fontSize: 13, fontWeight: 500, color: "#e5e7eb", marginBottom: 6 }}>LLM 路由模式</div>
-        <p style={{ margin: "0 0 10px", fontSize: 12, color: "#6b7280", lineHeight: 1.5 }}>
+        <div style={{ fontSize: 13, fontWeight: 500, color: "var(--fg)", marginBottom: 6 }}>LLM 路由模式</div>
+        <p style={{ margin: "0 0 10px", fontSize: 12, color: "var(--muted2)", lineHeight: 1.5 }}>
           你可以选择直接连接上游 LLM，或通过 ClawHeart 云端网关转发（带危险指令监管与意图识别能力）。
         </p>
 
@@ -499,9 +499,9 @@ export function SettingsPanel(props: Props) {
               textAlign: "left",
               padding: "10px 12px",
               borderRadius: 12,
-              border: mode === "GATEWAY" ? "1px solid #22c55e" : "1px solid #1f2937",
-              background:
-                mode === "GATEWAY" ? "linear-gradient(135deg, #064e3b, #022c22)" : "rgba(15,23,42,0.85)",
+              border: mode === "GATEWAY" ? "1px solid rgba(34,197,94,0.6)" : "1px solid var(--panel-border)",
+              background: mode === "GATEWAY" ? "rgba(34,197,94,0.10)" : "var(--panel-bg2)",
+              boxShadow: mode === "GATEWAY" ? "0 8px 18px rgba(34,197,94,0.10)" : "none",
               cursor: saving ? "not-allowed" : "pointer",
             }}
           >
@@ -509,7 +509,7 @@ export function SettingsPanel(props: Props) {
               style={{
                 fontSize: 12,
                 fontWeight: 600,
-                color: mode === "GATEWAY" ? "#bbf7d0" : "#e5e7eb",
+                color: "var(--fg)",
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "space-between",
@@ -522,16 +522,16 @@ export function SettingsPanel(props: Props) {
                     fontSize: 10,
                     padding: "2px 6px",
                     borderRadius: 999,
-                    background: "rgba(16,185,129,0.2)",
-                    color: "#6ee7b7",
-                    border: "1px solid rgba(16,185,129,0.6)",
+                    background: "rgba(34,197,94,0.14)",
+                    color: "rgba(21,128,61,1)",
+                    border: "1px solid rgba(34,197,94,0.45)",
                   }}
                 >
                   当前
                 </span>
               )}
             </div>
-            <div style={{ marginTop: 4, fontSize: 11, color: "#9ca3af", lineHeight: 1.6 }}>
+            <div style={{ marginTop: 4, fontSize: 11, color: "var(--muted)", lineHeight: 1.6 }}>
               请求先发到云端网关，由网关执行危险指令拦截与意图识别，再转发到上游 LLM。便于统一审计与策略配置。
             </div>
           </button>
@@ -544,9 +544,9 @@ export function SettingsPanel(props: Props) {
               textAlign: "left",
               padding: "10px 12px",
               borderRadius: 12,
-              border: mode === "DIRECT" ? "1px solid #38bdf8" : "1px solid #1f2937",
-              background:
-                mode === "DIRECT" ? "linear-gradient(135deg, #0c4a6e, #020617)" : "rgba(15,23,42,0.85)",
+              border: mode === "DIRECT" ? "1px solid rgba(56,189,248,0.65)" : "1px solid var(--panel-border)",
+              background: mode === "DIRECT" ? "rgba(56,189,248,0.10)" : "var(--panel-bg2)",
+              boxShadow: mode === "DIRECT" ? "0 8px 18px rgba(56,189,248,0.10)" : "none",
               cursor: saving ? "not-allowed" : "pointer",
             }}
           >
@@ -554,7 +554,7 @@ export function SettingsPanel(props: Props) {
               style={{
                 fontSize: 12,
                 fontWeight: 600,
-                color: mode === "DIRECT" ? "#bae6fd" : "#e5e7eb",
+                color: "var(--fg)",
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "space-between",
@@ -567,23 +567,23 @@ export function SettingsPanel(props: Props) {
                     fontSize: 10,
                     padding: "2px 6px",
                     borderRadius: 999,
-                    background: "rgba(56,189,248,0.18)",
-                    color: "#7dd3fc",
-                    border: "1px solid rgba(56,189,248,0.6)",
+                    background: "rgba(56,189,248,0.14)",
+                    color: "rgba(3,105,161,1)",
+                    border: "1px solid rgba(56,189,248,0.45)",
                   }}
                 >
                   当前
                 </span>
               )}
             </div>
-            <div style={{ marginTop: 4, fontSize: 11, color: "#9ca3af", lineHeight: 1.6 }}>
+            <div style={{ marginTop: 4, fontSize: 11, color: "var(--muted)", lineHeight: 1.6 }}>
               本地客户端直接调用上游 LLM，仅使用本地危险指令库做拦截。适合内网环境或对延迟更敏感的场景。
             </div>
           </button>
         </div>
 
         {loading && (
-          <div style={{ marginTop: 8, fontSize: 11, color: "#6b7280" }}>正在加载当前配置…</div>
+          <div style={{ marginTop: 8, fontSize: 11, color: "var(--muted2)" }}>正在加载当前配置…</div>
         )}
       </div>
 
@@ -591,11 +591,11 @@ export function SettingsPanel(props: Props) {
         style={{
           marginTop: 18,
           paddingTop: 12,
-          borderTop: "1px solid #1f2937",
+          borderTop: "1px solid var(--panel-border)",
         }}
       >
-        <div style={{ fontSize: 13, fontWeight: 500, color: "#e5e7eb", marginBottom: 6 }}>Skills 用户设置同步</div>
-        <p style={{ margin: "0 0 10px", fontSize: 12, color: "#6b7280", lineHeight: 1.5 }}>
+        <div style={{ fontSize: 13, fontWeight: 500, color: "var(--fg)", marginBottom: 6 }}>Skills 用户设置同步</div>
+        <p style={{ margin: "0 0 10px", fontSize: 12, color: "var(--muted2)", lineHeight: 1.5 }}>
           当你在本地客户端修改 Skill 的启用状态时，是否同步到云端。开启后，你的偏好设置将在多设备间保持一致。
         </p>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
@@ -606,19 +606,19 @@ export function SettingsPanel(props: Props) {
             style={{
               padding: "8px 14px",
               borderRadius: 999,
-              border: syncUserSkillsToCloud ? "1px solid #22c55e" : "1px solid #1f2937",
+              border: syncUserSkillsToCloud ? "1px solid #22c55e" : "1px solid var(--panel-border)",
               background: syncUserSkillsToCloud
                 ? "linear-gradient(135deg, #064e3b, #022c22)"
-                : "rgba(15,23,42,0.85)",
+                : "var(--panel-bg2)",
               cursor: syncLoading ? "not-allowed" : "pointer",
               fontSize: 11,
               fontWeight: 600,
-              color: syncUserSkillsToCloud ? "#bbf7d0" : "#e5e7eb",
+              color: syncUserSkillsToCloud ? "#bbf7d0" : "var(--fg)",
             }}
           >
             {syncUserSkillsToCloud ? "已开启" : "已关闭"}
           </button>
-          <span style={{ fontSize: 11, color: "#9ca3af" }}>
+          <span style={{ fontSize: 11, color: "var(--muted)" }}>
             {syncUserSkillsToCloud ? "修改 Skill 启用状态时会同步到云端" : "修改 Skill 启用状态时仅保存在本地"}
           </span>
         </div>
@@ -628,11 +628,11 @@ export function SettingsPanel(props: Props) {
         style={{
           marginTop: 18,
           paddingTop: 12,
-          borderTop: "1px solid #1f2937",
+          borderTop: "1px solid var(--panel-border)",
         }}
       >
-        <div style={{ fontSize: 13, fontWeight: 500, color: "#e5e7eb", marginBottom: 6 }}>危险指令用户设置同步</div>
-        <p style={{ margin: "0 0 10px", fontSize: 12, color: "#6b7280", lineHeight: 1.5 }}>
+        <div style={{ fontSize: 13, fontWeight: 500, color: "var(--fg)", marginBottom: 6 }}>危险指令用户设置同步</div>
+        <p style={{ margin: "0 0 10px", fontSize: 12, color: "var(--muted2)", lineHeight: 1.5 }}>
           当你在本地客户端修改危险指令的启用状态时，是否同步到云端。开启后，你的偏好设置将在多设备间保持一致。
         </p>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
@@ -643,19 +643,19 @@ export function SettingsPanel(props: Props) {
             style={{
               padding: "8px 14px",
               borderRadius: 999,
-              border: syncUserDangersToCloud ? "1px solid #22c55e" : "1px solid #1f2937",
+              border: syncUserDangersToCloud ? "1px solid #22c55e" : "1px solid var(--panel-border)",
               background: syncUserDangersToCloud
                 ? "linear-gradient(135deg, #064e3b, #022c22)"
-                : "rgba(15,23,42,0.85)",
+                : "var(--panel-bg2)",
               cursor: syncLoading ? "not-allowed" : "pointer",
               fontSize: 11,
               fontWeight: 600,
-              color: syncUserDangersToCloud ? "#bbf7d0" : "#e5e7eb",
+              color: syncUserDangersToCloud ? "#bbf7d0" : "var(--fg)",
             }}
           >
             {syncUserDangersToCloud ? "已开启" : "已关闭"}
           </button>
-          <span style={{ fontSize: 11, color: "#9ca3af" }}>
+          <span style={{ fontSize: 11, color: "var(--muted)" }}>
             {syncUserDangersToCloud ? "修改危险指令启用状态时会同步到云端" : "修改危险指令启用状态时仅保存在本地"}
           </span>
         </div>
@@ -665,11 +665,11 @@ export function SettingsPanel(props: Props) {
         style={{
           marginTop: 18,
           paddingTop: 12,
-          borderTop: "1px solid #1f2937",
+          borderTop: "1px solid var(--panel-border)",
         }}
       >
-        <div style={{ fontSize: 13, fontWeight: 500, color: "#e5e7eb", marginBottom: 6 }}>映射配置云端同步</div>
-        <p style={{ margin: "0 0 10px", fontSize: 12, color: "#6b7280", lineHeight: 1.5 }}>
+        <div style={{ fontSize: 13, fontWeight: 500, color: "var(--fg)", marginBottom: 6 }}>映射配置云端同步</div>
+        <p style={{ margin: "0 0 10px", fontSize: 12, color: "var(--muted2)", lineHeight: 1.5 }}>
           开启后，添加/删除映射时会自动同步到云端。GATEWAY 模式需要云端映射才能正常工作。
         </p>
         <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
@@ -679,19 +679,19 @@ export function SettingsPanel(props: Props) {
             style={{
               padding: "8px 14px",
               borderRadius: 999,
-              border: syncMappingsToCloud ? "1px solid #22c55e" : "1px solid #1f2937",
+              border: syncMappingsToCloud ? "1px solid #22c55e" : "1px solid var(--panel-border)",
               background: syncMappingsToCloud
                 ? "linear-gradient(135deg, #064e3b, #022c22)"
-                : "rgba(15,23,42,0.85)",
+                : "var(--panel-bg2)",
               cursor: "pointer",
               fontSize: 11,
               fontWeight: 600,
-              color: syncMappingsToCloud ? "#bbf7d0" : "#e5e7eb",
+              color: syncMappingsToCloud ? "#bbf7d0" : "var(--fg)",
             }}
           >
             {syncMappingsToCloud ? "已开启" : "已关闭"}
           </button>
-          <span style={{ fontSize: 11, color: "#9ca3af" }}>
+          <span style={{ fontSize: 11, color: "var(--muted)" }}>
             {syncMappingsToCloud ? "映射会同步到云端（推荐）" : "映射仅保存在本地"}
           </span>
         </div>
@@ -713,7 +713,7 @@ export function SettingsPanel(props: Props) {
           >
             {syncingMappings ? "同步中..." : "从云端拉取映射"}
           </button>
-          <span style={{ fontSize: 11, color: "#6b7280", lineHeight: "28px" }}>
+          <span style={{ fontSize: 11, color: "var(--muted2)", lineHeight: "28px" }}>
             将云端映射配置同步到本地（会覆盖本地同名映射）
           </span>
         </div>
@@ -723,16 +723,16 @@ export function SettingsPanel(props: Props) {
         style={{
           marginTop: 18,
           paddingTop: 12,
-          borderTop: "1px solid #1f2937",
+          borderTop: "1px solid var(--panel-border)",
         }}
       >
-        <div style={{ fontSize: 13, fontWeight: 500, color: "#e5e7eb", marginBottom: 6 }}>网络映射配置</div>
-        <p style={{ margin: "0 0 10px", fontSize: 12, color: "#6b7280", lineHeight: 1.5 }}>
-          配置自定义前缀，将 <span style={{ color: "#e5e7eb" }}>http://127.0.0.1:19111/&lt;前缀&gt;/…</span> 转发到任意上游网络基地址（不限于纯文本 LLM，亦可对接多模态等 HTTP API）。
+        <div style={{ fontSize: 13, fontWeight: 500, color: "var(--fg)", marginBottom: 6 }}>网络映射配置</div>
+        <p style={{ margin: "0 0 10px", fontSize: 12, color: "var(--muted2)", lineHeight: 1.5 }}>
+          配置自定义前缀，将 <span style={{ color: "var(--fg)" }}>http://127.0.0.1:19111/&lt;前缀&gt;/…</span> 转发到任意上游网络基地址（不限于纯文本 LLM，亦可对接多模态等 HTTP API）。
           <br/>
-          • <span style={{ color: "#e5e7eb" }}>DIRECT 模式</span>：本地直接转发到目标基地址
+          • <span style={{ color: "var(--fg)" }}>DIRECT 模式</span>：本地直接转发到目标基地址
           <br/>
-          • <span style={{ color: "#e5e7eb" }}>GATEWAY 模式</span>：转发到云端，云端查映射表并执行监管（需开启云端同步）
+          • <span style={{ color: "var(--fg)" }}>GATEWAY 模式</span>：转发到云端，云端查映射表并执行监管（需开启云端同步）
         </p>
 
         <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>
@@ -742,12 +742,12 @@ export function SettingsPanel(props: Props) {
             placeholder="前缀，例如 deepseek"
             style={{
               flex: 0.5,
-              background: "#020617",
+              background: "var(--panel-bg)",
               borderRadius: 999,
-              border: "1px solid #1f2937",
+              border: "1px solid var(--panel-border)",
               padding: "6px 10px",
               fontSize: 11,
-              color: "#e5e7eb",
+              color: "var(--fg)",
               outline: "none",
             }}
           />
@@ -757,12 +757,12 @@ export function SettingsPanel(props: Props) {
             placeholder="目标基地址，例如 https://api.openai.com"
             style={{
               flex: 1.2,
-              background: "#020617",
+              background: "var(--panel-bg)",
               borderRadius: 999,
-              border: "1px solid #1f2937",
+              border: "1px solid var(--panel-border)",
               padding: "6px 10px",
               fontSize: 11,
-              color: "#e5e7eb",
+              color: "var(--fg)",
               outline: "none",
             }}
           />
@@ -788,16 +788,16 @@ export function SettingsPanel(props: Props) {
         <div
           style={{
             borderRadius: 10,
-            border: "1px solid #1f2937",
-            background: "rgba(15,23,42,0.85)",
+            border: "1px solid var(--panel-border)",
+            background: "var(--panel-bg2)",
             maxHeight: 180,
             overflowY: "auto",
           }}
         >
           {mappingLoading && mappings.length === 0 ? (
-            <div style={{ padding: "8px 10px", fontSize: 11, color: "#6b7280" }}>正在加载映射配置…</div>
+            <div style={{ padding: "8px 10px", fontSize: 11, color: "var(--muted2)" }}>正在加载映射配置…</div>
           ) : mappings.length === 0 ? (
-            <div style={{ padding: "8px 10px", fontSize: 11, color: "#6b7280" }}>暂无映射配置。</div>
+            <div style={{ padding: "8px 10px", fontSize: 11, color: "var(--muted2)" }}>暂无映射配置。</div>
           ) : (
             <table
               style={{
@@ -807,12 +807,12 @@ export function SettingsPanel(props: Props) {
               }}
             >
               <thead>
-                <tr style={{ background: "#020617" }}>
-                  <th style={{ textAlign: "left", padding: "6px 10px", color: "#9ca3af", fontWeight: 500 }}>前缀</th>
-                  <th style={{ textAlign: "left", padding: "6px 10px", color: "#9ca3af", fontWeight: 500 }}>
+                <tr style={{ background: "var(--panel-bg)" }}>
+                  <th style={{ textAlign: "left", padding: "6px 10px", color: "var(--muted)", fontWeight: 500 }}>前缀</th>
+                  <th style={{ textAlign: "left", padding: "6px 10px", color: "var(--muted)", fontWeight: 500 }}>
                     目标基地址
                   </th>
-                  <th style={{ textAlign: "left", padding: "6px 10px", color: "#9ca3af", fontWeight: 500 }}>
+                  <th style={{ textAlign: "left", padding: "6px 10px", color: "var(--muted)", fontWeight: 500 }}>
                     本地网关地址（可复制）
                   </th>
                   <th style={{ width: 80 }}></th>
@@ -821,24 +821,24 @@ export function SettingsPanel(props: Props) {
               <tbody>
                 {mappings.map((m) => (
                   <tr key={m.id}>
-                    <td style={{ padding: "6px 10px", color: "#e5e7eb", borderTop: "1px solid #111827" }}>
+                    <td style={{ padding: "6px 10px", color: "var(--fg)", borderTop: "1px solid var(--panel-border)" }}>
                       {m.prefix}
                     </td>
-                    <td style={{ padding: "6px 10px", color: "#9ca3af", borderTop: "1px solid #111827" }}>
+                    <td style={{ padding: "6px 10px", color: "var(--muted)", borderTop: "1px solid var(--panel-border)" }}>
                       {m.target_base || m.targetBase}
                     </td>
-                    <td style={{ padding: "6px 10px", color: "#e5e7eb", borderTop: "1px solid #111827" }}>
+                    <td style={{ padding: "6px 10px", color: "var(--fg)", borderTop: "1px solid var(--panel-border)" }}>
                       <div style={{ fontSize: 11, whiteSpace: "nowrap" }}>
                         http://127.0.0.1:19111/{m.prefix}
                       </div>
-                      <div style={{ fontSize: 10, color: "#6b7280", marginTop: 2 }}>
+                      <div style={{ fontSize: 10, color: "var(--muted2)", marginTop: 2 }}>
                         可作为第三方应用的 Base URL
                       </div>
                     </td>
                     <td
                       style={{
                         padding: "6px 10px",
-                        borderTop: "1px solid #111827",
+                        borderTop: "1px solid var(--panel-border)",
                         textAlign: "right",
                       }}
                     >
@@ -872,12 +872,12 @@ export function SettingsPanel(props: Props) {
         style={{
           marginTop: 18,
           paddingTop: 12,
-          borderTop: "1px solid #1f2937",
+          borderTop: "1px solid var(--panel-border)",
         }}
       >
-        <div style={{ fontSize: 13, fontWeight: 500, color: "#e5e7eb", marginBottom: 6 }}>高级系统设置</div>
-        <p style={{ margin: "0 0 10px", fontSize: 12, color: "#6b7280", lineHeight: 1.5 }}>
-          用于本地联调/测试。开启后，云端 API Base 将切换为 <code style={{ color: "#e5e7eb" }}>http://localhost:8080</code>。
+        <div style={{ fontSize: 13, fontWeight: 500, color: "var(--fg)", marginBottom: 6 }}>高级系统设置</div>
+        <p style={{ margin: "0 0 10px", fontSize: 12, color: "var(--muted2)", lineHeight: 1.5 }}>
+          用于本地联调/测试。开启后，云端 API Base 将切换为 <code style={{ color: "var(--fg)" }}>http://localhost:8080</code>。
         </p>
 
         <div
@@ -888,19 +888,19 @@ export function SettingsPanel(props: Props) {
             gap: 12,
             padding: "10px 12px",
             borderRadius: 12,
-            border: "1px solid #1f2937",
-            background: "rgba(15,23,42,0.85)",
+            border: "1px solid var(--panel-border)",
+            background: "var(--panel-bg2)",
           }}
         >
           <div style={{ minWidth: 0 }}>
-            <div style={{ fontSize: 12, fontWeight: 600, color: "#e5e7eb" }}>测试模式（本地后端 8080）</div>
-            <div style={{ marginTop: 4, fontSize: 11, color: "#9ca3af", lineHeight: 1.5 }}>
+            <div style={{ fontSize: 12, fontWeight: 600, color: "var(--fg)" }}>测试模式（本地后端 8080）</div>
+            <div style={{ marginTop: 4, fontSize: 11, color: "var(--muted)", lineHeight: 1.5 }}>
               当前：{" "}
               <span
                 style={{
                   fontFamily:
                     'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
-                  color: "#e5e7eb",
+                  color: "var(--fg)",
                 }}
               >
                 {apiBaseLoading ? "…" : effectiveApiBase}
@@ -918,8 +918,8 @@ export function SettingsPanel(props: Props) {
                 width: 44,
                 height: 24,
                 borderRadius: 999,
-                border: isLocalBackend ? "1px solid rgba(34,197,94,0.6)" : "1px solid #334155",
-                background: isLocalBackend ? "rgba(34,197,94,0.25)" : "rgba(148,163,184,0.16)",
+                border: isLocalBackend ? "1px solid rgba(34,197,94,0.6)" : "1px solid var(--btn-border)",
+                background: isLocalBackend ? "rgba(34,197,94,0.25)" : "var(--panel-bg)",
                 padding: 2,
                 boxSizing: "border-box",
                 display: "flex",
@@ -943,7 +943,7 @@ export function SettingsPanel(props: Props) {
                 }}
               />
             </button>
-            <span style={{ fontSize: 11, color: "#9ca3af" }}>{isLocalBackend ? "已开启" : "已关闭"}</span>
+            <span style={{ fontSize: 11, color: "var(--muted)" }}>{isLocalBackend ? "已开启" : "已关闭"}</span>
           </div>
         </div>
       </div>

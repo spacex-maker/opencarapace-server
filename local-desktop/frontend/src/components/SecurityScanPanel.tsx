@@ -29,12 +29,66 @@ type Finding = {
 };
 
 const card: React.CSSProperties = {
-  background: "rgba(15,23,42,0.85)",
-  border: "1px solid rgba(51,65,85,0.9)",
+  background: "var(--panel-bg)",
+  border: "1px solid var(--panel-border)",
   borderRadius: 12,
   padding: "14px 16px",
-  boxShadow: "0 0 0 1px rgba(255,255,255,0.03) inset, 0 8px 24px rgba(0,0,0,0.25)",
+  boxShadow:
+    "0 0 0 1px rgba(255,255,255,0.03) inset, 0 8px 24px rgba(0,0,0,0.12)",
 };
+
+function ToggleSwitch({
+  checked,
+  disabled,
+  onChange,
+  accent,
+}: {
+  checked: boolean;
+  disabled?: boolean;
+  onChange: (next: boolean) => void;
+  accent: "green" | "blue";
+}) {
+  const accentTrack = accent === "green" ? "rgba(34,197,94,0.25)" : "rgba(14,165,233,0.22)";
+  const accentBorder = accent === "green" ? "rgba(34,197,94,0.6)" : "rgba(14,165,233,0.55)";
+  const accentKnob = accent === "green" ? "#22c55e" : "#0ea5e9";
+
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={checked}
+      disabled={disabled}
+      onClick={() => onChange(!checked)}
+      style={{
+        width: 44,
+        height: 24,
+        borderRadius: 999,
+        border: `1px solid ${checked ? accentBorder : "var(--panel-border)"}`,
+        background: checked ? accentTrack : "transparent",
+        padding: 2,
+        cursor: disabled ? "not-allowed" : "pointer",
+        position: "relative",
+        transition: "background 0.15s, border-color 0.15s, opacity 0.15s",
+        opacity: disabled ? 0.6 : 1,
+        flexShrink: 0,
+        outline: "none",
+      }}
+    >
+      <span
+        style={{
+          display: "block",
+          width: 20,
+          height: 20,
+          borderRadius: 999,
+          background: checked ? accentKnob : "var(--panel-bg2)",
+          transform: checked ? "translateX(20px)" : "translateX(0px)",
+          transition: "transform 0.18s ease, background 0.15s",
+          boxShadow: checked ? "0 6px 16px rgba(0,0,0,0.25)" : "0 0 0 1px rgba(255,255,255,0.02) inset",
+        }}
+      />
+    </button>
+  );
+}
 
 export function SecurityScanPanel({ status }: { status: LocalStatus | null }) {
   const [items, setItems] = useState<ScanItem[]>([]);
@@ -42,6 +96,16 @@ export function SecurityScanPanel({ status }: { status: LocalStatus | null }) {
   const [itemsError, setItemsError] = useState<string | null>(null);
   const [selected, setSelected] = useState<Record<string, boolean>>({});
   const [contextExtra, setContextExtra] = useState("");
+
+  type PrivacyState = {
+    shareHistoryEnabled: boolean;
+    consentSystemConfigEnabled: boolean;
+  };
+  const [privacy, setPrivacy] = useState<PrivacyState | null>(null);
+  const [privacyLoading, setPrivacyLoading] = useState(true);
+  const [privacyError, setPrivacyError] = useState<string | null>(null);
+  const [privacySaving, setPrivacySaving] = useState(false);
+
   const [scanning, setScanning] = useState(false);
   const [scanPhase, setScanPhase] = useState("");
   const [findings, setFindings] = useState<Finding[]>([]);
@@ -78,6 +142,64 @@ export function SecurityScanPanel({ status }: { status: LocalStatus | null }) {
   useEffect(() => {
     void loadItems();
   }, [loadItems]);
+
+  const loadPrivacy = useCallback(async () => {
+    setPrivacyLoading(true);
+    setPrivacyError(null);
+    try {
+      const res = await fetch("http://127.0.0.1:19111/api/security-scan/privacy");
+      const data = await res.json();
+      if (!res.ok) {
+        setPrivacyError(data?.error?.message || "加载隐私配置失败");
+        setPrivacy(null);
+        return;
+      }
+      setPrivacy({
+        shareHistoryEnabled: !!data?.shareHistoryEnabled,
+        consentSystemConfigEnabled: !!data?.consentSystemConfigEnabled,
+      });
+    } catch (e: any) {
+      setPrivacyError(e?.message ?? "加载隐私配置失败");
+      setPrivacy(null);
+    } finally {
+      setPrivacyLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void loadPrivacy();
+  }, [loadPrivacy]);
+
+  const savePrivacy = useCallback(
+    async (nextPartial: Partial<PrivacyState>) => {
+      if (!privacy) return;
+      const next: PrivacyState = {
+        shareHistoryEnabled: nextPartial.shareHistoryEnabled ?? privacy.shareHistoryEnabled,
+        consentSystemConfigEnabled:
+          nextPartial.consentSystemConfigEnabled ?? privacy.consentSystemConfigEnabled,
+      };
+      setPrivacySaving(true);
+      setPrivacyError(null);
+      try {
+        const res = await fetch("http://127.0.0.1:19111/api/security-scan/privacy", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(next),
+        });
+        const data = await res.json();
+        if (!res.ok) {
+          setPrivacyError(data?.error?.message || "保存隐私配置失败");
+          return;
+        }
+        setPrivacy(next);
+      } catch (e: any) {
+        setPrivacyError(e?.message ?? "保存隐私配置失败");
+      } finally {
+        setPrivacySaving(false);
+      }
+    },
+    [privacy]
+  );
 
   const buildAutoContext = useCallback(() => {
     const lines: string[] = [];
@@ -159,7 +281,7 @@ export function SecurityScanPanel({ status }: { status: LocalStatus | null }) {
   };
 
   return (
-    <div style={{ maxWidth: 960, margin: "0 auto", color: "#e5e7eb" }}>
+    <div style={{ maxWidth: 960, margin: "0 auto", color: "var(--fg)" }}>
       <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 18, flexWrap: "wrap" }}>
         <div
           style={{
@@ -177,10 +299,10 @@ export function SecurityScanPanel({ status }: { status: LocalStatus | null }) {
           <MdManageSearch style={{ fontSize: 26 }} />
         </div>
         <div style={{ flex: 1, minWidth: 200 }}>
-          <h1 style={{ margin: 0, fontSize: 22, fontWeight: 700, color: "#f8fafc" }}>安全扫描</h1>
-          <p style={{ margin: "6px 0 0", fontSize: 13, color: "#94a3b8", lineHeight: 1.5 }}>
+          <h1 style={{ margin: 0, fontSize: 22, fontWeight: 700, color: "var(--fg)" }}>安全扫描</h1>
+          <p style={{ margin: "6px 0 0", fontSize: 13, color: "var(--muted)", lineHeight: 1.5 }}>
             从云端拉取通用扫描项，结合本机环境与你的说明，由 AI（云端 DeepSeek）与静态规则生成 findings。请在系统配置中填写{" "}
-            <code style={{ fontSize: 11, color: "#cbd5e1" }}>deepseek.api_key</code> 以启用 AI 项。
+            <code style={{ fontSize: 11, color: "var(--muted2)" }}>deepseek.api_key</code> 以启用 AI 项。
           </p>
         </div>
         <button
@@ -193,9 +315,9 @@ export function SecurityScanPanel({ status }: { status: LocalStatus | null }) {
             gap: 6,
             padding: "10px 14px",
             borderRadius: 999,
-            border: "1px solid #475569",
-            background: "rgba(30,41,59,0.6)",
-            color: "#e2e8f0",
+            border: "1px solid var(--panel-border)",
+            background: "var(--panel-bg2)",
+            color: "var(--fg)",
             fontSize: 13,
             fontWeight: 600,
             cursor: itemsLoading ? "not-allowed" : "pointer",
@@ -221,9 +343,9 @@ export function SecurityScanPanel({ status }: { status: LocalStatus | null }) {
             style={{
               padding: "8px 14px",
               borderRadius: 999,
-              border: subTab === t.id ? "1px solid rgba(34,197,94,0.5)" : "1px solid #334155",
+              border: subTab === t.id ? "1px solid rgba(34,197,94,0.5)" : "1px solid var(--panel-border)",
               background: subTab === t.id ? "rgba(34,197,94,0.12)" : "transparent",
-              color: subTab === t.id ? "#86efac" : "#94a3b8",
+              color: subTab === t.id ? "#86efac" : "var(--muted)",
               fontSize: 13,
               fontWeight: 600,
               cursor: "pointer",
@@ -231,7 +353,7 @@ export function SecurityScanPanel({ status }: { status: LocalStatus | null }) {
           >
             {t.label}
             {t.id === "results" && counts.total > 0 && (
-              <span style={{ marginLeft: 8, fontSize: 11, color: "#64748b" }}>({counts.total})</span>
+              <span style={{ marginLeft: 8, fontSize: 11, color: "var(--muted2)" }}>({counts.total})</span>
             )}
           </button>
         ))}
@@ -255,15 +377,15 @@ export function SecurityScanPanel({ status }: { status: LocalStatus | null }) {
             <MdManageSearch style={{ fontSize: 22 }} />
           </div>
           <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontSize: 14, fontWeight: 600, color: "#f1f5f9" }}>
+            <div style={{ fontSize: 14, fontWeight: 600, color: "var(--fg)" }}>
               {scanning ? "正在扫描" : "就绪"}
               {scanning && (
                 <span style={{ color: "#38bdf8", fontFamily: "ui-monospace, monospace", marginLeft: 8 }}>···</span>
               )}
             </div>
-            <div style={{ fontSize: 12, color: "#94a3b8", marginTop: 2 }}>{scanPhase || "选择扫描项后点击「开始扫描」"}</div>
+            <div style={{ fontSize: 12, color: "var(--muted)", marginTop: 2 }}>{scanPhase || "选择扫描项后点击「开始扫描」"}</div>
             {scanning && (
-              <div style={{ height: 4, background: "#1e293b", borderRadius: 999, marginTop: 8, overflow: "hidden" }}>
+              <div style={{ height: 4, background: "var(--panel-bg2)", borderRadius: 999, marginTop: 8, overflow: "hidden" }}>
                 <div
                   style={{
                     height: "100%",
@@ -288,11 +410,11 @@ export function SecurityScanPanel({ status }: { status: LocalStatus | null }) {
             { label: "Critical", n: counts.c, color: "#f87171" },
             { label: "Warning", n: counts.w, color: "#fbbf24" },
             { label: "Passed", n: counts.p, color: "#4ade80" },
-            { label: "Total", n: counts.total, color: "#94a3b8" },
+            { label: "Total", n: counts.total, color: "var(--muted)" },
           ].map((b) => (
             <div key={b.label} style={{ ...card, textAlign: "center", padding: "12px 10px" }}>
               <div style={{ fontSize: 20, fontWeight: 800, color: b.color, fontFamily: "ui-monospace, monospace" }}>{b.n}</div>
-              <div style={{ fontSize: 11, color: "#64748b", marginTop: 2 }}>{b.label}</div>
+              <div style={{ fontSize: 11, color: "var(--muted2)", marginTop: 2 }}>{b.label}</div>
             </div>
           ))}
         </div>
@@ -308,7 +430,38 @@ export function SecurityScanPanel({ status }: { status: LocalStatus | null }) {
       {subTab === "items" && (
         <>
           <div style={{ ...card, marginBottom: 14 }}>
-            <div style={{ fontSize: 12, fontWeight: 600, color: "#64748b", marginBottom: 8, letterSpacing: "0.06em" }}>补充上下文（可选）</div>
+            <div style={{ fontSize: 12, fontWeight: 600, color: "var(--muted2)", marginBottom: 8, letterSpacing: "0.06em" }}>
+              隐私与同意
+            </div>
+            <div style={{ display: "flex", gap: 14, flexWrap: "wrap", alignItems: "center" }}>
+              <label style={{ display: "flex", gap: 10, alignItems: "center", cursor: privacySaving ? "not-allowed" : "pointer" }}>
+                <ToggleSwitch
+                  checked={privacy?.shareHistoryEnabled ?? false}
+                  disabled={privacyLoading || privacySaving}
+                  accent="green"
+                  onChange={(next) => void savePrivacy({ shareHistoryEnabled: next })}
+                />
+                <span style={{ fontSize: 13, color: "var(--fg)", fontWeight: 700 }}>共享对话历史用于安全扫描</span>
+              </label>
+
+              <label style={{ display: "flex", gap: 10, alignItems: "center", cursor: privacySaving ? "not-allowed" : "pointer" }}>
+                <ToggleSwitch
+                  checked={privacy?.consentSystemConfigEnabled ?? false}
+                  disabled={privacyLoading || privacySaving}
+                  accent="blue"
+                  onChange={(next) => void savePrivacy({ consentSystemConfigEnabled: next })}
+                />
+                <span style={{ fontSize: 13, color: "var(--fg)", fontWeight: 700 }}>同意扫描本机 AI 配置</span>
+              </label>
+            </div>
+            {privacyError && <div style={{ marginTop: 10, fontSize: 12, color: "#fca5a5" }}>{privacyError}</div>}
+            <div style={{ marginTop: 10, fontSize: 12, color: "var(--muted)", lineHeight: 1.5 }}>
+              未开启相应开关时，包含对应数据源的扫描项会被自动跳过（不会上传到云端）。
+            </div>
+          </div>
+
+          <div style={{ ...card, marginBottom: 14 }}>
+            <div style={{ fontSize: 12, fontWeight: 600, color: "var(--muted2)", marginBottom: 8, letterSpacing: "0.06em" }}>补充上下文（可选）</div>
             <textarea
               value={contextExtra}
               onChange={(e) => setContextExtra(e.target.value)}
@@ -319,9 +472,9 @@ export function SecurityScanPanel({ status }: { status: LocalStatus | null }) {
                 boxSizing: "border-box",
                 padding: "10px 12px",
                 borderRadius: 10,
-                border: "1px solid #334155",
-                background: "#020617",
-                color: "#e5e7eb",
+                border: "1px solid var(--panel-border)",
+                background: "var(--panel-bg)",
+                color: "var(--fg)",
                 fontSize: 13,
                 resize: "vertical",
               }}
@@ -338,8 +491,8 @@ export function SecurityScanPanel({ status }: { status: LocalStatus | null }) {
                   padding: "12px 20px",
                   borderRadius: 999,
                   border: "none",
-                  background: scanning ? "#475569" : "linear-gradient(135deg, #22c55e, #16a34a)",
-                  color: scanning ? "#cbd5e1" : "#022c22",
+                  background: scanning ? "var(--panel-bg2)" : "linear-gradient(135deg, #22c55e, #16a34a)",
+                  color: scanning ? "var(--fg)" : "#022c22",
                   fontSize: 14,
                   fontWeight: 800,
                   cursor: scanning ? "not-allowed" : "pointer",
@@ -355,9 +508,9 @@ export function SecurityScanPanel({ status }: { status: LocalStatus | null }) {
                 style={{
                   padding: "8px 12px",
                   borderRadius: 999,
-                  border: "1px solid #475569",
+                  border: "1px solid var(--panel-border)",
                   background: "transparent",
-                  color: "#cbd5e1",
+                  color: "var(--fg)",
                   fontSize: 12,
                   cursor: "pointer",
                 }}
@@ -370,9 +523,9 @@ export function SecurityScanPanel({ status }: { status: LocalStatus | null }) {
                 style={{
                   padding: "8px 12px",
                   borderRadius: 999,
-                  border: "1px solid #475569",
+                  border: "1px solid var(--panel-border)",
                   background: "transparent",
-                  color: "#cbd5e1",
+                  color: "var(--fg)",
                   fontSize: 12,
                   cursor: "pointer",
                 }}
@@ -382,12 +535,12 @@ export function SecurityScanPanel({ status }: { status: LocalStatus | null }) {
             </div>
           </div>
 
-          <div style={{ fontSize: 12, fontWeight: 600, color: "#64748b", marginBottom: 8 }}>扫描项列表</div>
+          <div style={{ fontSize: 12, fontWeight: 600, color: "var(--muted2)", marginBottom: 8 }}>扫描项列表</div>
           {itemsLoading ? (
-            <div style={{ ...card, color: "#94a3b8" }}>加载中…</div>
+            <div style={{ ...card, color: "var(--muted)" }}>加载中…</div>
           ) : (
             items.map((it) => (
-              <label
+              <div
                 key={it.code}
                 style={{
                   ...card,
@@ -395,26 +548,19 @@ export function SecurityScanPanel({ status }: { status: LocalStatus | null }) {
                   alignItems: "flex-start",
                   gap: 12,
                   marginBottom: 10,
-                  cursor: "pointer",
                 }}
               >
-                <input
-                  type="checkbox"
-                  checked={!!selected[it.code]}
-                  onChange={() => toggle(it.code)}
-                  style={{ marginTop: 4, width: 16, height: 16, accentColor: "#22c55e" }}
-                />
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-                    <span style={{ fontSize: 15, fontWeight: 700, color: "#f8fafc" }}>{it.title}</span>
+                    <span style={{ fontSize: 15, fontWeight: 700, color: "var(--fg)" }}>{it.title}</span>
                     <span
                       style={{
                         fontSize: 10,
                         fontWeight: 700,
                         padding: "2px 8px",
                         borderRadius: 999,
-                        background: "rgba(51,65,85,0.6)",
-                        color: "#94a3b8",
+                        background: "var(--chip-bg)",
+                        color: "var(--chip-fg)",
                       }}
                     >
                       {it.category || "OTHER"}
@@ -434,11 +580,18 @@ export function SecurityScanPanel({ status }: { status: LocalStatus | null }) {
                     </span>
                   </div>
                   {it.description && (
-                    <div style={{ fontSize: 13, color: "#94a3b8", marginTop: 6, lineHeight: 1.45 }}>{it.description}</div>
+                    <div style={{ fontSize: 13, color: "var(--muted)", marginTop: 6, lineHeight: 1.45 }}>{it.description}</div>
                   )}
-                  <div style={{ fontSize: 11, color: "#64748b", marginTop: 6, fontFamily: "ui-monospace, monospace" }}>{it.code}</div>
+                  <div style={{ fontSize: 11, color: "var(--muted2)", marginTop: 6, fontFamily: "ui-monospace, monospace" }}>{it.code}</div>
                 </div>
-              </label>
+                <div style={{ marginTop: 2, marginLeft: "auto" }}>
+                  <ToggleSwitch
+                    checked={!!selected[it.code]}
+                    onChange={() => toggle(it.code)}
+                    accent="green"
+                  />
+                </div>
+              </div>
             ))
           )}
         </>
@@ -447,7 +600,7 @@ export function SecurityScanPanel({ status }: { status: LocalStatus | null }) {
       {subTab === "results" && (
         <>
           {findings.length === 0 && !scanning && (
-            <div style={{ ...card, color: "#94a3b8", textAlign: "center", padding: 32 }}>
+            <div style={{ ...card, color: "var(--muted)", textAlign: "center", padding: 32 }}>
               暂无结果。请在「扫描项」中点击「开始扫描」。
             </div>
           )}
@@ -470,9 +623,9 @@ export function SecurityScanPanel({ status }: { status: LocalStatus | null }) {
                     style={{
                       padding: "6px 14px",
                       borderRadius: 999,
-                      border: filter === c.id ? "1px solid rgba(14,165,233,0.55)" : "1px solid #334155",
-                      background: filter === c.id ? "rgba(14,165,233,0.12)" : "rgba(15,23,42,0.5)",
-                      color: filter === c.id ? "#7dd3fc" : "#94a3b8",
+                      border: filter === c.id ? "1px solid rgba(14,165,233,0.55)" : "1px solid var(--panel-border)",
+                      background: filter === c.id ? "rgba(14,165,233,0.12)" : "var(--panel-bg2)",
+                      color: filter === c.id ? "#7dd3fc" : "var(--muted)",
                       fontSize: 12,
                       fontWeight: 600,
                       cursor: "pointer",
@@ -513,18 +666,18 @@ export function SecurityScanPanel({ status }: { status: LocalStatus | null }) {
                       >
                         {sev || "WARN"}
                       </span>
-                      <span style={{ fontSize: 15, fontWeight: 700, color: "#f8fafc" }}>{f.title}</span>
+                      <span style={{ fontSize: 15, fontWeight: 700, color: "var(--fg)" }}>{f.title}</span>
                     </div>
-                    {f.detail && <div style={{ fontSize: 13, color: "#cbd5e1", lineHeight: 1.5, marginBottom: 6 }}>{f.detail}</div>}
+                    {f.detail && <div style={{ fontSize: 13, color: "var(--muted)", lineHeight: 1.5, marginBottom: 6 }}>{f.detail}</div>}
                     {f.location && (
-                      <div style={{ fontSize: 12, color: "#64748b", fontFamily: "ui-monospace, monospace", marginBottom: 6 }}>
+                      <div style={{ fontSize: 12, color: "var(--muted2)", fontFamily: "ui-monospace, monospace", marginBottom: 6 }}>
                         {f.location}
                       </div>
                     )}
                     {f.remediation && (
                       <div style={{ fontSize: 13, color: "#7dd3fc", lineHeight: 1.45 }}>建议：{f.remediation}</div>
                     )}
-                    <div style={{ fontSize: 11, color: "#475569", marginTop: 8, fontFamily: "ui-monospace, monospace" }}>
+                    <div style={{ fontSize: 11, color: "var(--muted2)", marginTop: 8, fontFamily: "ui-monospace, monospace" }}>
                       item: {f.itemCode}
                     </div>
                   </div>

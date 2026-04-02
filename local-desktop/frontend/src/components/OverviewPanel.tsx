@@ -396,7 +396,7 @@ export function OverviewPanel(props: Props) {
         padding: "clamp(12px, 2.5vw, 32px)",
         boxSizing: "border-box",
         overflowX: "hidden",
-        boxShadow: "0 25px 50px -12px rgba(0, 0, 0, 0.5)",
+        boxShadow: "none",
         color: "var(--fg)",
         fontFamily: "system-ui, -apple-system, sans-serif",
       }}

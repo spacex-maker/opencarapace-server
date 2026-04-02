@@ -276,6 +276,132 @@ function registerSecurityScanRoutes(app) {
       res.status(500).json({ error: { message: e?.message ?? "安全扫描请求失败" } });
     }
   });
+
+  // 异步扫描 Runs：用于进度轮询 + 历史记录
+  app.get("/api/security-scan/runs", async (_req, res) => {
+    try {
+      const { apiBase, headers } = await cloudAxiosConfig();
+      if (!headers.Authorization) {
+        res.status(401).json({ error: { message: "请先登录云端账户后再查看扫描历史。" } });
+        return;
+      }
+      const url = `${apiBase}/api/security-scan/runs`;
+      const r = await axios.get(url, { headers, validateStatus: () => true });
+      res.status(r.status).json(r.data);
+    } catch (e) {
+      res.status(500).json({ error: { message: e?.message ?? "获取扫描历史失败" } });
+    }
+  });
+
+  app.get("/api/security-scan/runs/:id", async (req, res) => {
+    try {
+      const id = String(req.params.id || "").trim();
+      const { apiBase, headers } = await cloudAxiosConfig();
+      if (!headers.Authorization) {
+        res.status(401).json({ error: { message: "请先登录云端账户后再查看扫描记录。" } });
+        return;
+      }
+      const url = `${apiBase}/api/security-scan/runs/${encodeURIComponent(id)}`;
+      const r = await axios.get(url, { headers, validateStatus: () => true });
+      res.status(r.status).json(r.data);
+    } catch (e) {
+      res.status(500).json({ error: { message: e?.message ?? "获取扫描记录失败" } });
+    }
+  });
+
+  app.post("/api/security-scan/runs", async (req, res) => {
+    try {
+      const body = req.body || {};
+      const baseContext = body.context != null ? String(body.context) : "";
+      const requestedCodes = Array.isArray(body.itemCodes) ? body.itemCodes.map((c) => String(c)) : [];
+
+      const privacy = await getSecurityScanPrivacy();
+      const historyCodes = requestedCodes.filter((c) => c && c.startsWith(HISTORY_PREFIX));
+      const systemCodes = requestedCodes.filter((c) => c && !c.startsWith(HISTORY_PREFIX));
+
+      const allowedHistoryCodes = privacy.shareHistoryEnabled ? historyCodes : [];
+      const allowedSystemCodes = privacy.consentSystemConfigEnabled ? systemCodes : [];
+
+      const allowedCodesForCloud = allowedHistoryCodes.concat(allowedSystemCodes);
+      if (allowedCodesForCloud.length === 0) {
+        res.status(400).json({ error: { message: "没有可执行的扫描项（请检查隐私授权设置）" } });
+        return;
+      }
+
+      // 执行云端扫描前：需要云端鉴权
+      const { apiBase, headers } = await cloudAxiosConfig();
+      if (!headers.Authorization) {
+        res.status(401).json({ error: { message: "请先登录云端账户后再执行安全扫描。" } });
+        return;
+      }
+
+      // 构建最终上传 context（按同意选择填充）
+      const parts = [];
+
+      if (allowedHistoryCodes.length > 0) {
+        const turns = await listRecentConversationTurns(10, 12000);
+        const historyBlock =
+          turns.length === 0
+            ? "【历史对话】（无可用共享对话记录）"
+            : `【历史对话】\n${turns
+                .map((t) => {
+                  const user = redactSecretLikeText(t.userText);
+                  const assistant = redactSecretLikeText(t.assistantText);
+                  return `[${t.createdAt}]\n用户：${user}\n助手：${assistant}`;
+                })
+                .join("\n\n")}`;
+        parts.push(historyBlock);
+      }
+
+      if (allowedSystemCodes.length > 0) {
+        const localSettings = await getLocalSettings();
+        const openclawCfg = (() => {
+          try {
+            const { readOpenClawConfig, getOpenClawConfigPath } = require("./server/openclaw-config.js");
+            const cfg = readOpenClawConfig();
+            return { config: cfg || {}, configPath: typeof getOpenClawConfigPath === "function" ? getOpenClawConfigPath() : "" };
+          } catch {
+            return { config: {}, configPath: "" };
+          }
+        })();
+
+        const picked = {
+          openclaw: {
+            configPath: openclawCfg.configPath || "",
+            gateway: openclawCfg.config?.gateway || {},
+            models: openclawCfg.config?.models || {},
+            agents: openclawCfg.config?.agents || {},
+            commands: openclawCfg.config?.commands || {},
+          },
+          local_settings: {
+            apiBase: localSettings?.apiBase || "",
+            ocApiKey: localSettings?.ocApiKey || "",
+            llmKey: localSettings?.llmKey || "",
+          },
+        };
+
+        const redacted = redactSecretsDeep(picked);
+        const configJson = truncateStr(JSON.stringify(redacted, null, 2), 45000);
+        parts.push(`【本机AI配置（脱敏）】\n${configJson}`);
+      }
+
+      const finalContext = [baseContext.trim(), ...parts].filter(Boolean).join("\n\n");
+      const url = `${apiBase}/api/security-scan/runs`;
+
+      const r = await axios.post(
+        url,
+        { itemCodes: allowedCodesForCloud, context: finalContext },
+        {
+          headers: { ...headers, "Content-Type": "application/json" },
+          validateStatus: () => true,
+        }
+      );
+
+      res.status(r.status).json(r.data);
+    } catch (e) {
+      res.status(500).json({ error: { message: e?.message ?? "创建扫描任务失败" } });
+    }
+  });
 }
 
 function getClientId() {

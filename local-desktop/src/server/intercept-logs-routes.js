@@ -10,7 +10,7 @@ function registerInterceptLogsRoutes(app) {
 
       const auth = await getLocalAuth().catch(() => null);
       if (!auth?.token) {
-        res.status(401).json({ error: { message: "请先登录云端账户后再查看拦截日志。" } });
+        res.status(401).json({ error: { message: "请先登录云端账户后再查看拦截监控。" } });
         return;
       }
 
@@ -26,7 +26,7 @@ function registerInterceptLogsRoutes(app) {
       res.status(upstream.status).json(upstream.data);
     } catch (e) {
       console.error("intercept logs proxy error", e);
-      res.status(500).json({ error: { message: "读取拦截日志失败" } });
+      res.status(500).json({ error: { message: "读取拦截监控失败" } });
     }
   });
 
@@ -37,7 +37,7 @@ function registerInterceptLogsRoutes(app) {
       const apiBase = String(apiBaseRaw).replace(/\/+$/, "");
       const auth = await getLocalAuth().catch(() => null);
       if (!auth?.token) {
-        res.status(401).json({ error: { message: "请先登录云端账户后再查看拦截日志。" } });
+        res.status(401).json({ error: { message: "请先登录云端账户后再查看拦截监控。" } });
         return;
       }
       const id = encodeURIComponent(String(req.params.id || ""));
@@ -47,7 +47,7 @@ function registerInterceptLogsRoutes(app) {
       res.status(upstream.status).json(upstream.data);
     } catch (e) {
       console.error("intercept log detail proxy error", e);
-      res.status(500).json({ error: { message: "读取拦截日志详情失败" } });
+      res.status(500).json({ error: { message: "读取拦截监控详情失败" } });
     }
   });
 }

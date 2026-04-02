@@ -28,6 +28,9 @@ import java.util.stream.Stream;
 @RequestMapping("/api/llm")
 public class LlmProxyController {
 
+    /** 显式 charset，避免部分客户端将 UTF-8 正文按 Latin-1 解析导致中文乱码 */
+    private static final MediaType APPLICATION_JSON_UTF8 = MediaType.parseMediaType("application/json;charset=UTF-8");
+
     private final LlmProxyService proxyService;
     private final ApiKeyService apiKeyService;
     private final UserRepository userRepository;
@@ -69,13 +72,13 @@ public class LlmProxyController {
             Long userId = validateUserToken(userToken);
             if (userId == null) {
                 return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
-                        .contentType(MediaType.APPLICATION_JSON)
+                        .contentType(APPLICATION_JSON_UTF8)
                         .body("{\"error\":{\"message\":\"Invalid or expired X-User-Token\"}}");
             }
             user = userRepository.findById(userId).orElse(null);
             if (user == null) {
                 return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
-                        .contentType(MediaType.APPLICATION_JSON)
+                        .contentType(APPLICATION_JSON_UTF8)
                         .body("{\"error\":{\"message\":\"User not found\"}}");
             }
         }
@@ -84,7 +87,7 @@ public class LlmProxyController {
             apiKey = apiKeyService.authenticateByRawKey(apiKeyHeader.trim());
             if (apiKey == null) {
                 return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
-                        .contentType(MediaType.APPLICATION_JSON)
+                        .contentType(APPLICATION_JSON_UTF8)
                         .body("{\"error\":{\"message\":\"Invalid or revoked X-OC-API-KEY\"}}");
             }
             user = apiKey.getUser();
@@ -92,7 +95,7 @@ public class LlmProxyController {
         // 都没有提供
         else {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
-                    .contentType(MediaType.APPLICATION_JSON)
+                    .contentType(APPLICATION_JSON_UTF8)
                     .body("{\"error\":{\"message\":\"X-User-Token or X-OC-API-KEY header is required\"}}");
         }
         
@@ -100,7 +103,7 @@ public class LlmProxyController {
         if (disabledReason != null) {
             String msg = "{\"error\":{\"message\":\"" + escapeJson(disabledReason) + "\"}}";
             return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
-                    .contentType(MediaType.APPLICATION_JSON)
+                    .contentType(APPLICATION_JSON_UTF8)
                     .body(msg);
         }
         
@@ -109,7 +112,7 @@ public class LlmProxyController {
         String pathWithSlash = path.startsWith("/") ? path : "/" + path;
         LlmProxyService.ProxyResult result = proxyService.forwardRequestWithUser(method, pathWithSlash, queryString, body, authorizationHeader, user);
         return ResponseEntity.status(result.status())
-                .contentType(MediaType.APPLICATION_JSON)
+                .contentType(APPLICATION_JSON_UTF8)
                 .body(result.body());
     }
 
@@ -140,14 +143,14 @@ public class LlmProxyController {
                     ? "X-OC-API-KEY is required (header or query param api_key)"
                     : "X-OC-API-KEY is invalid or revoked (check key in user dashboard)";
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
-                    .contentType(MediaType.APPLICATION_JSON)
+                    .contentType(APPLICATION_JSON_UTF8)
                     .body("{\"error\":{\"message\":\"" + escapeJson(message) + "\"}}");
         }
         String disabledReason = proxyService.getDisabledReason();
         if (disabledReason != null) {
             String msg = "{\"error\":{\"message\":\"" + escapeJson(disabledReason) + "\"}}";
             return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
-                    .contentType(MediaType.APPLICATION_JSON)
+                    .contentType(APPLICATION_JSON_UTF8)
                     .body(msg);
         }
         
@@ -156,7 +159,7 @@ public class LlmProxyController {
         String pathWithSlash = path.startsWith("/") ? path : "/" + path;
         LlmProxyService.ProxyResult result = proxyService.forwardRequestWithApiKey(method, pathWithSlash, queryString, body, authorizationHeader, caller);
         return ResponseEntity.status(result.status())
-                .contentType(MediaType.APPLICATION_JSON)
+                .contentType(APPLICATION_JSON_UTF8)
                 .body(result.body());
     }
 

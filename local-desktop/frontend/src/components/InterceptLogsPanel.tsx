@@ -1,4 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { DangerPanel } from "./DangerPanel";
+import { BudgetMonitorPanel } from "./BudgetMonitorPanel";
 
 function FilterSelect(props: {
   value: string;
@@ -135,6 +137,7 @@ function formatBlockType(t: string | null) {
   if (!t) return "-";
   if (t === "danger_command") return "危险指令";
   if (t === "skill_disabled") return "技能禁用";
+  if (t === "budget_exceeded") return "预算拦截";
   return t;
 }
 
@@ -159,7 +162,12 @@ function riskTagStyle(riskLevel: string | null): React.CSSProperties {
   return base;
 }
 
-export function InterceptLogsPanel() {
+export function InterceptLogsPanel({
+  showAccountSwitchPlaceholder = false,
+}: {
+  showAccountSwitchPlaceholder?: boolean;
+}) {
+  const [panelTab, setPanelTab] = useState<"logs" | "rules" | "budget">("logs");
   const [items, setItems] = useState<BlockLog[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -240,11 +248,50 @@ export function InterceptLogsPanel() {
         boxShadow: "0 20px 40px rgba(15,23,42,0.6)",
       }}
     >
-      <h1 style={{ fontSize: 20, margin: "0 0 6px", color: "#f9fafb" }}>拦截日志</h1>
-      <p style={{ margin: "0 0 14px", fontSize: 12, color: "#9ca3af" }}>
-        展示云端记录的本地拦截事件（危险指令 / 技能禁用）。需要已配置 API Key，且云端开启日志接口。
+      <h1 style={{ fontSize: 20, margin: "0 0 6px", color: "#f9fafb" }}>拦截监控</h1>
+      <p style={{ margin: "0 0 12px", fontSize: 12, color: "#9ca3af", lineHeight: 1.5 }}>
+        查看云端记录的拦截事件，并在此管理「拦截项目」——即参与本地匹配的危险指令规则库（原独立「危险指令库」已并入本页）。
       </p>
 
+      <div style={{ display: "flex", gap: 8, marginBottom: 16, flexWrap: "wrap" }}>
+        {(
+          [
+            { id: "logs" as const, label: "拦截记录" },
+            { id: "rules" as const, label: "拦截项目" },
+            { id: "budget" as const, label: "用量与预算" },
+          ]
+        ).map((t) => {
+          const active = panelTab === t.id;
+          return (
+            <button
+              key={t.id}
+              type="button"
+              onClick={() => setPanelTab(t.id)}
+              style={{
+                padding: "8px 16px",
+                borderRadius: 999,
+                border: active ? "1px solid rgba(34,197,94,0.5)" : "1px solid #334155",
+                background: active ? "rgba(34,197,94,0.12)" : "rgba(15,23,42,0.5)",
+                color: active ? "#86efac" : "#94a3b8",
+                fontSize: 13,
+                fontWeight: active ? 700 : 600,
+                cursor: "pointer",
+              }}
+            >
+              {t.label}
+            </button>
+          );
+        })}
+      </div>
+
+      {panelTab === "rules" && (
+        <DangerPanel embedded showAccountSwitchPlaceholder={showAccountSwitchPlaceholder} />
+      )}
+
+      {panelTab === "budget" && <BudgetMonitorPanel />}
+
+      {panelTab === "logs" && (
+        <>
       <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
         <div style={{ fontSize: 12, color: "#9ca3af" }}>类型</div>
         <FilterSelect
@@ -259,6 +306,7 @@ export function InterceptLogsPanel() {
             { label: "全部", value: "" },
             { label: "危险指令", value: "danger_command" },
             { label: "技能禁用", value: "skill_disabled" },
+            { label: "预算拦截", value: "budget_exceeded" },
           ]}
         />
 
@@ -311,7 +359,7 @@ export function InterceptLogsPanel() {
             {items.length === 0 ? (
               <tr>
                 <td colSpan={4} style={{ padding: "10px", color: "#6b7280" }}>
-                  {loading ? "正在加载…" : "暂无日志。"}
+                  {loading ? "正在加载…" : "暂无拦截记录。"}
                 </td>
               </tr>
             ) : (
@@ -388,6 +436,8 @@ export function InterceptLogsPanel() {
           下一页
         </button>
       </div>
+        </>
+      )}
 
       {detailOpen && (
         <div

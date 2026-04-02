@@ -1,6 +1,17 @@
 const axios = require("axios");
 const os = require("os");
-const { getDb, getLocalSettings, getLlmRouteMode, listLlmMappings, getLocalAuth } = require("../db.js");
+const {
+  getDb,
+  getLocalSettings,
+  getLlmRouteMode,
+  listLlmMappings,
+  getLocalAuth,
+  resolveLlmBudgetRow,
+  evaluateLlmBudgetBlock,
+  computeLlmCostUsd,
+  insertLlmUsageCostEvent,
+  updateLlmUsageEventCloudId,
+} = require("../db.js");
 
 function estimateTokensFromString(s) {
   if (!s) return 0;
@@ -373,6 +384,69 @@ async function forwardChatCompletions(req, res) {
 
     const originalPath = req.path || "/";
     const segments = originalPath.split("/").filter(Boolean);
+    const providerKeyForBudget = segments.length > 0 ? segments[0] : "default";
+    const modelForBudget =
+      typeof body.model === "string" && body.model.trim() ? body.model.trim() : "unknown";
+
+    try {
+      const { row: budgetRow } = await resolveLlmBudgetRow(providerKeyForBudget, modelForBudget);
+      const budgetHit = await evaluateLlmBudgetBlock(providerKeyForBudget, modelForBudget, budgetRow);
+      if (budgetHit.blocked) {
+        const periodLabel =
+          budgetHit.period === "day" ? "今日" : budgetHit.period === "week" ? "本周" : budgetHit.period === "month" ? "本月" : String(budgetHit.period || "");
+        try {
+          const auth = await getLocalAuth().catch(() => null);
+          const logHeaders = {};
+          const apiKey = settings && settings.ocApiKey && String(settings.ocApiKey).trim();
+          if (apiKey) logHeaders["X-OC-API-KEY"] = apiKey;
+          if (auth && auth.token) logHeaders.Authorization = `Bearer ${auth.token}`;
+          const maxPromptChars = 20000;
+          const fullPrompt =
+            typeof latestUserText === "string" && latestUserText
+              ? latestUserText
+              : typeof combinedText === "string"
+                ? combinedText
+                : "";
+          const promptForLog = fullPrompt.length > maxPromptChars ? fullPrompt.substring(0, maxPromptChars) : fullPrompt;
+          await axios
+            .post(
+              `${settings.apiBase}/api/safety/log-block`,
+              {
+                blockType: "budget_exceeded",
+                skills: [],
+                ruleIds: [],
+                patterns: [
+                  `period=${budgetHit.period}`,
+                  `spent=${budgetHit.spent.toFixed(4)}`,
+                  `limit=${budgetHit.limit}`,
+                  `provider=${budgetHit.provider_key}`,
+                  `model=${budgetHit.model_id}`,
+                ],
+                prompt: promptForLog,
+                timestamp: new Date().toISOString(),
+              },
+              { headers: logHeaders, timeout: 3000, validateStatus: () => true }
+            )
+            .catch(() => null);
+        } catch {
+          // ignore log failure
+        }
+        res.status(403).json({
+          error: {
+            type: "budget_exceeded",
+            message: `已超出${periodLabel}费用预算上限，本地已拦截请求。可在「拦截监控 → 用量与预算」中调整。`,
+            period: budgetHit.period,
+            spent: budgetHit.spent,
+            limit: budgetHit.limit,
+            provider_key: budgetHit.provider_key,
+            model_id: budgetHit.model_id,
+          },
+        });
+        return;
+      }
+    } catch (budgetErr) {
+      console.error("[LLM Proxy] 预算检查异常:", budgetErr?.message || budgetErr);
+    }
 
     const llmRouteMode = await getLlmRouteMode();
     console.log("[LLM Proxy] 请求路径:", originalPath);
@@ -467,36 +541,52 @@ async function forwardChatCompletions(req, res) {
       validateStatus: () => true,
     });
 
-    // Token 账单：仅本地直连时由客户端估算后上报；云端中转（GATEWAY/GATEWAY+映射）由云端入库
+    // 本地 oc_token_usages 镜像表 llm_usage_cost_events：先写本地，非 GATEWAY 时再 ingest 云端并回写 cloud_id
     try {
-      const isCloudRoute = routeMode === "GATEWAY" || (routeMode === "MAPPING" && llmRouteMode === "GATEWAY");
-      if (!isCloudRoute) {
+      if (upstreamRes.status >= 200 && upstreamRes.status < 300) {
+        const usage = extractUsage(upstreamRes.data);
+        const reqStr = JSON.stringify(req.body || {});
+        const respStr = typeof upstreamRes.data === "string" ? upstreamRes.data : JSON.stringify(upstreamRes.data || {});
+        const promptEst = estimateTokensFromString(reqStr);
+        const completionEst = estimateTokensFromString(respStr);
+        const promptTokens = usage?.promptTokens ?? promptEst;
+        const completionTokens = usage?.completionTokens ?? completionEst;
+        const totalTokens = usage?.totalTokens ?? (promptTokens + completionTokens);
+        const modelResolved = usage?.model || modelForBudget;
+        const { row: costRow } = await resolveLlmBudgetRow(providerKeyForBudget, modelResolved);
+        const costUsd = computeLlmCostUsd(costRow, promptTokens, completionTokens);
+        const clientTag = `desktop-${os.hostname()}`;
+        const ins = await insertLlmUsageCostEvent({
+          provider_key: providerKeyForBudget,
+          model_id: modelResolved,
+          prompt_tokens: promptTokens,
+          completion_tokens: completionTokens,
+          total_tokens: totalTokens,
+          cost_usd: costUsd,
+          route_mode: routeMode,
+          request_path: originalPath,
+          upstream_base: upstreamUrl,
+          client_id: clientTag,
+        });
+
+        const isCloudRoute = routeMode === "GATEWAY" || (routeMode === "MAPPING" && llmRouteMode === "GATEWAY");
         const auth = await getLocalAuth().catch(() => null);
-        if (auth?.token) {
-          const usage = extractUsage(upstreamRes.data);
-          const reqStr = JSON.stringify(req.body || {});
-          const respStr = typeof upstreamRes.data === "string" ? upstreamRes.data : JSON.stringify(upstreamRes.data || {});
-          const promptEst = estimateTokensFromString(reqStr);
-          const completionEst = estimateTokensFromString(respStr);
-
-          const promptTokens = usage?.promptTokens ?? promptEst;
-          const completionTokens = usage?.completionTokens ?? completionEst;
-          const totalTokens = usage?.totalTokens ?? (promptTokens + completionTokens);
+        if (!isCloudRoute && auth?.token) {
           const estimated = usage ? usage.estimated : true;
-          const model = usage?.model || (typeof req.body?.model === "string" ? req.body.model : null);
-
-          await axios.post(
+          const ingestRes = await axios.post(
             `${String(settings.apiBase || "").replace(/\/+$/, "")}/api/billing/token-usages/ingest`,
             {
-              clientId: `desktop-${os.hostname()}`,
+              clientId: clientTag,
               routeMode,
               upstreamBase: upstreamUrl,
               requestPath: originalPath,
-              model,
+              providerKey: providerKeyForBudget,
+              model: modelResolved,
               promptTokens,
               completionTokens,
               totalTokens,
               estimated,
+              costUsd,
             },
             {
               headers: { Authorization: `Bearer ${auth.token}` },
@@ -504,10 +594,18 @@ async function forwardChatCompletions(req, res) {
               validateStatus: () => true,
             }
           );
+          if (
+            ingestRes.status >= 200 &&
+            ingestRes.status < 300 &&
+            ingestRes.data &&
+            ingestRes.data.id != null
+          ) {
+            await updateLlmUsageEventCloudId(ins.id, ingestRes.data.id).catch(() => {});
+          }
         }
       }
-    } catch {
-      // ignore billing failure
+    } catch (ledgerErr) {
+      console.warn("[LLM Proxy] 本地/云端 token 记账失败:", ledgerErr?.message || ledgerErr);
     }
 
     res.status(upstreamRes.status).set("Content-Type", "application/json").send(upstreamRes.data);

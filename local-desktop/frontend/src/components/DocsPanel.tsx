@@ -1,7 +1,23 @@
-export function DocsPanel() {
-  return (
-    <div
-      style={{
+type DocsPanelProps = {
+  /** 嵌入设置页时使用：去掉外层卡片，避免与设置容器重复边框 */
+  embedded?: boolean;
+};
+
+export function DocsPanel({ embedded = false }: DocsPanelProps) {
+  const outerStyle = embedded
+    ? {
+        maxWidth: "100%" as const,
+        margin: 0,
+        background: "transparent",
+        borderRadius: 0,
+        padding: 0,
+        border: "none",
+        boxShadow: "none",
+        fontSize: 13,
+        lineHeight: 1.7,
+        color: "#e5e7eb",
+      }
+    : {
         maxWidth: 920,
         margin: "0 auto",
         background: "#020617",
@@ -12,11 +28,13 @@ export function DocsPanel() {
         fontSize: 13,
         lineHeight: 1.7,
         color: "#e5e7eb",
-      }}
-    >
-      <h1 style={{ fontSize: 20, margin: "0 0 6px", color: "#f9fafb" }}>ClawHeart 系统使用说明</h1>
+      };
+
+  return (
+    <div style={outerStyle}>
+      <h1 style={{ fontSize: embedded ? 18 : 20, margin: "0 0 6px", color: "#f9fafb" }}>ClawHeart 系统使用说明</h1>
       <p style={{ margin: "0 0 14px", fontSize: 12, color: "#9ca3af" }}>
-        本页汇总本地客户端与云端系统的核心能力，并给出菜单说明、典型操作流程、接口约定和排障建议。
+        本页汇总本地客户端与云端系统的核心能力，并给出主导航说明、典型操作流程、接口约定和排障建议。完整说明从顶部栏右侧「设置」进入，在「文档与使用说明」子页查看。
       </p>
 
       <section style={{ marginTop: 12, paddingTop: 8, borderTop: "1px solid #1f2937" }}>
@@ -28,11 +46,11 @@ export function DocsPanel() {
           </li>
           <li>
             <span style={bulletTitle}>危险指令治理：</span>
-            支持系统规则 + 用户偏好，命中后本地拦截并写入拦截日志。
+            支持系统规则 + 用户偏好，命中后本地拦截并写入拦截监控记录。
           </li>
           <li>
-            <span style={bulletTitle}>Skills 仓库治理：</span>
-            支持系统状态（正常/禁用/不推荐）、用户启用开关、用户安全打标（安全/不安全）及统计展示。
+            <span style={bulletTitle}>安全市场治理：</span>
+            支持系统状态（正常/禁用/不推荐）、用户启用开关、用户安全打标（安全/不安全）、市场分类（精选/推荐/热门/最新）及统计展示。
           </li>
           <li>
             <span style={bulletTitle}>可视化看板：</span>
@@ -46,16 +64,32 @@ export function DocsPanel() {
       </section>
 
       <section style={{ marginTop: 16, paddingTop: 8, borderTop: "1px solid #1f2937" }}>
-        <h2 style={{ fontSize: 14, margin: "0 0 6px", color: "#e5e7eb" }}>2. 左侧菜单说明</h2>
+        <h2 style={{ fontSize: 14, margin: "0 0 6px", color: "#e5e7eb" }}>2. 主导航说明</h2>
         <ul style={ulStyle}>
-          <li><span style={bulletTitle}>概览：</span>查看技能统计、风险分布、拦截与 Token 时间线。</li>
-          <li><span style={bulletTitle}>危险指令库：</span>查看系统危险规则，结合用户偏好进行开关控制。</li>
-          <li><span style={bulletTitle}>Skills 仓库：</span>查看技能列表、系统状态、启用状态、安全打标与详情。</li>
-          <li><span style={bulletTitle}>拦截日志：</span>查看本地拦截记录，定位命中规则和阻断原因。</li>
+          <li><span style={bulletTitle}>总览：</span>查看技能统计、风险分布、拦截与 Token 时间线。</li>
+          <li>
+            <span style={bulletTitle}>安全扫描：</span>
+            从云端拉取通用扫描项（AI / 静态），结合本机状态与补充说明执行扫描；AI 项依赖云端已配置的{" "}
+            <code style={codeStyle}>deepseek.api_key</code>。
+          </li>
+          <li>
+            <span style={bulletTitle}>安全市场：</span>
+            浏览技能（官方精选 / 安全推荐 / 热门 / 最新）、系统状态、启用、安全打标与详情；审计报告能力后续提供。
+          </li>
+          <li>
+            <span style={bulletTitle}>拦截监控：</span>
+            含「拦截记录」（云端记录的拦截事件）与「拦截项目」（原危险指令库：规则同步、筛选与用户启用开关）。
+          </li>
           <li><span style={bulletTitle}>Token 账单：</span>查看 Token 使用统计与时间趋势。</li>
           <li><span style={bulletTitle}>OpenClaw：</span>管理与 OpenClaw 相关的接入与使用入口。</li>
-          <li><span style={bulletTitle}>设置：</span>配置云端基地址、API Key、LLM 路由模式与映射策略。</li>
-          <li><span style={bulletTitle}>文档 / 使用说明：</span>本页。</li>
+          <li>
+            <span style={bulletTitle}>设置：</span>
+            在顶部栏右侧「账户」区域与登录/退出并排。打开后可在「常规设置」与「文档与使用说明」之间切换：前者配置云端基地址、OC API Key、LLM 路由模式、网络映射与云端同步等；后者即本说明全文。
+          </li>
+          <li>
+            <span style={bulletTitle}>Agent 管理：</span>
+            按 Agent 平台（Claude Code、Codex 等）在左侧树选择 Providers / Skills / Prompts / MCP / Sessions；条目存于本机库（<code style={codeStyle}>/api/agent-mgmt/*</code>），云端同名接口可在登录后用于多设备扩展。
+          </li>
         </ul>
       </section>
 
@@ -67,13 +101,13 @@ export function DocsPanel() {
           </li>
           <li>点击保存后触发同步，确认右下角连接状态为“已连接服务器”。</li>
           <li>
-            进入 <span style={bulletTitle}>Skills 仓库</span>，执行查询/同步，检查系统状态与用户启用状态。
+            进入 <span style={bulletTitle}>安全市场</span>，切换分类并查询/同步，检查系统状态与用户启用。
           </li>
           <li>
             如需安全侧治理，在技能列表中查看 <code style={codeStyle}>安全/不安全</code> 标记统计，并进行用户打标。
           </li>
           <li>
-            进入 <span style={bulletTitle}>概览</span> 与 <span style={bulletTitle}>拦截日志</span>，验证策略是否生效。
+            进入 <span style={bulletTitle}>总览</span> 与 <span style={bulletTitle}>拦截监控</span>，验证策略是否生效。
           </li>
         </ol>
       </section>
@@ -138,9 +172,9 @@ const client = new OpenAI({
       </section>
 
       <section style={{ marginTop: 16, paddingTop: 8, borderTop: "1px solid #1f2937" }}>
-        <h2 style={{ fontSize: 14, margin: "0 0 6px", color: "#e5e7eb" }}>7. 通过 LLM 映射对接不同厂商</h2>
+        <h2 style={{ fontSize: 14, margin: "0 0 6px", color: "#e5e7eb" }}>7. 通过网络映射对接不同厂商</h2>
         <p style={{ margin: "0 0 8px", fontSize: 12, color: "#9ca3af" }}>
-          你可以在「设置 → LLM 映射配置」里创建前缀，将本地请求转发到任意上游（包括 OpenClaw 的 provider baseUrl
+          你可以在「设置 → 网络映射配置」里创建前缀，将本地请求转发到任意上游（包括 OpenClaw 的 provider baseUrl
           指向本地前缀的场景）。
         </p>
         <ul style={ulStyle}>
@@ -167,7 +201,7 @@ const client = new OpenAI({
           </li>
           <li>
             <span style={bulletTitle}>统计维度：</span>
-            每个技能展示全局安全/不安全计数；概览页面展示当前用户已打标数量。
+            每个技能展示全局安全/不安全计数；总览页面展示当前用户已打标数量。
           </li>
           <li>
             <span style={bulletTitle}>详情加载：</span>
@@ -189,7 +223,7 @@ const client = new OpenAI({
           </li>
           <li>
             <span style={bulletTitle}>策略未生效：</span>
-            查看拦截日志，确认请求是否命中规则、用户偏好是否覆盖系统默认行为。
+            查看拦截监控，确认请求是否命中规则、用户偏好是否覆盖系统默认行为。
           </li>
           <li>
             <span style={bulletTitle}>云端与本地不一致：</span>
@@ -247,8 +281,28 @@ const client = new OpenAI({
               </tr>
               <tr>
                 <td style={tdMonoStyle}>GET</td>
+                <td style={tdMonoStyle}>/api/agent-mgmt/summary</td>
+                <td style={tdStyle}>Agent 平台与各功能条目计数（本机库）</td>
+              </tr>
+              <tr>
+                <td style={tdMonoStyle}>GET</td>
+                <td style={tdMonoStyle}>/api/agent-mgmt/items?platform=&amp;feature=</td>
+                <td style={tdStyle}>按平台与功能类型列出 Agent 条目（本机库）</td>
+              </tr>
+              <tr>
+                <td style={tdMonoStyle}>GET</td>
                 <td style={tdMonoStyle}>/api/dashboard/*</td>
-                <td style={tdStyle}>概览图表数据代理（需登录 token）</td>
+                <td style={tdStyle}>总览图表数据代理（需登录 token）</td>
+              </tr>
+              <tr>
+                <td style={tdMonoStyle}>GET</td>
+                <td style={tdMonoStyle}>/api/security-scan/items</td>
+                <td style={tdStyle}>安全扫描项列表（转发云端，需本地已登录）</td>
+              </tr>
+              <tr>
+                <td style={tdMonoStyle}>POST</td>
+                <td style={tdMonoStyle}>/api/security-scan/ai-run</td>
+                <td style={tdStyle}>执行安全扫描（转发云端，body: itemCodes, context）</td>
               </tr>
             </tbody>
           </table>
@@ -302,8 +356,28 @@ const client = new OpenAI({
               </tr>
               <tr>
                 <td style={tdMonoStyle}>GET</td>
+                <td style={tdMonoStyle}>/api/security-scan/items</td>
+                <td style={tdStyle}>安全扫描项定义（JWT）</td>
+              </tr>
+              <tr>
+                <td style={tdMonoStyle}>POST</td>
+                <td style={tdMonoStyle}>/api/security-scan/ai-run</td>
+                <td style={tdStyle}>执行扫描，返回 findings 列表（JWT；AI 项需 deepseek.api_key）</td>
+              </tr>
+              <tr>
+                <td style={tdMonoStyle}>GET</td>
                 <td style={tdMonoStyle}>/api/user-settings/version</td>
                 <td style={tdStyle}>读取云端版本号用于增量同步判断</td>
+              </tr>
+              <tr>
+                <td style={tdMonoStyle}>GET</td>
+                <td style={tdMonoStyle}>/api/agent-mgmt/me/summary</td>
+                <td style={tdStyle}>当前用户 Agent 目录统计（JWT；表 oc_user_agent_items）</td>
+              </tr>
+              <tr>
+                <td style={tdMonoStyle}>GET</td>
+                <td style={tdMonoStyle}>/api/agent-mgmt/me/items?platform=&amp;feature=</td>
+                <td style={tdStyle}>当前用户 Agent 条目列表（JWT）</td>
               </tr>
             </tbody>
           </table>

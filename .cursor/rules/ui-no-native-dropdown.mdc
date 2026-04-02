@@ -1,0 +1,21 @@
+---
+description: UI 下拉与选择控件约束（全局）
+alwaysApply: true
+---
+
+# 约束
+- 绝不使用浏览器/系统自带下拉/候选控件：`<datalist>`、`<select>`、`<option>`、`<input list=...>` 以及其他等价原生控件。
+- 需要“选择/下拉/候选”时，必须使用项目内自定义 UI（如按钮式、Popover/Modal 搜索选择器等）。
+- 下拉如果需要搜索，必须用自定义可搜索组件（而不是原生 datalist）。
+
+# 示例（错误）
+```tsx
+<input list="xxx" />
+<datalist id="xxx"><option value="a" /></datalist>
+```
+
+# 示例（正确）
+```tsx
+// 用自定义按钮/Popover 选择 Provider/Model
+<button type="button" onClick={() => setValue("openai")}>openai</button>
+```

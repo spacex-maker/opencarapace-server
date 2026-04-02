@@ -1,5 +1,6 @@
 import ReactECharts from "echarts-for-react";
 import { EChartsOption } from "echarts";
+import { applyCjkChartFonts } from "./chartCjkFont";
 
 interface Props {
   title: string;
@@ -9,6 +10,7 @@ interface Props {
 }
 
 export function ChartCard({ title, option, height = 300, loading = false }: Props) {
+  const patchedOption = applyCjkChartFonts(option);
   return (
     <div
       style={{

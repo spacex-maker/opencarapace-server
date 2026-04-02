@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { StatCard } from "./Common";
 import "./DangerPanel.css";
 
@@ -88,7 +88,14 @@ function FilterSelect(props: {
   );
 }
 
-export function DangerPanel({ showAccountSwitchPlaceholder = false }: { showAccountSwitchPlaceholder?: boolean }) {
+export function DangerPanel({
+  showAccountSwitchPlaceholder = false,
+  embedded = false,
+}: {
+  showAccountSwitchPlaceholder?: boolean;
+  /** 嵌入「拦截监控」内作为「拦截项目」时，去掉外层卡片样式与独立页标题 */
+  embedded?: boolean;
+}) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
@@ -272,9 +279,18 @@ export function DangerPanel({ showAccountSwitchPlaceholder = false }: { showAcco
   const percent =
     sync.total > 0 ? Math.min(100, Math.round((sync.synced / sync.total) * 100)) : sync.running ? 0 : 100;
 
-  return (
-    <div
-      style={{
+  const shellStyle: CSSProperties = embedded
+    ? {
+        maxWidth: "100%",
+        margin: 0,
+        background: "transparent",
+        borderRadius: 0,
+        padding: "8px 0 0",
+        border: "none",
+        boxShadow: "none",
+        fontSize: 12,
+      }
+    : {
         maxWidth: 960,
         margin: "0 auto",
         background: "#020617",
@@ -283,13 +299,26 @@ export function DangerPanel({ showAccountSwitchPlaceholder = false }: { showAcco
         border: "1px solid #1f2937",
         boxShadow: "0 20px 40px rgba(15,23,42,0.6)",
         fontSize: 12,
-      }}
-    >
+      };
+
+  return (
+    <div style={shellStyle}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
         <div>
-          <h1 style={{ fontSize: 20, margin: "0 0 4px", color: "#f9fafb" }}>危险指令库</h1>
-          <p style={{ margin: "4px 0 0", fontSize: 13, color: "#9ca3af" }}>
-            从云端增量同步至本地 SQLite，每批次 10 条。
+          <h1
+            style={{
+              fontSize: embedded ? 16 : 20,
+              margin: "0 0 4px",
+              color: "#f9fafb",
+              fontWeight: 700,
+            }}
+          >
+            {embedded ? "拦截项目" : "危险指令库"}
+          </h1>
+          <p style={{ margin: "4px 0 0", fontSize: embedded ? 12 : 13, color: "#9ca3af", lineHeight: 1.45 }}>
+            {embedded
+              ? "以下为参与本地拦截匹配的「危险指令」规则：从云端同步至本地，可配置用户级启用/禁用。"
+              : "从云端增量同步至本地 SQLite，每批次 10 条。"}
           </p>
         </div>
         <button
@@ -589,7 +618,7 @@ export function DangerPanel({ showAccountSwitchPlaceholder = false }: { showAcco
             {dangerCommands.length === 0 && !loading && (
               <tr>
                 <td
-                  colSpan={6}
+                  colSpan={7}
                   style={{ padding: "8px 10px", textAlign: "center", color: "#6b7280", background: "#020617" }}
                 >
                   当前本地还没有同步到危险指令规则。

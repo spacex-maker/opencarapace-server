@@ -79,11 +79,14 @@ export interface TokenUsageItem {
   createdAt: string | null;
   routeMode: string | null;
   upstreamBase: string | null;
+  requestPath: string | null;
+  providerKey: string | null;
   model: string | null;
   promptTokens: number | null;
   completionTokens: number | null;
   totalTokens: number | null;
   estimated: boolean;
+  costUsd: number | null;
 }
 
 export interface TokenUsagePageResult {

@@ -42,9 +42,12 @@ function registerAuthRoutes(app) {
         return;
       }
       const prevAuth = await getLocalAuth();
+      const displayName =
+        data.displayName != null && String(data.displayName).trim() ? String(data.displayName).trim() : null;
       await saveLocalAuth({
         email: data.email || email,
         token: data.token,
+        displayName,
       });
       const currentEmail = String(data.email || email || "").trim().toLowerCase();
       const previousEmail = String(prevAuth?.email || "").trim().toLowerCase();
@@ -113,6 +116,7 @@ function registerAuthRoutes(app) {
       }
       res.status(200).json({
         email: data.email || email,
+        displayName: displayName || undefined,
       });
     } catch (e) {
       console.error("local desktop auth login error", e);

@@ -166,6 +166,8 @@ export function SkillsPanel({ showAccountSwitchPlaceholder = false }: { showAcco
   const [message, setMessage] = useState<string | null>(null);
   const [skills, setSkills] = useState<SkillRow[]>([]);
   const [marketTab, setMarketTab] = useState<MarketTab>("featured");
+  const [marketPage, setMarketPage] = useState(1);
+  const marketPageSize = 50;
   const [sync, setSync] = useState<{ running: boolean; total: number; synced: number }>({
     running: false,
     total: 0,
@@ -183,6 +185,21 @@ export function SkillsPanel({ showAccountSwitchPlaceholder = false }: { showAcco
   const displaySkills = useMemo(() => applyMarketTab(skills, marketTab), [skills, marketTab]);
   const showFeaturedFallbackHint =
     marketTab === "featured" && skills.length > 0 && !skills.some((s) => s.marketFeatured);
+
+  useEffect(() => {
+    setMarketPage(1);
+  }, [marketTab, keyword, systemStatus, userEnabled]);
+
+  const marketTotalPages = useMemo(
+    () => Math.max(1, Math.ceil(displaySkills.length / marketPageSize)),
+    [displaySkills.length]
+  );
+
+  const marketPageSafe = Math.min(Math.max(1, marketPage), marketTotalPages);
+  const pagedSkills = useMemo(() => {
+    const start = (marketPageSafe - 1) * marketPageSize;
+    return displaySkills.slice(start, start + marketPageSize);
+  }, [displaySkills, marketPageSafe]);
 
   const loadData = async (withFilters = false) => {
     try {
@@ -739,11 +756,11 @@ export function SkillsPanel({ showAccountSwitchPlaceholder = false }: { showAcco
                   padding: "6px 8px",
                   borderBottom: "1px solid var(--panel-border)",
                   textAlign: "center",
-                  width: 84,
-                  minWidth: 84,
+                  width: 200,
+                  minWidth: 200,
                   boxSizing: "border-box",
                   position: "sticky",
-                  right: 200,
+                  right: 0,
                   zIndex: 3,
                   background: "var(--panel-bg)",
                   boxShadow: "-1px 0 0 var(--panel-border), -8px 0 16px rgba(0,0,0,0.10)",
@@ -752,28 +769,10 @@ export function SkillsPanel({ showAccountSwitchPlaceholder = false }: { showAcco
               >
                 启用
               </th>
-              <th
-                style={{
-                  padding: "6px 8px",
-                  width: 200,
-                  minWidth: 200,
-                  boxSizing: "border-box",
-                  borderBottom: "1px solid var(--panel-border)",
-                  textAlign: "center",
-                  position: "sticky",
-                  right: 0,
-                  zIndex: 4,
-                  background: "var(--panel-bg)",
-                  boxShadow: "-1px 0 0 var(--panel-border), -8px 0 16px rgba(0,0,0,0.10)",
-                  color: "var(--muted)",
-                }}
-              >
-                操作
-              </th>
             </tr>
           </thead>
           <tbody>
-            {displaySkills.map((s) => (
+            {pagedSkills.map((s) => (
               <tr key={s.slug} style={{ background: "var(--panel-bg)" }}>
                 <td style={{ padding: "6px 8px", borderBottom: "1px solid var(--panel-border)", maxWidth: 280 }}>
                   <div
@@ -1013,56 +1012,6 @@ export function SkillsPanel({ showAccountSwitchPlaceholder = false }: { showAcco
                   style={{
                     padding: "6px 8px",
                     borderBottom: "1px solid var(--panel-border)",
-                    whiteSpace: "nowrap",
-                    position: "sticky",
-                    right: 200,
-                    zIndex: 2,
-                    background: "var(--panel-bg)",
-                    boxShadow: "-1px 0 0 var(--panel-border), -8px 0 16px rgba(0,0,0,0.10)",
-                    width: 84,
-                    minWidth: 84,
-                    boxSizing: "border-box",
-                    textAlign: "center",
-                  }}
-                >
-                  {s.userEnabled === null ? (
-                    <div style={{ fontSize: 10, color: "var(--muted2)" }}>（未配置）</div>
-                  ) : (
-                    <button
-                      type="button"
-                      onClick={() => toggleUserEnabled(s.slug, s.userEnabled)}
-                      disabled={updatingSlug === s.slug}
-                      style={{
-                        position: "relative",
-                        width: 42,
-                        height: 22,
-                        borderRadius: 999,
-                        border: "none",
-                        background: s.userEnabled === 1 ? "#22c55e" : "#374151",
-                        cursor: updatingSlug === s.slug ? "not-allowed" : "pointer",
-                        opacity: updatingSlug === s.slug ? 0.6 : 1,
-                        transition: "background 0.2s, opacity 0.2s",
-                      }}
-                    >
-                      <span
-                        style={{
-                          position: "absolute",
-                          top: 2,
-                          left: s.userEnabled === 1 ? 24 : 2,
-                          width: 18,
-                          height: 18,
-                          borderRadius: "50%",
-                          background: "#fff",
-                          transition: "left 0.2s",
-                        }}
-                      />
-                    </button>
-                  )}
-                </td>
-                <td
-                  style={{
-                    padding: "6px 8px",
-                    borderBottom: "1px solid var(--panel-border)",
                     textAlign: "center",
                     position: "sticky",
                     right: 0,
@@ -1075,74 +1024,116 @@ export function SkillsPanel({ showAccountSwitchPlaceholder = false }: { showAcco
                     verticalAlign: "middle",
                   }}
                 >
-                  <div style={{ display: "flex", flexDirection: "column", gap: 6, alignItems: "stretch" }}>
-                    <button
-                      type="button"
-                      disabled
-                      title="即将推出"
-                      style={{
-                        height: 26,
-                        padding: "0 8px",
-                        borderRadius: 8,
-                        border: "1px solid var(--btn-border)",
-                        background: "var(--panel-bg2)",
-                        color: "var(--muted2)",
-                        fontSize: 10,
-                        fontWeight: 600,
-                        cursor: "not-allowed",
-                      }}
-                    >
-                      审计报告
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => void toggleUserEnabled(s.slug, s.userEnabled)}
-                      disabled={
-                        updatingSlug === s.slug || s.userEnabled === null || s.userEnabled === 1 || s.systemStatus !== "NORMAL"
-                      }
-                      title={
-                        s.systemStatus !== "NORMAL"
-                          ? "系统未启用该技能"
-                          : s.userEnabled === 1 || s.userEnabled === null
-                            ? "已启用"
-                            : "启用该技能"
-                      }
-                      style={{
-                        height: 26,
-                        padding: "0 8px",
-                        borderRadius: 8,
-                        border: "none",
-                        background:
-                          s.userEnabled === 0 && s.systemStatus === "NORMAL" ? "#2563eb" : "rgba(30,41,59,0.9)",
-                        color: s.userEnabled === 0 && s.systemStatus === "NORMAL" ? "#fff" : "var(--muted2)",
-                        fontSize: 10,
-                        fontWeight: 700,
-                        cursor:
-                          updatingSlug === s.slug || s.userEnabled !== 0 || s.systemStatus !== "NORMAL"
-                            ? "not-allowed"
-                            : "pointer",
-                        opacity: s.userEnabled === 0 && s.systemStatus === "NORMAL" ? 1 : 0.65,
-                      }}
-                    >
-                      {s.userEnabled === 0 ? "安全安装" : "已启用"}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => openDetail(s.slug)}
-                      style={{
-                        height: 26,
-                        padding: "0 8px",
-                        borderRadius: 8,
-                        border: "1px solid var(--btn-border)",
-                        background: "var(--panel-bg)",
-                        color: "var(--fg)",
-                        fontSize: 10,
-                        fontWeight: 600,
-                        cursor: "pointer",
-                      }}
-                    >
-                      详情
-                    </button>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 8, alignItems: "center" }}>
+                    {/* 启用：置于最右列顶部 */}
+                    {s.userEnabled === null ? (
+                      <div style={{ fontSize: 10, color: "var(--muted2)" }}>（未配置）</div>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => toggleUserEnabled(s.slug, s.userEnabled)}
+                        disabled={updatingSlug === s.slug}
+                        style={{
+                          position: "relative",
+                          width: 42,
+                          height: 22,
+                          borderRadius: 999,
+                          border: "none",
+                          background: s.userEnabled === 1 ? "#22c55e" : "#374151",
+                          cursor: updatingSlug === s.slug ? "not-allowed" : "pointer",
+                          opacity: updatingSlug === s.slug ? 0.6 : 1,
+                          transition: "background 0.2s, opacity 0.2s",
+                        }}
+                        title={s.userEnabled === 1 ? "已启用" : "未启用"}
+                      >
+                        <span
+                          style={{
+                            position: "absolute",
+                            top: 2,
+                            left: s.userEnabled === 1 ? 24 : 2,
+                            width: 18,
+                            height: 18,
+                            borderRadius: "50%",
+                            background: "#fff",
+                            transition: "left 0.2s",
+                          }}
+                        />
+                      </button>
+                    )}
+
+                    {/* 操作：放在启用下方，横向平铺 */}
+                    <div style={{ display: "flex", gap: 6, width: "100%", justifyContent: "center" }}>
+                      <button
+                        type="button"
+                        disabled
+                        title="即将推出"
+                        style={{
+                          height: 26,
+                          padding: "0 8px",
+                          borderRadius: 8,
+                          border: "1px solid var(--btn-border)",
+                          background: "var(--panel-bg2)",
+                          color: "var(--muted2)",
+                          fontSize: 10,
+                          fontWeight: 600,
+                          cursor: "not-allowed",
+                          flex: "0 0 auto",
+                        }}
+                      >
+                        审计报告
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => void toggleUserEnabled(s.slug, s.userEnabled)}
+                        disabled={
+                          updatingSlug === s.slug || s.userEnabled === null || s.userEnabled === 1 || s.systemStatus !== "NORMAL"
+                        }
+                        title={
+                          s.systemStatus !== "NORMAL"
+                            ? "系统未启用该技能"
+                            : s.userEnabled === 1 || s.userEnabled === null
+                              ? "已启用"
+                              : "启用该技能"
+                        }
+                        style={{
+                          height: 26,
+                          padding: "0 8px",
+                          borderRadius: 8,
+                          border: "none",
+                          background:
+                            s.userEnabled === 0 && s.systemStatus === "NORMAL" ? "#2563eb" : "rgba(30,41,59,0.9)",
+                          color: s.userEnabled === 0 && s.systemStatus === "NORMAL" ? "#fff" : "var(--muted2)",
+                          fontSize: 10,
+                          fontWeight: 700,
+                          cursor:
+                            updatingSlug === s.slug || s.userEnabled !== 0 || s.systemStatus !== "NORMAL"
+                              ? "not-allowed"
+                              : "pointer",
+                          opacity: s.userEnabled === 0 && s.systemStatus === "NORMAL" ? 1 : 0.65,
+                          flex: "0 0 auto",
+                        }}
+                      >
+                        {s.userEnabled === 0 ? "安全安装" : "已启用"}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => openDetail(s.slug)}
+                        style={{
+                          height: 26,
+                          padding: "0 8px",
+                          borderRadius: 8,
+                          border: "1px solid var(--btn-border)",
+                          background: "var(--panel-bg)",
+                          color: "var(--fg)",
+                          fontSize: 10,
+                          fontWeight: 600,
+                          cursor: "pointer",
+                          flex: "0 0 auto",
+                        }}
+                      >
+                        详情
+                      </button>
+                    </div>
                   </div>
                 </td>
               </tr>
@@ -1161,6 +1152,97 @@ export function SkillsPanel({ showAccountSwitchPlaceholder = false }: { showAcco
             )}
           </tbody>
         </table>
+        {/* 分页条 */}
+        {!loading && displaySkills.length > 0 && (
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              gap: 10,
+              padding: "10px 12px",
+              borderTop: "1px solid var(--panel-border)",
+              background: "var(--panel-bg)",
+            }}
+          >
+            <div style={{ fontSize: 12, color: "var(--muted)" }}>
+              共 <span style={{ color: "var(--fg)", fontWeight: 700 }}>{displaySkills.length}</span> 条，
+              第 <span style={{ color: "var(--fg)", fontWeight: 700 }}>{marketPageSafe}</span> /
+              {marketTotalPages} 页（每页 {marketPageSize} 条）
+            </div>
+
+            <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+              <button
+                type="button"
+                onClick={() => setMarketPage(1)}
+                disabled={marketPageSafe <= 1}
+                style={{
+                  padding: "6px 10px",
+                  borderRadius: 999,
+                  border: "1px solid var(--panel-border)",
+                  background: "var(--panel-bg2)",
+                  color: "var(--fg)",
+                  fontSize: 12,
+                  cursor: marketPageSafe <= 1 ? "not-allowed" : "pointer",
+                  opacity: marketPageSafe <= 1 ? 0.55 : 1,
+                }}
+              >
+                首页
+              </button>
+              <button
+                type="button"
+                onClick={() => setMarketPage((p) => Math.max(1, p - 1))}
+                disabled={marketPageSafe <= 1}
+                style={{
+                  padding: "6px 10px",
+                  borderRadius: 999,
+                  border: "1px solid var(--panel-border)",
+                  background: "var(--panel-bg2)",
+                  color: "var(--fg)",
+                  fontSize: 12,
+                  cursor: marketPageSafe <= 1 ? "not-allowed" : "pointer",
+                  opacity: marketPageSafe <= 1 ? 0.55 : 1,
+                }}
+              >
+                上一页
+              </button>
+              <button
+                type="button"
+                onClick={() => setMarketPage((p) => Math.min(marketTotalPages, p + 1))}
+                disabled={marketPageSafe >= marketTotalPages}
+                style={{
+                  padding: "6px 10px",
+                  borderRadius: 999,
+                  border: "1px solid var(--panel-border)",
+                  background: "var(--panel-bg2)",
+                  color: "var(--fg)",
+                  fontSize: 12,
+                  cursor: marketPageSafe >= marketTotalPages ? "not-allowed" : "pointer",
+                  opacity: marketPageSafe >= marketTotalPages ? 0.55 : 1,
+                }}
+              >
+                下一页
+              </button>
+              <button
+                type="button"
+                onClick={() => setMarketPage(marketTotalPages)}
+                disabled={marketPageSafe >= marketTotalPages}
+                style={{
+                  padding: "6px 10px",
+                  borderRadius: 999,
+                  border: "1px solid var(--panel-border)",
+                  background: "var(--panel-bg2)",
+                  color: "var(--fg)",
+                  fontSize: 12,
+                  cursor: marketPageSafe >= marketTotalPages ? "not-allowed" : "pointer",
+                  opacity: marketPageSafe >= marketTotalPages ? 0.55 : 1,
+                }}
+              >
+                末页
+              </button>
+            </div>
+          </div>
+        )}
         </div>
       </div>
 
@@ -1170,7 +1252,7 @@ export function SkillsPanel({ showAccountSwitchPlaceholder = false }: { showAcco
           style={{
             position: "fixed",
             inset: 0,
-            background: "rgba(0,0,0,0.65)",
+            background: "rgba(2,6,23,0.58)",
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
@@ -1186,10 +1268,10 @@ export function SkillsPanel({ showAccountSwitchPlaceholder = false }: { showAcco
             style={{
               width: 640,
               maxHeight: "85vh",
-              background: "#020617",
+              background: "var(--panel-bg)",
               borderRadius: 16,
-              border: "1px solid #1f2937",
-              boxShadow: "0 25px 60px rgba(0,0,0,0.8)",
+              border: "1px solid var(--panel-border)",
+              boxShadow: "0 30px 80px rgba(0,0,0,0.55)",
               display: "flex",
               flexDirection: "column",
               overflow: "hidden",
@@ -1200,7 +1282,7 @@ export function SkillsPanel({ showAccountSwitchPlaceholder = false }: { showAcco
             <div
               style={{
                 padding: "16px 20px",
-                borderBottom: "1px solid #1f2937",
+                borderBottom: "1px solid var(--panel-border)",
                 display: "flex",
                 justifyContent: "space-between",
                 alignItems: "center",
@@ -1208,12 +1290,12 @@ export function SkillsPanel({ showAccountSwitchPlaceholder = false }: { showAcco
               }}
             >
               <div>
-                <div style={{ fontSize: 16, fontWeight: 600, color: "#f9fafb" }}>技能详情</div>
+                <div style={{ fontSize: 16, fontWeight: 700, color: "var(--fg)" }}>技能详情</div>
                 {detail && (
                   <div
                     style={{
                       fontSize: 10,
-                      color: "#6b7280",
+                      color: "var(--muted2)",
                       marginTop: 4,
                       fontFamily:
                         'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
@@ -1233,9 +1315,9 @@ export function SkillsPanel({ showAccountSwitchPlaceholder = false }: { showAcco
                 style={{
                   padding: "6px 12px",
                   borderRadius: 999,
-                  border: "1px solid #374151",
+                  border: "1px solid var(--panel-border)",
                   background: "transparent",
-                  color: "#e5e7eb",
+                  color: "var(--fg)",
                   fontSize: 11,
                   cursor: "pointer",
                 }}
@@ -1253,31 +1335,31 @@ export function SkillsPanel({ showAccountSwitchPlaceholder = false }: { showAcco
                 fontSize: 12,
               }}
             >
-              {detailLoading && <div style={{ color: "#9ca3af" }}>加载详情中…</div>}
+              {detailLoading && <div style={{ color: "var(--muted)" }}>加载详情中…</div>}
               {detailError && <div style={{ color: "#f97373" }}>{detailError}</div>}
 
               {detail && !detailLoading && !detailError && (
                 <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
                   <div>
-                    <div style={{ fontSize: 10, color: "#6b7280", marginBottom: 4, textTransform: "uppercase", letterSpacing: "0.05em" }}>
+                    <div style={{ fontSize: 10, color: "var(--muted2)", marginBottom: 4, textTransform: "uppercase", letterSpacing: "0.05em" }}>
                       名称
                     </div>
-                    <div style={{ fontSize: 14, fontWeight: 600, color: "#f9fafb" }}>{detail.name || detail.slug}</div>
+                    <div style={{ fontSize: 14, fontWeight: 700, color: "var(--fg)" }}>{detail.name || detail.slug}</div>
                   </div>
 
                   <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, fontSize: 11 }}>
                     <div>
-                      <div style={{ fontSize: 10, color: "#6b7280", marginBottom: 3 }}>Slug</div>
+                      <div style={{ fontSize: 10, color: "var(--muted2)", marginBottom: 3 }}>Slug</div>
                       <code
                         style={{
                           fontFamily:
                             'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
                           fontSize: 10,
-                          background: "rgba(15,23,42,0.85)",
+                          background: "var(--panel-bg2)",
                           padding: "4px 6px",
                           borderRadius: 6,
-                          border: "1px solid #111827",
-                          color: "#e5e7eb",
+                          border: "1px solid var(--panel-border)",
+                          color: "var(--fg)",
                           display: "block",
                           wordBreak: "break-all",
                         }}
@@ -1286,53 +1368,53 @@ export function SkillsPanel({ showAccountSwitchPlaceholder = false }: { showAcco
                       </code>
                     </div>
                     <div>
-                      <div style={{ fontSize: 10, color: "#6b7280", marginBottom: 3 }}>类型</div>
-                      <div style={{ color: "#e5e7eb" }}>{detail.type || "-"}</div>
+                      <div style={{ fontSize: 10, color: "var(--muted2)", marginBottom: 3 }}>类型</div>
+                      <div style={{ color: "var(--fg)" }}>{detail.type || "-"}</div>
                     </div>
                     <div>
-                      <div style={{ fontSize: 10, color: "#6b7280", marginBottom: 3 }}>分类</div>
-                      <div style={{ color: "#e5e7eb" }}>{detail.category || "-"}</div>
+                      <div style={{ fontSize: 10, color: "var(--muted2)", marginBottom: 3 }}>分类</div>
+                      <div style={{ color: "var(--fg)" }}>{detail.category || "-"}</div>
                     </div>
                     <div>
-                      <div style={{ fontSize: 10, color: "#6b7280", marginBottom: 3 }}>状态</div>
-                      <div style={{ color: "#e5e7eb" }}>{detail.status || "-"}</div>
+                      <div style={{ fontSize: 10, color: "var(--muted2)", marginBottom: 3 }}>状态</div>
+                      <div style={{ color: "var(--fg)" }}>{detail.status || "-"}</div>
                     </div>
                     <div>
-                      <div style={{ fontSize: 10, color: "#6b7280", marginBottom: 3 }}>来源</div>
-                      <div style={{ color: "#e5e7eb" }}>{detail.sourceName || "ClawHub"}</div>
+                      <div style={{ fontSize: 10, color: "var(--muted2)", marginBottom: 3 }}>来源</div>
+                      <div style={{ color: "var(--fg)" }}>{detail.sourceName || "ClawHub"}</div>
                     </div>
                     {detail.version && (
                       <div>
-                        <div style={{ fontSize: 10, color: "#6b7280", marginBottom: 3 }}>版本</div>
-                        <div style={{ color: "#e5e7eb" }}>v{detail.version}</div>
+                        <div style={{ fontSize: 10, color: "var(--muted2)", marginBottom: 3 }}>版本</div>
+                        <div style={{ color: "var(--fg)" }}>v{detail.version}</div>
                       </div>
                     )}
                   </div>
 
                   {detail.shortDesc && (
                     <div>
-                      <div style={{ fontSize: 10, color: "#6b7280", marginBottom: 4, textTransform: "uppercase", letterSpacing: "0.05em" }}>
+                      <div style={{ fontSize: 10, color: "var(--muted2)", marginBottom: 4, textTransform: "uppercase", letterSpacing: "0.05em" }}>
                         简介
                       </div>
-                      <div style={{ fontSize: 12, color: "#d1d5db", lineHeight: 1.6 }}>{detail.shortDesc}</div>
+                      <div style={{ fontSize: 12, color: "var(--muted)", lineHeight: 1.6 }}>{detail.shortDesc}</div>
                     </div>
                   )}
 
                   {detail.longDesc && (
                     <div>
-                      <div style={{ fontSize: 10, color: "#6b7280", marginBottom: 4, textTransform: "uppercase", letterSpacing: "0.05em" }}>
+                      <div style={{ fontSize: 10, color: "var(--muted2)", marginBottom: 4, textTransform: "uppercase", letterSpacing: "0.05em" }}>
                         详细说明
                       </div>
                       <div
                         style={{
                           fontSize: 11,
-                          color: "#d1d5db",
+                          color: "var(--muted)",
                           lineHeight: 1.6,
                           whiteSpace: "pre-wrap",
-                          background: "rgba(15,23,42,0.85)",
+                          background: "var(--panel-bg2)",
                           padding: "10px 12px",
                           borderRadius: 8,
-                          border: "1px solid #111827",
+                          border: "1px solid var(--panel-border)",
                         }}
                       >
                         {detail.longDesc}
@@ -1342,7 +1424,7 @@ export function SkillsPanel({ showAccountSwitchPlaceholder = false }: { showAcco
 
                   {detail.tags && (
                     <div>
-                      <div style={{ fontSize: 10, color: "#6b7280", marginBottom: 4, textTransform: "uppercase", letterSpacing: "0.05em" }}>
+                      <div style={{ fontSize: 10, color: "var(--muted2)", marginBottom: 4, textTransform: "uppercase", letterSpacing: "0.05em" }}>
                         标签
                       </div>
                       <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
@@ -1368,7 +1450,7 @@ export function SkillsPanel({ showAccountSwitchPlaceholder = false }: { showAcco
 
                   {detail.installHint && (
                     <div>
-                      <div style={{ fontSize: 10, color: "#6b7280", marginBottom: 4, textTransform: "uppercase", letterSpacing: "0.05em" }}>
+                      <div style={{ fontSize: 10, color: "var(--muted2)", marginBottom: 4, textTransform: "uppercase", letterSpacing: "0.05em" }}>
                         安装提示
                       </div>
                       <code
@@ -1377,11 +1459,11 @@ export function SkillsPanel({ showAccountSwitchPlaceholder = false }: { showAcco
                           fontFamily:
                             'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
                           fontSize: 10,
-                          background: "rgba(15,23,42,0.85)",
+                          background: "var(--panel-bg2)",
                           padding: "8px 10px",
                           borderRadius: 6,
-                          border: "1px solid #111827",
-                          color: "#e5e7eb",
+                          border: "1px solid var(--panel-border)",
+                          color: "var(--fg)",
                           whiteSpace: "pre-wrap",
                           wordBreak: "break-all",
                         }}
@@ -1393,7 +1475,7 @@ export function SkillsPanel({ showAccountSwitchPlaceholder = false }: { showAcco
 
                   {detail.homepageUrl && (
                     <div>
-                      <div style={{ fontSize: 10, color: "#6b7280", marginBottom: 4, textTransform: "uppercase", letterSpacing: "0.05em" }}>
+                      <div style={{ fontSize: 10, color: "var(--muted2)", marginBottom: 4, textTransform: "uppercase", letterSpacing: "0.05em" }}>
                         主页
                       </div>
                       <a

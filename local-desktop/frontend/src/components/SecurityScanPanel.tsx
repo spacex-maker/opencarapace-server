@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { LocalStatus } from "../types";
 import {
   MdManageSearch,
@@ -35,10 +35,10 @@ type Finding = {
 // 基础卡片样式提取（全圆弧风格）
 const cardBase: React.CSSProperties = {
   background: "var(--panel-bg)",
-  border: "1px solid var(--panel-border)",
+  border: "none",
   borderRadius: 22,
   padding: "20px",
-  boxShadow: "0 1px 2px rgba(0,0,0,0.05), 0 0 0 1px rgba(255,255,255,0.02) inset",
+  boxShadow: "none",
   transition: "all 0.2s ease",
 };
 
@@ -101,6 +101,7 @@ export function SecurityScanPanel({ status }: { status: LocalStatus | null }) {
   const [itemsError, setItemsError] = useState<string | null>(null);
   const [selected, setSelected] = useState<Record<string, boolean>>({});
   const [contextExtra, setContextExtra] = useState("");
+  const hasInitSelectedRef = useRef(false);
 
   type PrivacyState = {
     shareHistoryEnabled: boolean;
@@ -132,19 +133,21 @@ export function SecurityScanPanel({ status }: { status: LocalStatus | null }) {
       const data = await res.json();
       if (!res.ok) {
         setItemsError(data?.error?.message || "加载扫描项失败");
-        setItems([]);
         return;
       }
       const list = (data?.items || []) as ScanItem[];
       setItems(list);
-      const init: Record<string, boolean> = {};
-      list.forEach((it) => {
-        init[it.code] = true;
+      setSelected((prev) => {
+        const next: Record<string, boolean> = {};
+        const shouldInitAll = !hasInitSelectedRef.current || Object.keys(prev).length === 0;
+        list.forEach((it) => {
+          next[it.code] = shouldInitAll ? true : (prev[it.code] ?? true);
+        });
+        hasInitSelectedRef.current = true;
+        return next;
       });
-      setSelected(init);
     } catch (e: any) {
       setItemsError(e?.message ?? "加载扫描项失败");
-      setItems([]);
     } finally {
       setItemsLoading(false);
     }
@@ -749,7 +752,14 @@ export function SecurityScanPanel({ status }: { status: LocalStatus | null }) {
               </div>
             </div>
 
-            {itemsLoading ? (
+
+            {itemsLoading && items.length > 0 && (
+              <div style={{ margin: "10px 0 14px", fontSize: 12, color: "var(--muted)" }}>
+                正在从云端刷新扫描项…你可以继续操作当前列表。
+              </div>
+            )}
+
+            {itemsLoading && items.length === 0 ? (
               <div style={{ padding: "40px 0", textAlign: "center", color: "var(--muted)" }}>获取云端规则中...</div>
             ) : (
               <div style={{ display: "grid", gap: 12 }}>

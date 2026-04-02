@@ -248,7 +248,7 @@ export function InterceptLogsPanel({
         borderRadius: 16,
         padding: "24px 28px",
         border: "1px solid var(--panel-border)",
-        boxShadow: "0 20px 40px rgba(15,23,42,0.6)",
+        boxShadow: "none",
       }}
     >
       <h1 style={{ fontSize: 20, margin: "0 0 6px", color: "var(--fg)" }}>拦截监控</h1>

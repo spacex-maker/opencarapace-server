@@ -267,7 +267,7 @@ export function App() {
       <div
         style={{
           flexShrink: 0,
-          height: 64,
+          height: 66,
           display: "flex",
           alignItems: "center",
           gap: 14,
@@ -331,106 +331,228 @@ export function App() {
             minWidth: 0,
             display: "flex",
             alignItems: "center",
-            gap: 8,
-            overflowX: "auto",
-            overflowY: "hidden",
-            padding: "2px 2px",
-          }}
-        >
-          {(
-            [
-              { key: "overview", label: "总览", icon: <MdDashboard /> },
-              { key: "securityScan", label: "安全扫描", icon: <MdManageSearch /> },
-              { key: "interceptLogs", label: "拦截监控", icon: <MdBlock /> },
-              { key: "openclaw", label: "OpenClaw", icon: <MdApps /> },
-              { key: "skills", label: "安全市场", icon: <MdStorefront /> },
-              { key: "agentMgmt", label: "Agent 管理", icon: <MdAccountTree /> },
-            ] as const
-          ).map((item) => {
-            const isActive = activeTab === (item.key as any);
-            return (
-              <button
-                key={item.key}
-                type="button"
-                onClick={() => setActiveTab(item.key as any)}
-                style={{
-                  display: "inline-flex",
-                  alignItems: "center",
-                  gap: 8,
-                  padding: "10px 12px",
-                  borderRadius: 999,
-                  border: isActive ? "1px solid rgba(34,197,94,0.45)" : "1px solid rgba(51,65,85,0.7)",
-                  background: isActive ? "rgba(34,197,94,0.12)" : "var(--panel-bg2)",
-                  color: isActive ? "#16a34a" : "var(--fg)",
-                  fontSize: 13,
-                  fontWeight: isActive ? 700 : 600,
-                  cursor: "pointer",
-                  flexShrink: 0,
-                  boxShadow: isActive ? "0 0 0 1px rgba(255,255,255,0.04) inset" : "none",
-                }}
-              >
-                <span style={{ display: "flex", fontSize: 16, color: isActive ? "#16a34a" : theme === "light" ? "#334155" : "#cbd5e1" }}>{item.icon}</span>
-                <span style={{ whiteSpace: "nowrap" }}>{item.label}</span>
-              </button>
-            );
-          })}
-        </div>
-
-        {/* 右侧账户区（紧凑版） */}
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: 10,
-            padding: "8px 10px",
-            borderRadius: 14,
-            border: "1px solid var(--border)",
-            background: theme === "light"
-              ? "linear-gradient(180deg, rgba(255,255,255,0.78) 0%, rgba(248,250,252,0.92) 100%)"
-              : "linear-gradient(180deg, rgba(15,23,42,0.62) 0%, rgba(2,6,23,0.92) 100%)",
-            boxShadow: theme === "light" ? "0 0 0 1px rgba(15,23,42,0.04) inset" : "0 0 0 1px rgba(255,255,255,0.03) inset",
-            flexShrink: 0,
+            overflow: "hidden",
           }}
         >
           <div
             style={{
-              width: 30,
-              height: 30,
-              borderRadius: 999,
-              background: "linear-gradient(135deg, #22c55e, #0ea5e9)",
+              flex: 1,
+              minWidth: 0,
               display: "flex",
               alignItems: "center",
-              justifyContent: "center",
-              color: "#022c22",
-              fontSize: 12,
-              fontWeight: 800,
-              flexShrink: 0,
-              boxShadow: "0 2px 8px rgba(34,197,94,0.22)",
+              gap: 6,
+              overflowX: "auto",
+              overflowY: "hidden",
+              padding: 4,
+              borderRadius: 999,
+              border: "1px solid var(--border)",
+              background: theme === "light"
+                ? "linear-gradient(180deg, rgba(255,255,255,0.65) 0%, rgba(248,250,252,0.88) 100%)"
+                : "linear-gradient(180deg, rgba(15,23,42,0.45) 0%, rgba(2,6,23,0.65) 100%)",
+              boxShadow: theme === "light"
+                ? "0 0 0 1px rgba(15,23,42,0.03) inset"
+                : "0 0 0 1px rgba(255,255,255,0.03) inset",
+              scrollbarWidth: "none" as any,
+              msOverflowStyle: "none",
             }}
-            title={status?.auth?.email || "未登录"}
           >
-            {(() => {
-              const nick = status?.auth?.displayName?.trim();
-              const src = nick || status?.auth?.email || "U";
-              return src.charAt(0).toUpperCase();
-            })()}
+            <style>{`
+              .oc-topmenu::-webkit-scrollbar { display: none; }
+            `}</style>
+            {(
+              [
+                { key: "overview", label: "总览", icon: <MdDashboard /> },
+                { key: "securityScan", label: "安全扫描", icon: <MdManageSearch /> },
+                { key: "interceptLogs", label: "拦截监控", icon: <MdBlock /> },
+                { key: "openclaw", label: "OpenClaw", icon: <MdApps /> },
+                { key: "skills", label: "安全市场", icon: <MdStorefront /> },
+                { key: "agentMgmt", label: "Agent 管理", icon: <MdAccountTree /> },
+              ] as const
+            ).map((item) => {
+              const isActive = activeTab === (item.key as any);
+              const activeBg = theme === "light" ? "rgba(34,197,94,0.12)" : "rgba(34,197,94,0.16)";
+              const idleBg = "transparent";
+              const activeFg = theme === "light" ? "#15803d" : "#22c55e";
+              const idleFg = "var(--fg)";
+              const idleIcon = theme === "light" ? "#334155" : "#cbd5e1";
+              return (
+                <button
+                  key={item.key}
+                  type="button"
+                  onClick={() => setActiveTab(item.key as any)}
+                  className="oc-topmenu"
+                  style={{
+                    position: "relative",
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: 8,
+                    padding: "9px 12px",
+                    borderRadius: 999,
+                    border: "1px solid transparent",
+                    background: isActive ? activeBg : idleBg,
+                    color: isActive ? activeFg : idleFg,
+                    fontSize: 13,
+                    fontWeight: isActive ? 800 : 650,
+                    cursor: "pointer",
+                    flexShrink: 0,
+                    transition: "background 0.15s, border-color 0.15s, color 0.15s, transform 0.15s",
+                  }}
+                  onMouseEnter={(e) => {
+                    if (isActive) return;
+                    e.currentTarget.style.background = theme === "light" ? "rgba(15,23,42,0.04)" : "rgba(148,163,184,0.10)";
+                  }}
+                  onMouseLeave={(e) => {
+                    if (isActive) return;
+                    e.currentTarget.style.background = idleBg;
+                  }}
+                >
+                  <span style={{ display: "flex", fontSize: 16, color: isActive ? activeFg : idleIcon }}>
+                    {item.icon}
+                  </span>
+                  <span style={{ whiteSpace: "nowrap" }}>{item.label}</span>
+                  {isActive && (
+                    <span
+                      aria-hidden
+                      style={{
+                        position: "absolute",
+                        left: 12,
+                        right: 12,
+                        bottom: 4,
+                        height: 2,
+                        borderRadius: 999,
+                        background: theme === "light"
+                          ? "linear-gradient(90deg, rgba(34,197,94,0) 0%, rgba(34,197,94,0.95) 40%, rgba(34,197,94,0.95) 60%, rgba(34,197,94,0) 100%)"
+                          : "linear-gradient(90deg, rgba(34,197,94,0) 0%, rgba(34,197,94,0.9) 40%, rgba(34,197,94,0.9) 60%, rgba(34,197,94,0) 100%)",
+                      }}
+                    />
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* 右侧账户区（重新布局） */}
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 12,
+            padding: "8px 10px",
+            borderRadius: 16,
+            border: "1px solid var(--border)",
+            background: theme === "light"
+              ? "linear-gradient(180deg, rgba(255,255,255,0.78) 0%, rgba(248,250,252,0.92) 100%)"
+              : "linear-gradient(180deg, rgba(15,23,42,0.62) 0%, rgba(2,6,23,0.92) 100%)",
+            boxShadow: theme === "light"
+              ? "0 0 0 1px rgba(15,23,42,0.04) inset"
+              : "0 0 0 1px rgba(255,255,255,0.03) inset",
+            flexShrink: 0,
+          }}
+        >
+          {/* 身份信息 */}
+          <div style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0 }}>
+            <div
+              style={{
+                width: 32,
+                height: 32,
+                borderRadius: 999,
+                background: "linear-gradient(135deg, #22c55e, #0ea5e9)",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                color: "#022c22",
+                fontSize: 12,
+                fontWeight: 900,
+                flexShrink: 0,
+                boxShadow: "0 2px 10px rgba(34,197,94,0.20)",
+              }}
+              title={status?.auth?.email || "未登录"}
+            >
+              {(() => {
+                const nick = status?.auth?.displayName?.trim();
+                const src = nick || status?.auth?.email || "U";
+                return src.charAt(0).toUpperCase();
+              })()}
+            </div>
+
+            <div style={{ minWidth: 0, maxWidth: 220, lineHeight: 1.15 }}>
+              {status?.auth?.email ? (
+                <>
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 8,
+                      minWidth: 0,
+                      marginBottom: 2,
+                    }}
+                  >
+                    <div
+                      style={{
+                        fontSize: 12,
+                        fontWeight: 800,
+                        color: theme === "light" ? "#0f172a" : "#f1f5f9",
+                        whiteSpace: "nowrap",
+                        overflow: "hidden",
+                        textOverflow: "ellipsis",
+                      }}
+                      title={(status.auth.displayName?.trim() || status.auth.email) as any}
+                    >
+                      {(status.auth.displayName?.trim() || status.auth.email) as any}
+                    </div>
+                    <span
+                      style={{
+                        width: 6,
+                        height: 6,
+                        borderRadius: 999,
+                        background: connectionDotColor,
+                        boxShadow: isConnected ? "0 0 0 4px rgba(34,197,94,0.16)" : "none",
+                        flexShrink: 0,
+                      }}
+                      title={connectionLabel}
+                      aria-hidden
+                    />
+                  </div>
+                  <div
+                    style={{
+                      fontSize: 10,
+                      color: "var(--muted2)",
+                      whiteSpace: "nowrap",
+                      overflow: "hidden",
+                      textOverflow: "ellipsis",
+                    }}
+                    title={status.auth.email}
+                  >
+                    {status.auth.email}
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div style={{ fontSize: 12, fontWeight: 800, color: theme === "light" ? "#0f172a" : "#f1f5f9", whiteSpace: "nowrap" }}>
+                    未登录
+                  </div>
+                  <div style={{ fontSize: 10, color: "var(--muted2)", whiteSpace: "nowrap" }}>
+                    {connectionLabel}
+                  </div>
+                </>
+              )}
+            </div>
           </div>
 
-          <div style={{ minWidth: 0, maxWidth: 210, lineHeight: 1.15 }}>
-            {status?.auth?.email ? (
-              <>
-                <div style={{ fontSize: 11, fontWeight: 700, color: theme === "light" ? "#0f172a" : "#f1f5f9", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                  {(status.auth.displayName?.trim() || status.auth.email) as any}
-                </div>
-                <div style={{ fontSize: 10, color: "var(--muted2)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }} title={status.auth.email}>
-                  {status.auth.email}
-                </div>
-              </>
-            ) : (
-              <div style={{ fontSize: 11, color: "var(--muted2)", whiteSpace: "nowrap" }}>未登录</div>
-            )}
-          </div>
+          {/* 分隔 */}
+          <div
+            aria-hidden
+            style={{
+              width: 1,
+              height: 28,
+              background: "var(--border)",
+              opacity: theme === "light" ? 0.9 : 0.7,
+              flexShrink: 0,
+            }}
+          />
 
+          {/* 操作区 */}
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
             <button
               type="button"
@@ -438,23 +560,22 @@ export function App() {
               aria-label="切换主题"
               onClick={() => setTheme((t) => (t === "light" ? "dark" : "light"))}
               style={{
+                width: 34,
+                height: 34,
                 display: "inline-flex",
                 alignItems: "center",
                 justifyContent: "center",
-                gap: 6,
-                padding: "8px 10px",
-                borderRadius: 999,
+                borderRadius: 12,
                 border: "1px solid var(--btn-border)",
                 background: "var(--btn-bg)",
                 color: "var(--fg)",
-                fontSize: 12,
-                fontWeight: 700,
                 cursor: "pointer",
-                transition: "border-color 0.15s, background 0.15s, color 0.15s",
+                transition: "border-color 0.15s, background 0.15s, transform 0.15s",
               }}
+              onMouseEnter={(e) => (e.currentTarget.style.transform = "translateY(-1px)")}
+              onMouseLeave={(e) => (e.currentTarget.style.transform = "translateY(0px)")}
             >
-              {theme === "light" ? <MdDarkMode style={{ fontSize: 16 }} /> : <MdLightMode style={{ fontSize: 16 }} />}
-              <span style={{ whiteSpace: "nowrap" }}>{theme === "light" ? "暗黑" : "明亮"}</span>
+              {theme === "light" ? <MdDarkMode style={{ fontSize: 18 }} /> : <MdLightMode style={{ fontSize: 18 }} />}
             </button>
 
             <button
@@ -463,23 +584,24 @@ export function App() {
               aria-label="设置"
               onClick={() => setActiveTab("settings")}
               style={{
+                width: 34,
+                height: 34,
                 display: "inline-flex",
                 alignItems: "center",
                 justifyContent: "center",
-                gap: 6,
-                padding: "8px 10px",
-                borderRadius: 999,
-                border: activeTab === "settings" ? "1px solid rgba(34,197,94,0.55)" : "1px solid rgba(51,65,85,0.75)",
-                background: activeTab === "settings" ? "rgba(34,197,94,0.12)" : "rgba(30,41,59,0.5)",
-                color: activeTab === "settings" ? "#16a34a" : "var(--fg)",
-                fontSize: 12,
-                fontWeight: 700,
+                borderRadius: 12,
+                border: activeTab === "settings" ? "1px solid rgba(34,197,94,0.55)" : "1px solid var(--btn-border)",
+                background: activeTab === "settings"
+                  ? (theme === "light" ? "rgba(34,197,94,0.12)" : "rgba(34,197,94,0.16)")
+                  : "var(--btn-bg)",
+                color: activeTab === "settings" ? (theme === "light" ? "#15803d" : "#22c55e") : "var(--fg)",
                 cursor: "pointer",
-                transition: "border-color 0.15s, background 0.15s, color 0.15s",
+                transition: "border-color 0.15s, background 0.15s, transform 0.15s, color 0.15s",
               }}
+              onMouseEnter={(e) => (e.currentTarget.style.transform = "translateY(-1px)")}
+              onMouseLeave={(e) => (e.currentTarget.style.transform = "translateY(0px)")}
             >
-              <MdSettings style={{ fontSize: 16, flexShrink: 0 }} />
-              <span style={{ whiteSpace: "nowrap" }}>设置</span>
+              <MdSettings style={{ fontSize: 18 }} />
             </button>
 
             {!status?.auth?.email ? (
@@ -488,15 +610,16 @@ export function App() {
                 title="登录云端账户"
                 onClick={() => setActiveTab("auth")}
                 style={{
-                  padding: "8px 12px",
-                  borderRadius: 999,
+                  height: 34,
+                  padding: "0 12px",
+                  borderRadius: 12,
                   border: "none",
                   background: "linear-gradient(135deg, #22c55e, #16a34a)",
                   color: "#022c22",
                   fontSize: 12,
-                  fontWeight: 800,
+                  fontWeight: 900,
                   cursor: "pointer",
-                  boxShadow: "0 2px 10px rgba(34,197,94,0.32)",
+                  boxShadow: "0 2px 10px rgba(34,197,94,0.22)",
                 }}
               >
                 登录
@@ -507,15 +630,19 @@ export function App() {
                 title="退出登录"
                 onClick={() => setLogoutConfirmOpen(true)}
                 style={{
-                  padding: "8px 12px",
-                  borderRadius: 999,
+                  height: 34,
+                  padding: "0 12px",
+                  borderRadius: 12,
                   border: "1px solid var(--btn-border)",
                   background: "var(--btn-bg)",
                   color: "var(--fg)",
                   fontSize: 12,
-                  fontWeight: 700,
+                  fontWeight: 800,
                   cursor: "pointer",
+                  transition: "transform 0.15s",
                 }}
+                onMouseEnter={(e) => (e.currentTarget.style.transform = "translateY(-1px)")}
+                onMouseLeave={(e) => (e.currentTarget.style.transform = "translateY(0px)")}
               >
                 退出
               </button>

@@ -275,7 +275,7 @@ export function OpenClawPanel() {
         borderRadius: 16,
         padding: "24px 28px",
         border: "1px solid var(--panel-border)",
-        boxShadow: "0 20px 40px rgba(0,0,0,0.16)",
+        boxShadow: "none",
         fontSize: 12,
       }}
     >

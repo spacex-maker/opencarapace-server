@@ -1,9 +1,11 @@
 #!/usr/bin/env node
 /**
- * 在打包前下载官方 Node.js Windows x64 二进制，放入 bundled/win-x64/node.exe，
- * 由 electron-builder extraResources 复制到安装目录 resources/node.exe（开箱即用，不依赖用户本机 Node）。
+ * 打包前下载官方 Node.js 二进制，供 OpenClaw 子进程使用（不依赖用户本机 Node）。
  *
- * 版本需与 node-manager.js 中 NODE_VERSION 保持一致；且须满足 openclaw 要求（随 openclaw 升级会变，见下方 NODE_VERSION）。
+ * - Windows：bundled/win-x64/node.exe → 安装包 resources/node.exe（见 package.json win.extraResources）
+ * - macOS：bundled/darwin-{x64,arm64}/bin/node → 由 scripts/after-pack.js 写入 .app/Contents/Resources/node
+ *
+ * 版本需与 node-manager.js 中 NODE_VERSION 保持一致；且须满足 openclaw（例如 Node >= 22.16.0）。
  */
 const https = require("https");
 const fs = require("fs");
@@ -34,12 +36,37 @@ function bundledNodeMeetsOpenClawRequirement(nodePath) {
     return false;
   }
 }
+
+/**
+ * 在 Intel Mac 上无法执行 arm64（反之亦然），`node -v` 会报 Bad CPU type，不能当作「版本过低」去覆盖。
+ * @param {"x64" | "arm64"} archName
+ */
+function darwinBundledNodeUsable(nodeBin, archName) {
+  if (!fs.existsSync(nodeBin)) return false;
+  if (bundledNodeMeetsOpenClawRequirement(nodeBin)) return true;
+
+  try {
+    execSync(`"${nodeBin}" -v`, { encoding: "utf8", timeout: 8000 });
+  } catch (e) {
+    const msg = `${e.stderr || ""}${e.message || ""}`;
+    if (/Bad CPU type|cannot execute binary file|Exec format error/i.test(msg)) {
+      try {
+        const ft = execSync(`file "${nodeBin.replace(/"/g, '\\"')}"`, {
+          encoding: "utf8",
+          maxBuffer: 256 * 1024,
+        });
+        if (archName === "arm64" && /arm64|ARM64|AArch64/i.test(ft)) return true;
+        if (archName === "x64" && /x86_64|Intel 64/i.test(ft)) return true;
+      } catch {
+        /* ignore */
+      }
+    }
+    return false;
+  }
+  return false;
+}
+
 const rootDir = path.join(__dirname, "..");
-const outDir = path.join(rootDir, "bundled", "win-x64");
-const nodeExe = path.join(outDir, "node.exe");
-const zipName = `node-v${NODE_VERSION}-win-x64.zip`;
-const zipPath = path.join(outDir, zipName);
-const distUrl = `https://nodejs.org/dist/v${NODE_VERSION}/${zipName}`;
 
 function download(url, dest) {
   return new Promise((resolve, reject) => {
@@ -81,16 +108,17 @@ function download(url, dest) {
   });
 }
 
-async function main() {
-  if (process.platform !== "win32") {
-    console.log("[ensure-bundled-node] 当前非 Windows，跳过 win-x64 node 下载（仅 Windows 安装包需要）。");
-    process.exit(0);
-  }
+async function ensureWinNode() {
+  const outDir = path.join(rootDir, "bundled", "win-x64");
+  const nodeExe = path.join(outDir, "node.exe");
+  const zipName = `node-v${NODE_VERSION}-win-x64.zip`;
+  const zipPath = path.join(outDir, zipName);
+  const distUrl = `https://nodejs.org/dist/v${NODE_VERSION}/${zipName}`;
 
   if (fs.existsSync(nodeExe)) {
     if (bundledNodeMeetsOpenClawRequirement(nodeExe)) {
       console.log("[ensure-bundled-node] 已存在且满足 OpenClaw (>=22.16):", nodeExe);
-      process.exit(0);
+      return;
     }
     console.log("[ensure-bundled-node] 已存在的 node 版本过低，将重新下载为 v" + NODE_VERSION);
     try {
@@ -133,6 +161,94 @@ async function main() {
   }
 
   console.log("[ensure-bundled-node] 完成:", nodeExe);
+}
+
+/**
+ * @param {"x64" | "arm64"} archName
+ */
+async function ensureDarwinNode(archName) {
+  const folder = `darwin-${archName}`;
+  const binDir = path.join(rootDir, "bundled", folder, "bin");
+  const nodeBin = path.join(binDir, "node");
+  const tarName = `node-v${NODE_VERSION}-darwin-${archName}.tar.gz`;
+  const tarPath = path.join(rootDir, "bundled", folder, tarName);
+  const distUrl = `https://nodejs.org/dist/v${NODE_VERSION}/${tarName}`;
+
+  if (fs.existsSync(nodeBin)) {
+    if (darwinBundledNodeUsable(nodeBin, archName)) {
+      console.log("[ensure-bundled-node] 已存在（本机可跑或异架构已就位）:", nodeBin);
+      return;
+    }
+    console.log("[ensure-bundled-node] 已存在的 node 不可用或版本过低，将重新下载为 v" + NODE_VERSION);
+    try {
+      fs.unlinkSync(nodeBin);
+    } catch {
+      /* ignore */
+    }
+  }
+
+  fs.mkdirSync(binDir, { recursive: true });
+  console.log("[ensure-bundled-node] 正在下载 Node.js", NODE_VERSION, folder, "...");
+  console.log("[ensure-bundled-node]", distUrl);
+  await download(distUrl, tarPath);
+
+  const extractDir = path.join(rootDir, "bundled", folder, "_extract");
+  if (fs.existsSync(extractDir)) {
+    fs.rmSync(extractDir, { recursive: true, force: true });
+  }
+  fs.mkdirSync(extractDir, { recursive: true });
+
+  const tarLiteral = tarPath.replace(/"/g, '\\"');
+  const destLiteral = extractDir.replace(/"/g, '\\"');
+  console.log("[ensure-bundled-node] 正在解压...");
+  execSync(`tar -xzf "${tarLiteral}" -C "${destLiteral}"`, { stdio: "inherit" });
+
+  const innerNode = path.join(extractDir, `node-v${NODE_VERSION}-darwin-${archName}`, "bin", "node");
+  if (!fs.existsSync(innerNode)) {
+    throw new Error(`解压后未找到: ${innerNode}`);
+  }
+
+  fs.copyFileSync(innerNode, nodeBin);
+  fs.chmodSync(nodeBin, 0o755);
+  fs.rmSync(extractDir, { recursive: true, force: true });
+  try {
+    fs.unlinkSync(tarPath);
+  } catch {
+    /* ignore */
+  }
+
+  console.log("[ensure-bundled-node] 完成:", nodeBin);
+}
+
+function resolveTarget() {
+  const env = process.env.BUNDLE_NODE_TARGET;
+  if (env === "win" || env === "win32") return "win32";
+  if (env === "mac" || env === "darwin") return "darwin";
+  if (env) {
+    console.warn("[ensure-bundled-node] 未知 BUNDLE_NODE_TARGET，回退到 process.platform:", env);
+  }
+  return process.platform;
+}
+
+async function main() {
+  const target = resolveTarget();
+  if (target === "win32") {
+    await ensureWinNode();
+  } else if (target === "darwin") {
+    const raw = process.env.BUNDLE_NODE_ARCHS;
+    const archList = raw
+      ? raw.split(/[,\s]+/).filter(Boolean)
+      : ["x64", "arm64"];
+    for (const a of archList) {
+      if (a !== "x64" && a !== "arm64") {
+        console.warn("[ensure-bundled-node] 忽略未知架构:", a);
+        continue;
+      }
+      await ensureDarwinNode(a);
+    }
+  } else {
+    console.log("[ensure-bundled-node] 当前平台无需内置 Node 下载，跳过:", target);
+  }
 }
 
 main().catch((e) => {

@@ -1,142 +1,86 @@
 # ClawHeart Desktop 打包指南
 
+工作目录均为 `local-desktop/`。
+
 ## 前置条件
 
-1. 确保已安装 Node.js（推荐 v18 或更高版本）
-2. **Windows**：为编译 `sqlite3` 等原生模块，建议安装 [Visual Studio Build Tools](https://visualstudio.microsoft.com/visual-cpp-build-tools/)（含 “使用 C++ 的桌面开发” 工作负载）。缺失时安装包能打出，但安装后双击**无窗口**、进程秒退。
-3. 确保已安装所有依赖：
+1. **Node.js**：本仓库依赖 **Node ≥ 22.16**（与 `openclaw`、部分依赖一致）。若版本过低，`npm install` 或运行时可能失败。
+2. **Windows**：为编译 `sqlite3` 等原生模块，建议安装 [Visual Studio Build Tools](https://visualstudio.microsoft.com/visual-cpp-build-tools/)（含「使用 C++ 的桌面开发」工作负载）。缺失时安装包能打出，但安装后双击**无窗口**、进程秒退。
+3. **macOS**：安装 Xcode 命令行工具（含 `clang` 等），用于编译原生模块：
+   ```bash
+   xcode-select --install
+   ```
+4. 安装依赖：
    ```bash
    npm install
    cd frontend && npm install && cd ..
    ```
 
-## 打包步骤
+## 一键打包（推荐）
 
-### 1. 安装打包工具
+`scripts/build.js` 会依次：构建前端、执行 `electron-builder install-app-deps`、下载对应平台的内置 Node、再调用 `electron-builder`。
 
-如果还没有安装 `electron-builder`，运行：
+### macOS
 
-```bash
-npm install --save-dev electron-builder
-```
+- **默认**（`npm run build`）：只打**当前 CPU 架构**的 **DMG**（Apple Silicon → arm64，Intel → x64），省磁盘与时间。
+- **双架构**（需约 **≥10GB** 空闲磁盘）：
+  ```bash
+  npm run build:mac:all
+  ```
+  等价：`node scripts/build.js mac both`（`both` / `universal` / `all` 均可）。
 
-### 2. 构建前端
+- **只打 Apple Silicon（arm64）**：
+  ```bash
+  npm run build:mac:arm64
+  ```
+- **只打 Intel（x64）**：
+  ```bash
+  npm run build:mac:intel
+  ```
+  与 `npm run build:mac:x64` 相同；等价命令：`node scripts/build.js mac x64`。
 
-```bash
-npm run build:frontend
-```
+**为何不再打 ZIP：** `electron-builder` 用内置 **p7zip（7za）** 生成 `-mac.zip`，在磁盘紧张、应用名含空格等情况下易出现 **`E_FAIL`**；分发 **DMG** 一般已足够。若你确需 zip，可在 `package.json` 的 `build.mac.target` 里自行加回 `{ "target": "zip", "arch": [...] }` 后单独试打。
 
-这会在 `frontend/dist/` 目录生成前端静态文件。
-
-### 3. 打包为 Windows exe
-
-#### 方式 A：生成安装程序（推荐）
+### Windows
 
 ```bash
 npm run build
 ```
 
-这会生成一个 NSIS 安装程序（`.exe`），位于 `dist/` 目录。
+或显式：`npm run build:win`
 
-#### 方式 B：生成免安装版本（用于快速测试）
+产物位于带时间戳的目录：`build-output-<时间戳>/`（见终端末尾提示）。版本号以 `package.json` 的 `version` 为准。
 
-```bash
-npm run build:dir
-```
+### 免安装目录（快速自测）
 
-这会在 `dist/win-unpacked/` 目录生成可直接运行的文件夹，不需要安装。
-
-### 4. 测试打包结果
-
-- **安装程序版本**：运行 `dist/ClawHeart Desktop Setup 0.1.0.exe`
-- **免安装版本**：运行 `dist/win-unpacked/ClawHeart Desktop.exe`
+- Windows：`npm run build:dir` → `build-output-.../win-unpacked/ClawHeart Desktop.exe`
+- macOS：`npm run build:dir` → `build-output-.../mac-*/ClawHeart Desktop.app`
 
 ## 打包配置说明
 
-打包配置在 `package.json` 的 `build` 字段中：
+配置在 `package.json` 的 `build` 字段中：
 
 - **appId**: `com.clawheart.desktop`
 - **productName**: `ClawHeart Desktop`
-- **输出目录**: `dist/`
-- **目标平台**: Windows x64
-- **安装程序类型**: NSIS（支持自定义安装路径）
+- **Windows**：NSIS，x64；内置 `node.exe` → `resources/node.exe`
+- **macOS**：`mac.target` 为 **`dmg`**（不在此写死 `arch` 列表）。具体打 **arm64 / x64** 由命令行 `--arm64` / `--x64` 决定；若在 `target` 里写 `arch: [x64, arm64]`，即使用 `npm run build:mac:arm64` 也会被迫打两套包。内置 Node 由 `scripts/after-pack.js` 写入 `.app/Contents/Resources/node`。
 
 ## 注意事项
 
+### 磁盘空间（`ENOSPC` / `hdiutil` / `7za E_FAIL`）
+
+双架构 + DMG 仍会占用大量临时空间。空间不足时会出现 `no space left on device`、`hdiutil` 失败或 zip 阶段 `7za` 的 `E_FAIL`。
+
+处理：腾出系统盘空间、删除旧 `build-output-*`；日常优先用默认**单架构 DMG**。
+
 ### 原生模块（sqlite3）与 Electron ABI
 
-桌面端启动时会立刻加载 SQLite。`sqlite3` **必须按当前 `electron` 版本重新编译**。正式打包前，`scripts/build.js` 会自动执行：
+`scripts/build.js` 会自动执行 `npx electron-builder install-app-deps`。也可手动：`npm run rebuild:native`。
 
-`npx electron-builder install-app-deps`
+### 分发给客户
 
-若你本地只改了依赖、未完整跑 `npm run build`，可手动执行：
-
-```bash
-npm run rebuild:native
-```
-
-若安装后仍无法启动，请到用户数据目录查看日志：`startup.log`（路径形如 `%APPDATA%/ClawHeart Desktop/logs/startup.log`，以 Electron `userData` 为准）。自新版本起启动失败会弹出错误框并写入该文件。
-
-### 应用图标
-
-安装包与快捷方式使用 `build/icon.png`（由 electron-builder 生成各平台图标）。请勿删除该文件；更换品牌图时替换同名 PNG 后重新打包即可。
-
-### OpenClaw 依赖
-
-打包时会自动包含 `node_modules/openclaw`，确保：
-1. 打包前已运行 `npm install` 安装了 OpenClaw
-2. OpenClaw 的所有依赖都在 `node_modules` 中
-
-### 数据库文件
-
-- SQLite 数据库文件会在用户首次运行时自动创建
-- 位置：`%APPDATA%/clawheart-desktop/` 或应用安装目录
-
-### 配置文件
-
-- OpenClaw 配置文件 `openclaw.json` 会在首次启动 Gateway 时自动生成
-- 位置：`%USERPROFILE%/.openclaw/` 或应用数据目录
-
-## 常见问题
-
-### 1. 打包失败：找不到 electron-builder
-
-运行：
-```bash
-npm install --save-dev electron-builder
-```
-
-### 2. 打包后运行报错：找不到模块
-
-确保 `package.json` 的 `files` 配置包含了所有必要的文件。
-
-### 3. 打包体积过大
-
-可以在 `build.files` 中排除不必要的文件，例如：
-```json
-"files": [
-  "!**/*.map",
-  "!**/node_modules/*/{CHANGELOG.md,README.md,README,readme.md,readme}",
-  "!**/node_modules/.bin"
-]
-```
-
-### 4. OpenClaw 在打包后无法运行
-
-确保 `extraResources` 配置正确包含了 OpenClaw 的所有文件。
-
-## 分发给客户
-
-打包完成后，分发以下文件之一：
-
-1. **安装程序**（推荐）：`dist/ClawHeart Desktop Setup 0.1.0.exe`
-   - 客户双击安装即可
-   - 支持自定义安装路径
-   - 自动创建桌面快捷方式
-
-2. **免安装版本**：压缩 `dist/win-unpacked/` 整个文件夹
-   - 客户解压后直接运行 `ClawHeart Desktop.exe`
-   - 无需安装，但需要保持文件夹结构完整
+- **macOS**：分发对应架构的 **DMG**（`*-arm64.dmg` 或 `*-x64.dmg`，视文件名而定）。未签名时用户可能需在「隐私与安全性」中允许运行。
+- **Windows**：分发 NSIS 安装包或 `win-unpacked` 绿色目录。
 
 ## 更新版本
 

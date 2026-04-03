@@ -2,8 +2,8 @@ const path = require("path");
 const fs = require("fs");
 
 /**
- * 安装包内置的 Node（electron-builder extraResources -> resources/node.exe）。
- * 开发时：仓库内 bundled/win-x64/node.exe（由 build 前 ensure-bundled-node 下载）。
+ * 安装包内置的 Node：Windows → resources/node.exe；macOS → ClawHeart Desktop.app/Contents/Resources/node（after-pack 写入）。
+ * 开发时：仓库内 bundled/...（ensure-bundled-node 下载）。
  * 不使用用户本机 PATH 中的 node。
  */
 function getBundledNodeFromInstaller() {

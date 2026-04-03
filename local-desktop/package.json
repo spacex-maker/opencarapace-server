@@ -12,8 +12,13 @@
     "rebuild:native": "electron-builder install-app-deps",
     "ensure-node": "node scripts/ensure-bundled-node.js",
     "build": "node scripts/build.js",
+    "build:win": "node scripts/build.js win",
     "build:dir": "node scripts/build.js dir",
     "build:mac": "node scripts/build.js mac",
+    "build:mac:arm64": "node scripts/build.js mac arm64",
+    "build:mac:intel": "node scripts/build.js mac x64",
+    "build:mac:x64": "node scripts/build.js mac x64",
+    "build:mac:all": "node scripts/build.js mac both",
     "pack": "node scripts/build.js dir"
   },
   "description": "ClawHeart Desktop Client",
@@ -30,7 +35,7 @@
     "electron": "^31.0.0",
     "electron-builder": "^25.1.8"
   },
-    "build": {
+  "build": {
     "appId": "com.clawheart.desktop",
     "productName": "ClawHeart Desktop",
     "icon": "build/icon.png",
@@ -41,6 +46,7 @@
     "directories": {
       "output": "build-output"
     },
+    "afterPack": "./scripts/after-pack.js",
     "files": [
       "src/**/*",
       "frontend/dist/**/*",
@@ -64,10 +70,7 @@
       ]
     },
     "mac": {
-      "target": [
-        { "target": "dmg", "arch": ["x64", "arm64"] },
-        { "target": "zip", "arch": ["x64", "arm64"] }
-      ],
+      "target": "dmg",
       "category": "public.app-category.utilities",
       "hardenedRuntime": true,
       "gatekeeperAssess": false

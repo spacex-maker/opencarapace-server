@@ -276,15 +276,21 @@ async function startEmbeddedOpenClaw() {
     } else if (packagedMjs) {
       const nodeExe = resolveRealNodeExecutable();
       if (!nodeExe) {
-        appendGatewayDiag(
-          "错误: 未找到安装包内置的 node.exe（resources/node.exe）或客户端「内置 Node」下载目录中的 node。"
-        );
-        appendGatewayDiag(
-          "说明: 不能使用本程序 ClawHeart Desktop.exe 代替 Node；否则会启动第二个桌面主进程（日志里会出现 19111 本地代理，而非 OpenClaw 18789）。"
-        );
-        appendGatewayDiag(
-          "解决: ① 请使用最新安装包（构建时已打入 resources/node.exe）；或 ② 在客户端完成「安装内置 Node.js」后再启动 Gateway。"
-        );
+        const missing =
+          process.platform === "darwin"
+            ? "错误: 未找到安装包内置的 node（应用 Contents/Resources/node）或客户端「内置 Node」中的 node。"
+            : "错误: 未找到安装包内置的 node.exe（resources/node.exe）或客户端「内置 Node」中的 node。";
+        const explain =
+          process.platform === "darwin"
+            ? "说明: 不能用本应用主程序代替 Node 跑 openclaw.mjs；否则会再拉起桌面主进程（日志里会出现 19111 本地代理，而非 OpenClaw 18789）。"
+            : "说明: 不能使用本程序 ClawHeart Desktop.exe 代替 Node；否则会启动第二个桌面主进程（日志里会出现 19111 本地代理，而非 OpenClaw 18789）。";
+        const fix =
+          process.platform === "darwin"
+            ? "解决: ① 请用最新 DMG 重装（构建会把 node 写入 Resources）；或 ② 在客户端完成「安装内置 Node.js」后再启动 Gateway。"
+            : "解决: ① 请使用最新安装包（构建时已打入 resources/node.exe）；或 ② 在客户端完成「安装内置 Node.js」后再启动 Gateway。";
+        appendGatewayDiag(missing);
+        appendGatewayDiag(explain);
+        appendGatewayDiag(fix);
         return false;
       }
       const extraEnv = buildOpenClawChildEnv(unpackedRoot);
@@ -382,7 +388,14 @@ async function stopEmbeddedOpenClaw() {
       const unpackedRoot = getUnpackedAppRoot();
       const nodeExe = resolveRealNodeExecutable();
       if (!nodeExe) {
-        result = { code: 1, stdout: "", stderr: "未找到 node.exe，无法执行 gateway stop" };
+        result = {
+          code: 1,
+          stdout: "",
+          stderr:
+            process.platform === "darwin"
+              ? "未找到内置 node（Resources/node），无法执行 gateway stop"
+              : "未找到 node.exe，无法执行 gateway stop",
+        };
       } else {
         const extraEnv = buildOpenClawChildEnv(unpackedRoot);
         result = await execWithOutput(nodeExe, [packagedMjs, "gateway", "stop"], {

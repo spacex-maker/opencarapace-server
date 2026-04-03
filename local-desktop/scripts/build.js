@@ -1,12 +1,53 @@
 const { execSync } = require("child_process");
 const fs = require("fs");
+const os = require("os");
 const path = require("path");
 
+const rootDir = path.join(__dirname, "..");
+
+/** Windows 上 electron-builder 从 bundled 直拷 node.exe 时易出现 EBUSY；先拷到 %TEMP% 再作为 extraResources 来源 */
+let stagedBundledNodePath = null;
+/** 程序化传入的 config 会与 package.json 的 build 做 deepAssign，数组会 concat，导致 win.extraResources 仍含 bundled/node.exe；Windows 下改为写入临时 JSON 并以路径交给 build()，避免合并 */
+let generatedEbConfigPath = null;
+
+function sleepSync(ms) {
+  const end = Date.now() + ms;
+  while (Date.now() < end) {
+    /* spin */
+  }
+}
+
+function copyFileWithRetry(src, dest, label, retries = 8) {
+  let lastErr;
+  for (let i = 0; i < retries; i++) {
+    try {
+      fs.copyFileSync(src, dest);
+      return;
+    } catch (e) {
+      lastErr = e;
+      const code = e && e.code;
+      if ((code === "EBUSY" || code === "EPERM" || code === "EACCES") && i < retries - 1) {
+        sleepSync(250 + i * 200);
+        continue;
+      }
+      throw e;
+    }
+  }
+  throw lastErr || new Error(`copy failed: ${label}`);
+}
+
+const argv = process.argv.slice(2);
+const noOpenclaw = argv.includes("no-openclaw");
+const buildType = argv.includes("dir") ? "dir" : "installer";
+
 console.log("=== ClawHeart Desktop 打包流程 ===\n");
+if (noOpenclaw) {
+  console.log("变体：Core（不内置 OpenClaw：安装包不含 resources/openclaw，且排除 node_modules/openclaw）\n");
+}
 
 // 1. 检查前端依赖
 console.log("1. 检查前端依赖...");
-const frontendDir = path.join(__dirname, "..", "frontend");
+const frontendDir = path.join(rootDir, "frontend");
 if (!fs.existsSync(path.join(frontendDir, "node_modules"))) {
   console.log("   前端依赖未安装，正在安装...");
   execSync("npm install", { cwd: frontendDir, stdio: "inherit" });
@@ -29,7 +70,6 @@ console.log("   ✓ 前端构建产物已生成");
 
 // 4. 检查主进程依赖
 console.log("\n3. 检查主进程依赖...");
-const rootDir = path.join(__dirname, "..");
 if (!fs.existsSync(path.join(rootDir, "node_modules"))) {
   console.log("   主进程依赖未安装，正在安装...");
   execSync("npm install", { cwd: rootDir, stdio: "inherit" });
@@ -37,16 +77,20 @@ if (!fs.existsSync(path.join(rootDir, "node_modules"))) {
   console.log("   ✓ 主进程依赖已安装");
 }
 
-// 5. 检查 OpenClaw
-console.log("\n4. 检查 OpenClaw...");
-const openclawPath = path.join(rootDir, "node_modules", "openclaw");
-if (!fs.existsSync(openclawPath)) {
-  console.error("   ✗ OpenClaw 未安装，请运行 npm install");
-  process.exit(1);
+// 5. 检查 OpenClaw（完整版需要；Core 版不打包 openclaw，但开发依赖里仍可保留）
+if (!noOpenclaw) {
+  console.log("\n4. 检查 OpenClaw...");
+  const openclawPath = path.join(rootDir, "node_modules", "openclaw");
+  if (!fs.existsSync(openclawPath)) {
+    console.error("   ✗ OpenClaw 未安装，请运行 npm install");
+    process.exit(1);
+  }
+  console.log("   ✓ OpenClaw 已安装");
+} else {
+  console.log("\n4. Core 版：跳过 OpenClaw 完整性检查（打包产物中不包含 openclaw 包）");
 }
-console.log("   ✓ OpenClaw 已安装");
 
-// 4c. 原生模块（如 sqlite3）须与当前 Electron 版本 ABI 一致，否则安装后双击无窗口、进程立即退出
+// 4c. 原生模块（如 sqlite3）须与当前 Electron 版本 ABI 一致
 console.log("\n4c. 为 Electron 重新编译原生模块（sqlite3）...");
 try {
   execSync("npx --yes electron-builder install-app-deps", { cwd: rootDir, stdio: "inherit" });
@@ -56,7 +100,7 @@ try {
   process.exit(1);
 }
 
-// 5b. 内置 Node（OpenClaw 子进程专用，不依赖用户本机 Node）
+// 5b. 内置 Node（Gateway/脚本等仍可用，不依赖用户本机 Node）
 console.log("\n4b. 确保内置 Node runtime（resources/node.exe）...");
 execSync("node scripts/ensure-bundled-node.js", { cwd: rootDir, stdio: "inherit" });
 const bundledNode = path.join(rootDir, "bundled", "win-x64", "node.exe");
@@ -66,31 +110,125 @@ if (!fs.existsSync(bundledNode)) {
 }
 console.log("   ✓ 内置 node.exe 已就绪");
 
-// 6. 开始打包（Windows）
+if (process.platform === "win32") {
+  stagedBundledNodePath = path.join(
+    os.tmpdir(),
+    `clawheart-pack-node-${process.pid}-${Date.now()}.exe`
+  );
+  try {
+    copyFileWithRetry(bundledNode, stagedBundledNodePath, "stage bundled node.exe");
+    console.log("   ✓ 已复制 node.exe 到临时路径（降低打包时 EBUSY 概率）");
+  } catch (e) {
+    console.error("   ✗ 无法复制 node.exe 到临时目录:", e.message || e);
+    process.exit(1);
+  }
+}
+
+// 6. 打包
 console.log("\n5. 开始打包 Electron 应用（Windows）...");
-const buildType = process.argv[2] || "installer";
 const buildStamp = new Date().toISOString().replace(/[:.]/g, "-");
 const outputDirName = `build-output-${buildStamp}`;
-const outputDir = path.join(rootDir, outputDirName);
 
 console.log(`   输出目录：${outputDirName}`);
+console.log(`   模式：${buildType === "dir" ? "免安装（dir）" : "NSIS 安装程序"}`);
 
-if (buildType === "dir") {
-  console.log("   打包模式：免安装版本（--dir）");
-  execSync(`electron-builder --win --x64 --dir --config.directories.output="${outputDirName}"`, {
-    cwd: rootDir,
-    stdio: "inherit",
-  });
-  console.log("\n=== 打包完成 ===");
-  console.log(`输出目录：${outputDirName}/`);
-  console.log(`可执行文件：${outputDirName}/win-unpacked/ClawHeart Desktop.exe`);
-} else {
-  console.log("   打包模式：安装程序（NSIS）");
-  execSync(`electron-builder --win --x64 --config.directories.output="${outputDirName}"`, {
-    cwd: rootDir,
-    stdio: "inherit",
-  });
-  console.log("\n=== 打包完成 ===");
-  console.log(`输出目录：${outputDirName}/`);
-  console.log(`安装程序：${outputDirName}/ClawHeart Desktop Setup 0.1.0.exe`);
+const pkg = JSON.parse(fs.readFileSync(path.join(rootDir, "package.json"), "utf8"));
+const version = pkg.version || "0.1.0";
+const productNameFull = "ClawHeart Desktop";
+const productNameCore = "ClawHeart Desktop Core";
+
+function buildElectronConfig() {
+  const config = JSON.parse(JSON.stringify(pkg.build));
+  config.directories = { ...(config.directories || {}), output: outputDirName };
+
+  if (noOpenclaw) {
+    config.extraResources = [];
+    config.productName = productNameCore;
+    config.appId = "com.clawheart.desktop.core";
+    config.nsis = { ...(config.nsis || {}), shortcutName: productNameCore };
+    const files = [...(config.files || [])];
+    const excl = "!node_modules/openclaw/**/*";
+    const hasOpenclawExclude = files.some((f) => String(f).replace(/\\/g, "/") === excl);
+    if (!hasOpenclawExclude) {
+      files.push(excl);
+    }
+    config.files = files;
+  }
+
+  if (process.platform === "win32" && stagedBundledNodePath) {
+    config.win = JSON.parse(JSON.stringify(config.win || {}));
+    const keep = (config.win.extraResources || []).filter(
+      (r) => r && String(r.to) !== "node.exe"
+    );
+    config.win.extraResources = [
+      ...keep,
+      { from: stagedBundledNodePath, to: "node.exe" },
+    ];
+  }
+
+  return config;
 }
+
+async function runPack() {
+  const { build, Platform, Arch } = require("electron-builder");
+  const config = buildElectronConfig();
+  if (process.platform === "win32") {
+    const nodeEntry = (config.win?.extraResources || []).find(
+      (r) => r && String(r.to) === "node.exe"
+    );
+    if (nodeEntry) {
+      console.log(`   [pack] resources/node.exe 将从此处复制: ${nodeEntry.from}`);
+    }
+  }
+  const winTarget = buildType === "dir" ? "dir" : "nsis";
+  let configArg = config;
+  if (process.platform === "win32") {
+    generatedEbConfigPath = path.join(
+      os.tmpdir(),
+      `clawheart-electron-builder-${process.pid}-${Date.now()}.json`
+    );
+    fs.writeFileSync(generatedEbConfigPath, JSON.stringify(config, null, 2), "utf8");
+    configArg = generatedEbConfigPath;
+    console.log(`   [pack] 使用独立配置文件（避免与 package.json build 合并 extraResources）: ${generatedEbConfigPath}`);
+  }
+  await build({
+    projectDir: rootDir,
+    targets: Platform.WINDOWS.createTarget(winTarget, Arch.x64),
+    config: configArg,
+  });
+}
+
+(async () => {
+  try {
+    await runPack();
+    const exeName = noOpenclaw ? productNameCore : productNameFull;
+    console.log("\n=== 打包完成 ===");
+    console.log(`输出目录：${outputDirName}/`);
+    if (buildType === "dir") {
+      console.log(`可执行文件：${outputDirName}/win-unpacked/${exeName}.exe`);
+    } else {
+      console.log(`安装程序：${outputDirName}/${exeName} Setup ${version}.exe`);
+    }
+  } catch (err) {
+    console.error("\n✗ 打包失败:", err);
+    process.exitCode = 1;
+  } finally {
+    if (stagedBundledNodePath && fs.existsSync(stagedBundledNodePath)) {
+      try {
+        fs.unlinkSync(stagedBundledNodePath);
+      } catch {
+        // ignore
+      }
+    }
+    if (generatedEbConfigPath && fs.existsSync(generatedEbConfigPath)) {
+      try {
+        fs.unlinkSync(generatedEbConfigPath);
+      } catch {
+        // ignore
+      }
+    }
+  }
+  if (process.exitCode) {
+    process.exit(process.exitCode);
+  }
+})();

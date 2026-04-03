@@ -22,29 +22,45 @@ npm install --save-dev electron-builder
 
 ### 2. 构建前端
 
-```bash
-npm run build:frontend
-```
+打包脚本会自动执行 `frontend` 的 `npm run build`，一般无需单独执行。若需手动构建前端：
 
-这会在 `frontend/dist/` 目录生成前端静态文件。
+```bash
+cd frontend && npm run build && cd ..
+```
 
 ### 3. 打包为 Windows exe
 
-#### 方式 A：生成安装程序（推荐）
+#### 方式 A：完整版（内置 OpenClaw 资源，推荐）
 
 ```bash
 npm run build
 ```
 
-这会生成一个 NSIS 安装程序（`.exe`），位于 `dist/` 目录。
+生成 NSIS 安装程序，产物形如 `build-output-xxx/ClawHeart Desktop Setup 0.1.0.exe`。
 
-#### 方式 B：生成免安装版本（用于快速测试）
+#### 方式 B：Core 版（无内置 OpenClaw）
+
+安装包**不**包含 `resources/openclaw`，且**不**打包 `node_modules/openclaw`（体积更小；OpenClaw 相关能力依赖用户自行全局安装或其它方式）。
+
+```bash
+npm run build:win-no-openclaw
+```
+
+免安装目录版：
+
+```bash
+npm run build:win-no-openclaw-dir
+```
+
+产物名称使用 **ClawHeart Desktop Core**，`appId` 为 `com.clawheart.desktop.core`，可与完整版并存安装。
+
+#### 方式 C：完整版免安装目录（快速测试）
 
 ```bash
 npm run build:dir
 ```
 
-这会在 `dist/win-unpacked/` 目录生成可直接运行的文件夹，不需要安装。
+会在 `build-output-xxx/win-unpacked/` 下生成可直接运行的文件夹。
 
 ### 4. 测试打包结果
 
@@ -62,6 +78,10 @@ npm run build:dir
 - **安装程序类型**: NSIS（支持自定义安装路径）
 
 ## 注意事项
+
+### Windows 打包 `EBUSY: resource busy or locked`（复制 node.exe）
+
+若出现 `copyfile ... bundled/win-x64/node.exe -> ... resources/node.exe` 的 **EBUSY**，多为杀毒/索引或进程短暂占用源文件。打包脚本会先把 `node.exe` 复制到 `%TEMP%` 再交给 electron-builder；若仍失败，请关闭正在运行的 **ClawHeart Desktop**、暂时排除项目目录实时扫描后重试。
 
 ### 原生模块（sqlite3）与 Electron ABI
 

@@ -51,7 +51,9 @@ async function runOpenClawConfig(args) {
         code: 1,
         stdout: "",
         stderr:
-          "未找到 node.exe（安装包 resources 内置或客户端「内置 Node」）。请更新安装包或安装内置 Node。",
+          process.platform === "darwin"
+            ? "未找到内置 node（应用 Contents/Resources/node 或客户端「内置 Node」）。请更新安装包或安装内置 Node。"
+            : "未找到 node.exe（安装包 resources 内置或客户端「内置 Node」）。请更新安装包或安装内置 Node。",
       };
     }
     const extraEnv = buildOpenClawChildEnv(unpackedRoot);
@@ -128,7 +130,9 @@ async function runOpenClawModels(args) {
         code: 1,
         stdout: "",
         stderr:
-          "未找到 node.exe（安装包 resources 内置或客户端「内置 Node」）。请更新安装包或安装内置 Node。",
+          process.platform === "darwin"
+            ? "未找到内置 node（应用 Contents/Resources/node 或客户端「内置 Node」）。请更新安装包或安装内置 Node。"
+            : "未找到 node.exe（安装包 resources 内置或客户端「内置 Node」）。请更新安装包或安装内置 Node。",
       };
     }
     const extraEnv = buildOpenClawChildEnv(unpackedRoot);

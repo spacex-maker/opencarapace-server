@@ -1,101 +1,22 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useI18n } from "../i18n";
 import { LocalStatus } from "../types";
 import {
   MdManageSearch,
-  MdWarning,
   MdErrorOutline,
-  MdCheckCircle,
   MdPlayArrow,
   MdRefresh,
   MdOutlineSecurity,
-  MdOutlinePrivacyTip,
-  MdOutlineChatBubbleOutline,
 } from "react-icons/md";
 import { SecurityScanRunModal } from "./SecurityScanRunModal";
-
-type ScanItem = {
-  id: number;
-  code: string;
-  title: string;
-  description: string | null;
-  category: string | null;
-  defaultSeverity: string | null;
-  scannerType: string;
-};
-
-type Finding = {
-  itemCode: string;
-  severity: string;
-  title: string;
-  detail: string;
-  remediation: string;
-  location: string;
-};
-
-// 基础卡片样式提取（全圆弧风格）
-const cardBase: React.CSSProperties = {
-  background: "var(--panel-bg)",
-  border: "none",
-  borderRadius: 22,
-  padding: "20px",
-  boxShadow: "none",
-  transition: "all 0.2s ease",
-};
-
-function ToggleSwitch({
-  checked,
-  disabled,
-  onChange,
-  accent,
-}: {
-  checked: boolean;
-  disabled?: boolean;
-  onChange: (next: boolean) => void;
-  accent: "green" | "blue";
-}) {
-  const accentTrack = accent === "green" ? "rgba(34,197,94,0.25)" : "rgba(14,165,233,0.25)";
-  const accentBorder = accent === "green" ? "rgba(34,197,94,0.5)" : "rgba(14,165,233,0.5)";
-  const accentKnob = accent === "green" ? "#22c55e" : "#0ea5e9";
-
-  return (
-    <button
-      type="button"
-      role="switch"
-      aria-checked={checked}
-      disabled={disabled}
-      onClick={() => onChange(!checked)}
-      style={{
-        width: 44,
-        height: 24,
-        borderRadius: 999,
-        border: `1px solid ${checked ? accentBorder : "var(--panel-border)"}`,
-        background: checked ? accentTrack : "rgba(0,0,0,0.1)",
-        padding: 2,
-        cursor: disabled ? "not-allowed" : "pointer",
-        position: "relative",
-        transition: "all 0.2s cubic-bezier(0.4, 0, 0.2, 1)",
-        opacity: disabled ? 0.6 : 1,
-        flexShrink: 0,
-        outline: "none",
-      }}
-    >
-      <span
-        style={{
-          display: "block",
-          width: 18,
-          height: 18,
-          borderRadius: 999,
-          background: checked ? accentKnob : "var(--muted)",
-          transform: checked ? "translateX(20px)" : "translateX(0px)",
-          transition: "all 0.2s cubic-bezier(0.4, 0, 0.2, 1)",
-          boxShadow: checked ? "0 2px 8px rgba(0,0,0,0.2)" : "0 2px 4px rgba(0,0,0,0.1)",
-        }}
-      />
-    </button>
-  );
-}
+import { SecurityScanHistoryTab } from "./security-scan/SecurityScanHistoryTab";
+import { SecurityScanItemsTab } from "./security-scan/SecurityScanItemsTab";
+import { SecurityScanResultsTab } from "./security-scan/SecurityScanResultsTab";
+import type { Finding, PrivacyState, ScanItem } from "./security-scan/securityScanShared";
+import { securityScanCardBase as cardBase, translateSecurityScanApiError } from "./security-scan/securityScanShared";
 
 export function SecurityScanPanel({ status }: { status: LocalStatus | null }) {
+  const { t, locale } = useI18n();
   const [items, setItems] = useState<ScanItem[]>([]);
   const [itemsLoading, setItemsLoading] = useState(true);
   const [itemsError, setItemsError] = useState<string | null>(null);
@@ -103,10 +24,6 @@ export function SecurityScanPanel({ status }: { status: LocalStatus | null }) {
   const [contextExtra, setContextExtra] = useState("");
   const hasInitSelectedRef = useRef(false);
 
-  type PrivacyState = {
-    shareHistoryEnabled: boolean;
-    consentSystemConfigEnabled: boolean;
-  };
   const [privacy, setPrivacy] = useState<PrivacyState | null>(null);
   const [privacyLoading, setPrivacyLoading] = useState(true);
   const [privacyError, setPrivacyError] = useState<string | null>(null);
@@ -118,9 +35,8 @@ export function SecurityScanPanel({ status }: { status: LocalStatus | null }) {
   const [scanError, setScanError] = useState<string | null>(null);
   const [filter, setFilter] = useState<"ALL" | "CRITICAL" | "WARN" | "PASS">("ALL");
   const [subTab, setSubTab] = useState<"items" | "results" | "history">("items");
-  const [scanRunId, setScanRunId] = useState<number | null>(null);
   const [scanProgress, setScanProgress] = useState<{ done: number; total: number; status: string } | null>(null);
-  const [scanHistory, setScanHistory] = useState<any[]>([]);
+  const [scanHistory, setScanHistory] = useState<unknown[]>([]);
   const [historyLoading, setHistoryLoading] = useState(false);
   const [historyModalRunId, setHistoryModalRunId] = useState<number | null>(null);
   const [historyModalOpen, setHistoryModalOpen] = useState(false);
@@ -132,7 +48,11 @@ export function SecurityScanPanel({ status }: { status: LocalStatus | null }) {
       const res = await fetch("http://127.0.0.1:19111/api/security-scan/items");
       const data = await res.json();
       if (!res.ok) {
-        setItemsError(data?.error?.message || "加载扫描项失败");
+        setItemsError(
+          translateSecurityScanApiError(data, t) ??
+            (data as { error?: { message?: string } })?.error?.message ??
+            t("securityScanPage.err.loadItems")
+        );
         return;
       }
       const list = (data?.items || []) as ScanItem[];
@@ -147,11 +67,11 @@ export function SecurityScanPanel({ status }: { status: LocalStatus | null }) {
         return next;
       });
     } catch (e: any) {
-      setItemsError(e?.message ?? "加载扫描项失败");
+      setItemsError(e?.message ?? t("securityScanPage.err.loadItems"));
     } finally {
       setItemsLoading(false);
     }
-  }, []);
+  }, [t]);
 
   useEffect(() => {
     void loadItems();
@@ -164,7 +84,7 @@ export function SecurityScanPanel({ status }: { status: LocalStatus | null }) {
       const res = await fetch("http://127.0.0.1:19111/api/security-scan/privacy");
       const data = await res.json();
       if (!res.ok) {
-        setPrivacyError(data?.error?.message || "加载隐私配置失败");
+        setPrivacyError(data?.error?.message || t("securityScanPage.err.loadPrivacy"));
         setPrivacy(null);
         return;
       }
@@ -173,12 +93,12 @@ export function SecurityScanPanel({ status }: { status: LocalStatus | null }) {
         consentSystemConfigEnabled: !!data?.consentSystemConfigEnabled,
       });
     } catch (e: any) {
-      setPrivacyError(e?.message ?? "加载隐私配置失败");
+      setPrivacyError(e?.message ?? t("securityScanPage.err.loadPrivacy"));
       setPrivacy(null);
     } finally {
       setPrivacyLoading(false);
     }
-  }, []);
+  }, [t]);
 
   useEffect(() => {
     void loadPrivacy();
@@ -202,35 +122,58 @@ export function SecurityScanPanel({ status }: { status: LocalStatus | null }) {
         });
         const data = await res.json();
         if (!res.ok) {
-          setPrivacyError(data?.error?.message || "保存隐私配置失败");
+          setPrivacyError(data?.error?.message || t("securityScanPage.err.savePrivacy"));
           return;
         }
         setPrivacy(next);
       } catch (e: any) {
-        setPrivacyError(e?.message ?? "保存隐私配置失败");
+        setPrivacyError(e?.message ?? t("securityScanPage.err.savePrivacy"));
       } finally {
         setPrivacySaving(false);
       }
     },
-    [privacy]
+    [privacy, t]
   );
 
   const buildAutoContext = useCallback(() => {
     const lines: string[] = [];
-    lines.push("【ClawHeart Desktop 自动上下文】");
-    lines.push(`- 云端基地址: ${status?.settings?.apiBase || "（未配置）"}`);
-    lines.push(`- 路由模式: ${status?.llmRouteMode || "（未知）"}`);
+    lines.push(t("securityScanPage.autoContext.banner"));
     lines.push(
-      `- 本地统计参考: 危险指令 ${status?.danger ?? "—"}，禁用技能 ${status?.disabled ?? "—"}，废弃技能 ${status?.deprecated ?? "—"}`
+      t("securityScanPage.autoContext.client")
+        .replace("{platformLabel}", status?.platformLabel || t("securityScanPage.autoContext.unknownSystem"))
+        .replace("{platform}", status?.platform || "—")
     );
-    lines.push(`- 登录邮箱: ${status?.auth?.email || "未登录"}`);
+    lines.push(
+      t("securityScanPage.autoContext.cloudBase").replace(
+        "{value}",
+        status?.settings?.apiBase || t("securityScanPage.autoContext.cloudUnset")
+      )
+    );
+    lines.push(
+      t("securityScanPage.autoContext.routeMode").replace(
+        "{value}",
+        status?.llmRouteMode || t("securityScanPage.autoContext.unknownRoute")
+      )
+    );
+    lines.push(
+      t("securityScanPage.autoContext.localStats")
+        .replace("{danger}", String(status?.danger ?? "—"))
+        .replace("{disabled}", String(status?.disabled ?? "—"))
+        .replace("{deprecated}", String(status?.deprecated ?? "—"))
+    );
+    lines.push(
+      t("securityScanPage.autoContext.loginEmail").replace(
+        "{value}",
+        status?.auth?.email || t("securityScanPage.autoContext.notLoggedIn")
+      )
+    );
     if (contextExtra.trim()) {
       lines.push("");
-      lines.push("【用户补充说明】");
+      lines.push(t("securityScanPage.autoContext.userExtra"));
       lines.push(contextExtra.trim());
     }
     return lines.join("\n");
-  }, [status, contextExtra]);
+  }, [status, contextExtra, t]);
 
   const counts = useMemo(() => {
     let c = 0,
@@ -276,35 +219,37 @@ export function SecurityScanPanel({ status }: { status: LocalStatus | null }) {
   const runScan = async () => {
     const codes = items.filter((it) => selected[it.code]).map((it) => it.code);
     if (codes.length === 0) {
-      setScanError("请至少选择一个扫描项");
+      setScanError(t("securityScanPage.err.pickOneItem"));
       return;
     }
     setScanning(true);
     setScanError(null);
     setFindings([]);
     setSubTab("results");
-    setScanPhase("正在创建扫描任务…");
+    setScanPhase(t("securityScanPage.phase.creating"));
     setScanProgress({ done: 0, total: codes.length, status: "RUNNING" });
     try {
       const res = await fetch("http://127.0.0.1:19111/api/security-scan/runs", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ itemCodes: codes, context: buildAutoContext() }),
+        body: JSON.stringify({ itemCodes: codes, context: buildAutoContext(), locale }),
       });
       const data = await res.json();
       if (!res.ok) {
-        setScanError(data?.error?.message || `扫描失败（${res.status}）`);
+        setScanError(
+          translateSecurityScanApiError(data, t) ??
+            (data as { error?: { message?: string } })?.error?.message ??
+            t("securityScanPage.err.scanHttp").replace("{status}", String(res.status))
+        );
         return;
       }
       const rid = Number(data?.runId);
       if (!Number.isFinite(rid)) {
-        setScanError("扫描任务创建失败（缺少 runId）");
+        setScanError(t("securityScanPage.err.missingRunId"));
         return;
       }
-      setScanRunId(rid);
-      setScanPhase(String(data?.phase || "任务已创建，等待执行…"));
+      setScanPhase(String(data?.phase || t("securityScanPage.phase.taskCreated")));
 
-      // 轮询进度与结果
       let lastStatus = "RUNNING";
       while (lastStatus === "RUNNING" || lastStatus === "PENDING") {
         // eslint-disable-next-line no-await-in-loop
@@ -314,30 +259,38 @@ export function SecurityScanPanel({ status }: { status: LocalStatus | null }) {
         // eslint-disable-next-line no-await-in-loop
         const rdata = await rres.json();
         if (!rres.ok) {
-          setScanError(rdata?.error?.message || `扫描失败（${rres.status}）`);
+          setScanError(
+            translateSecurityScanApiError(rdata, t) ??
+              (rdata as { error?: { message?: string } })?.error?.message ??
+              t("securityScanPage.err.scanHttp").replace("{status}", String(rres.status))
+          );
           break;
         }
-        const status = String(rdata?.status || "RUNNING");
+        const runStatus = String(rdata?.status || "RUNNING");
         const done = Number(rdata?.doneItems ?? 0);
         const total = Number(rdata?.totalItems ?? codes.length);
         setScanPhase(String(rdata?.phase || ""));
-        setScanProgress({ done: Number.isFinite(done) ? done : 0, total: Number.isFinite(total) ? total : codes.length, status });
+        setScanProgress({
+          done: Number.isFinite(done) ? done : 0,
+          total: Number.isFinite(total) ? total : codes.length,
+          status: runStatus,
+        });
         const list = (rdata?.findings || []) as Finding[];
         if (Array.isArray(list) && list.length > 0) setFindings(list);
-        lastStatus = status.toUpperCase();
+        lastStatus = runStatus.toUpperCase();
         if (lastStatus === "SUCCESS") {
           setScanPhase("");
           break;
         }
         if (lastStatus === "FAILED") {
-          setScanError(String(rdata?.errorMessage || "扫描失败"));
+          setScanError(String(rdata?.errorMessage || t("securityScanPage.err.scanFailed")));
           break;
         }
       }
 
       void loadHistory();
     } catch (e: any) {
-      setScanError(e?.message ?? "扫描失败");
+      setScanError(e?.message ?? t("securityScanPage.err.scanFailed"));
     } finally {
       setScanning(false);
     }
@@ -357,7 +310,6 @@ export function SecurityScanPanel({ status }: { status: LocalStatus | null }) {
 
   return (
     <div style={{ maxWidth: 1024, margin: "0 auto", padding: "10px", color: "var(--fg)" }}>
-      {/* 注入全局小动画与特效类 */}
       <style>{`
         @keyframes pulseScan { 
           0% { opacity: 0.6; transform: translateX(-100%); } 
@@ -368,7 +320,6 @@ export function SecurityScanPanel({ status }: { status: LocalStatus | null }) {
         .ui-btn-hover:active { transform: translateY(0); }
         .ui-item-card:hover { border-color: rgba(14, 165, 233, 0.3) !important; background: rgba(255,255,255,0.01); }
 
-        /* SecurityScanPanel tabs: theme-adaptive */
         .ss-tabs {
           display: flex;
           flex-wrap: wrap;
@@ -425,7 +376,6 @@ export function SecurityScanPanel({ status }: { status: LocalStatus | null }) {
           color: var(--fg);
         }
 
-        /* Findings blocks: theme-adaptive */
         .ss-finding-loc {
           background: var(--panel-bg2);
           border: 1px solid var(--panel-border);
@@ -441,7 +391,6 @@ export function SecurityScanPanel({ status }: { status: LocalStatus | null }) {
         }
       `}</style>
 
-      {/* 头部信息区 */}
       <div style={{ display: "flex", alignItems: "flex-start", gap: 16, marginBottom: 24, flexWrap: "wrap" }}>
         <div
           style={{
@@ -460,11 +409,13 @@ export function SecurityScanPanel({ status }: { status: LocalStatus | null }) {
           <MdOutlineSecurity style={{ fontSize: 32 }} />
         </div>
         <div style={{ flex: 1, minWidth: 260 }}>
-          <h1 style={{ margin: 0, fontSize: 24, fontWeight: 800, color: "var(--fg)", letterSpacing: "-0.02em" }}>安全与合规扫描</h1>
+          <h1 style={{ margin: 0, fontSize: 24, fontWeight: 800, color: "var(--fg)", letterSpacing: "-0.02em" }}>
+            {t("securityScanPage.title")}
+          </h1>
           <p style={{ margin: "8px 0 0", fontSize: 14, color: "var(--muted)", lineHeight: 1.6 }}>
-            从云端拉取通用扫描项，结合本机环境与你的说明，由 AI（云端 DeepSeek）与静态规则生成检测报告。
+            {t("securityScanPage.introP1")}
             <br />
-            需在系统配置中填写{" "}
+            {t("securityScanPage.introP2BeforeCode")}
             <code
               style={{
                 fontSize: 12,
@@ -475,8 +426,8 @@ export function SecurityScanPanel({ status }: { status: LocalStatus | null }) {
               }}
             >
               deepseek.api_key
-            </code>{" "}
-            以启用完整 AI 能力。
+            </code>
+            {t("securityScanPage.introP2AfterCode")}
           </p>
         </div>
         <div style={{ display: "flex", gap: 10, alignItems: "center", marginLeft: "auto" }}>
@@ -503,7 +454,7 @@ export function SecurityScanPanel({ status }: { status: LocalStatus | null }) {
             }}
           >
             <MdRefresh style={{ fontSize: 18, animation: itemsLoading ? "spin 1s linear infinite" : "none" }} />
-            刷新配置
+            {t("securityScanPage.refreshConfig")}
           </button>
 
           <button
@@ -527,55 +478,63 @@ export function SecurityScanPanel({ status }: { status: LocalStatus | null }) {
               transition: "all 0.2s",
               whiteSpace: "nowrap",
             }}
-            title={items.length === 0 ? "暂无可用扫描项" : undefined}
+            title={items.length === 0 ? t("securityScanPage.scanDisabledNoItems") : undefined}
           >
             {scanning ? (
               <MdRefresh style={{ fontSize: 18, animation: "spin 1s linear infinite" }} />
             ) : (
               <MdPlayArrow style={{ fontSize: 18 }} />
             )}
-            {scanning ? "正在扫描..." : "执行深度扫描"}
+            {scanning ? t("securityScanPage.scanning") : t("securityScanPage.runDeepScan")}
           </button>
         </div>
       </div>
 
-      {/* 现代化分段控制器 Tabs */}
       <div style={{ display: "flex", marginBottom: 24 }}>
         <div className="ss-tabs">
           {(
             [
-              { id: "items" as const, label: "配置与扫描项", badge: null as number | null },
-              { id: "results" as const, label: "扫描结果报告", badge: counts.total > 0 ? counts.total : null },
+              { id: "items" as const, label: t("securityScanPage.tabs.items"), badge: null as number | null },
+              {
+                id: "results" as const,
+                label: t("securityScanPage.tabs.results"),
+                badge: counts.total > 0 ? counts.total : null,
+              },
               {
                 id: "history" as const,
-                label: "扫描历史",
+                label: t("securityScanPage.tabs.history"),
                 badge: scanHistory.length > 0 ? scanHistory.length : null,
               },
             ]
-          ).map((t) => {
-            const isActive = subTab === t.id;
+          ).map((tabDef) => {
+            const isActive = subTab === tabDef.id;
             return (
               <button
-                key={t.id}
+                key={tabDef.id}
                 type="button"
-                onClick={() => setSubTab(t.id)}
+                onClick={() => setSubTab(tabDef.id)}
                 className={`ss-tab ${isActive ? "ss-tab--active" : ""}`}
               >
-                {t.label}
-                {t.badge != null && (
-                  <span className="ss-tab-badge">
-                    {t.badge}
-                  </span>
-                )}
+                {tabDef.label}
+                {tabDef.badge != null && <span className="ss-tab-badge">{tabDef.badge}</span>}
               </button>
-            )
+            );
           })}
         </div>
       </div>
 
-      {/* 扫描进度条 - 优化版 */}
       {(scanning || scanPhase) && (
-        <div style={{ ...cardBase, display: "flex", alignItems: "center", gap: 16, marginBottom: 20, borderColor: "rgba(14,165,233,0.3)", background: "linear-gradient(to right, var(--panel-bg), rgba(14,165,233,0.05))" }}>
+        <div
+          style={{
+            ...cardBase,
+            display: "flex",
+            alignItems: "center",
+            gap: 16,
+            marginBottom: 20,
+            borderColor: "rgba(14,165,233,0.3)",
+            background: "linear-gradient(to right, var(--panel-bg), rgba(14,165,233,0.05))",
+          }}
+        >
           <div
             style={{
               width: 48,
@@ -586,30 +545,64 @@ export function SecurityScanPanel({ status }: { status: LocalStatus | null }) {
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
-              boxShadow: "0 0 15px rgba(14,165,233,0.2)"
+              boxShadow: "0 0 15px rgba(14,165,233,0.2)",
             }}
           >
             <MdManageSearch style={{ fontSize: 26, animation: scanning ? "pulse 2s infinite" : "none" }} />
           </div>
           <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontSize: 15, fontWeight: 800, color: "var(--fg)", display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-              {scanning ? "正在执行深度扫描" : "扫描就绪"}
+            <div
+              style={{
+                fontSize: 15,
+                fontWeight: 800,
+                color: "var(--fg)",
+                display: "flex",
+                alignItems: "center",
+                gap: 10,
+                flexWrap: "wrap",
+              }}
+            >
+              {scanning ? t("securityScanPage.scanStatusRunning") : t("securityScanPage.scanStatusReady")}
               {scanProgress && (
-                <span style={{ fontSize: 12, fontWeight: 800, color: "var(--muted2)", border: "1px solid var(--panel-border)", padding: "4px 10px", borderRadius: 999, background: "var(--panel-bg2)" }}>
+                <span
+                  style={{
+                    fontSize: 12,
+                    fontWeight: 800,
+                    color: "var(--muted2)",
+                    border: "1px solid var(--panel-border)",
+                    padding: "4px 10px",
+                    borderRadius: 999,
+                    background: "var(--panel-bg2)",
+                  }}
+                >
                   {Math.min(scanProgress.done, scanProgress.total)}/{scanProgress.total}
                 </span>
               )}
             </div>
-            <div style={{ fontSize: 13, color: "var(--muted)", marginTop: 4 }}>{scanPhase || "请在下方选择扫描项后点击「开始扫描」"}</div>
+            <div style={{ fontSize: 13, color: "var(--muted)", marginTop: 4 }}>
+              {scanPhase || t("securityScanPage.scanHintSelectItems")}
+            </div>
             {scanning && (
-              <div style={{ height: 8, background: "rgba(0,0,0,0.2)", borderRadius: 999, marginTop: 12, overflow: "hidden", position: "relative" }}>
+              <div
+                style={{
+                  height: 8,
+                  background: "rgba(0,0,0,0.2)",
+                  borderRadius: 999,
+                  marginTop: 12,
+                  overflow: "hidden",
+                  position: "relative",
+                }}
+              >
                 <div
                   style={{
                     position: "absolute",
                     top: 0,
                     bottom: 0,
                     left: 0,
-                    width: scanProgress && scanProgress.total > 0 ? `${Math.max(6, Math.round((scanProgress.done / scanProgress.total) * 100))}%` : "40%",
+                    width:
+                      scanProgress && scanProgress.total > 0
+                        ? `${Math.max(6, Math.round((scanProgress.done / scanProgress.total) * 100))}%`
+                        : "40%",
                     borderRadius: 999,
                     background: "linear-gradient(90deg, transparent, #38bdf8, #22c55e, transparent)",
                     animation: "pulseScan 1.5s cubic-bezier(0.4, 0, 0.2, 1) infinite",
@@ -621,461 +614,88 @@ export function SecurityScanPanel({ status }: { status: LocalStatus | null }) {
         </div>
       )}
 
-      {/* 顶部统计卡片（仅结果页显示） */}
       {subTab === "results" && findings.length > 0 && (
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(120px, 1fr))", gap: 12, marginBottom: 20 }}>
           {[
-            { label: "Critical", n: counts.c, color: "#f87171", bg: "rgba(248,113,113,0.05)" },
-            { label: "Warning", n: counts.w, color: "#fbbf24", bg: "rgba(251,191,36,0.05)" },
-            { label: "Passed", n: counts.p, color: "#4ade80", bg: "rgba(74,222,128,0.05)" },
-            { label: "Total", n: counts.total, color: "var(--fg)", bg: "var(--panel-bg2)" },
+            { label: t("securityScanPage.stats.critical"), n: counts.c, color: "#f87171", bg: "rgba(248,113,113,0.05)" },
+            { label: t("securityScanPage.stats.warning"), n: counts.w, color: "#fbbf24", bg: "rgba(251,191,36,0.05)" },
+            { label: t("securityScanPage.stats.passed"), n: counts.p, color: "#4ade80", bg: "rgba(74,222,128,0.05)" },
+            { label: t("securityScanPage.stats.total"), n: counts.total, color: "var(--fg)", bg: "var(--panel-bg2)" },
           ].map((b) => (
             <div key={b.label} style={{ ...cardBase, padding: "16px", textAlign: "center", background: b.bg, border: `1px solid ${b.color}20` }}>
               <div style={{ fontSize: 28, fontWeight: 800, color: b.color, fontFamily: "ui-monospace, SFMono-Regular, monospace" }}>{b.n}</div>
-              <div style={{ fontSize: 12, color: "var(--muted)", marginTop: 4, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.05em" }}>{b.label}</div>
+              <div
+                style={{
+                  fontSize: 12,
+                  color: "var(--muted)",
+                  marginTop: 4,
+                  fontWeight: 600,
+                  textTransform: "uppercase",
+                  letterSpacing: "0.05em",
+                }}
+              >
+                {b.label}
+              </div>
             </div>
           ))}
         </div>
       )}
 
-      {/* 错误提示 */}
       {(itemsError || scanError) && (
-        <div style={{ ...cardBase, background: "rgba(248,113,113,0.05)", borderColor: "rgba(248,113,113,0.3)", color: "#fca5a5", marginBottom: 20, display: "flex", alignItems: "center", gap: 10 }}>
+        <div
+          style={{
+            ...cardBase,
+            background: "rgba(248,113,113,0.05)",
+            borderColor: "rgba(248,113,113,0.3)",
+            color: "#fca5a5",
+            marginBottom: 20,
+            display: "flex",
+            alignItems: "center",
+            gap: 10,
+          }}
+        >
           <MdErrorOutline style={{ fontSize: 20 }} />
           {itemsError || scanError}
         </div>
       )}
 
-      {/* 配置与扫描项面板 */}
       {subTab === "items" && (
-        <div style={{ display: "grid", gap: 20, gridTemplateColumns: "1fr", alignItems: "start" }}>
-          
-          {/* 设置与上下文区块 (上下结构或左右结构均可，这里用网格) */}
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))", gap: 16 }}>
-            
-            {/* 隐私设置卡片 */}
-            <div style={{ ...cardBase, display: "flex", flexDirection: "column" }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 16 }}>
-                <MdOutlinePrivacyTip style={{ color: "var(--muted)", fontSize: 20 }} />
-                <h3 style={{ margin: 0, fontSize: 15, fontWeight: 700, color: "var(--fg)" }}>隐私与数据授权</h3>
-              </div>
-              <div style={{ display: "flex", flexDirection: "column", gap: 16, flex: 1 }}>
-                <label style={{ display: "flex", justifyContent: "space-between", alignItems: "center", cursor: privacySaving ? "not-allowed" : "pointer" }}>
-                  <div>
-                    <div style={{ fontSize: 14, color: "var(--fg)", fontWeight: 600 }}>共享对话历史</div>
-                    <div style={{ fontSize: 12, color: "var(--muted)", marginTop: 4 }}>允许提取历史记录用于安全分析</div>
-                  </div>
-                  <ToggleSwitch
-                    checked={privacy?.shareHistoryEnabled ?? false}
-                    disabled={privacyLoading || privacySaving}
-                    accent="green"
-                    onChange={(next) => void savePrivacy({ shareHistoryEnabled: next })}
-                  />
-                </label>
-                <div style={{ height: 1, background: "var(--panel-border)", borderRadius: 999 }} />
-                <label style={{ display: "flex", justifyContent: "space-between", alignItems: "center", cursor: privacySaving ? "not-allowed" : "pointer" }}>
-                  <div>
-                    <div style={{ fontSize: 14, color: "var(--fg)", fontWeight: 600 }}>系统配置扫描</div>
-                    <div style={{ fontSize: 12, color: "var(--muted)", marginTop: 4 }}>同意读取本机 AI 核心配置参数</div>
-                  </div>
-                  <ToggleSwitch
-                    checked={privacy?.consentSystemConfigEnabled ?? false}
-                    disabled={privacyLoading || privacySaving}
-                    accent="blue"
-                    onChange={(next) => void savePrivacy({ consentSystemConfigEnabled: next })}
-                  />
-                </label>
-              </div>
-              {privacyError && <div style={{ marginTop: 12, fontSize: 12, color: "#fca5a5" }}>{privacyError}</div>}
-            </div>
-
-            {/* 补充上下文卡片 */}
-            <div style={{ ...cardBase, display: "flex", flexDirection: "column" }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 16 }}>
-                <MdOutlineChatBubbleOutline style={{ color: "var(--muted)", fontSize: 20 }} />
-                <h3 style={{ margin: 0, fontSize: 15, fontWeight: 700, color: "var(--fg)" }}>环境补充声明 (可选)</h3>
-              </div>
-              <textarea
-                value={contextExtra}
-                onChange={(e) => setContextExtra(e.target.value)}
-                placeholder="在此输入您的特定环境说明，例如：使用的 MCP 列表、特定的 Provider 配置、敏感文件存放路径等，AI 将结合此信息更精准地发现问题..."
-                style={{
-                  flex: 1,
-                  width: "100%",
-                  minHeight: 100,
-                  boxSizing: "border-box",
-                  padding: "12px",
-                  borderRadius: 18,
-                  border: "1px solid var(--panel-border)",
-                  background: "rgba(0,0,0,0.15)",
-                  color: "var(--fg)",
-                  fontSize: 13,
-                  lineHeight: 1.6,
-                  resize: "vertical",
-                  outline: "none",
-                  transition: "border-color 0.2s",
-                }}
-                onFocus={(e) => e.target.style.borderColor = "rgba(14,165,233,0.5)"}
-                onBlur={(e) => e.target.style.borderColor = "var(--panel-border)"}
-              />
-            </div>
-          </div>
-
-          {/* 扫描项列表容器 */}
-          <div style={cardBase}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
-              <h3 style={{ margin: 0, fontSize: 16, fontWeight: 700, color: "var(--fg)" }}>检测规则集</h3>
-              <div style={{ display: "flex", gap: 8 }}>
-                <button
-                  type="button"
-                  onClick={() => selectAll(true)}
-                  style={{
-                    padding: "4px 10px",
-                    borderRadius: 999,
-                    border: "1px solid var(--panel-border)",
-                    background: "var(--panel-bg2)",
-                    color: "var(--fg)",
-                    fontSize: 12,
-                    cursor: "pointer",
-                  }}
-                >
-                  全选
-                </button>
-                <button
-                  type="button"
-                  onClick={() => selectAll(false)}
-                  style={{
-                    padding: "4px 10px",
-                    borderRadius: 999,
-                    border: "1px solid var(--panel-border)",
-                    background: "var(--panel-bg2)",
-                    color: "var(--fg)",
-                    fontSize: 12,
-                    cursor: "pointer",
-                  }}
-                >
-                  反选
-                </button>
-              </div>
-            </div>
-
-
-            {itemsLoading && items.length > 0 && (
-              <div style={{ margin: "10px 0 14px", fontSize: 12, color: "var(--muted)" }}>
-                正在从云端刷新扫描项…你可以继续操作当前列表。
-              </div>
-            )}
-
-            {itemsLoading && items.length === 0 ? (
-              <div style={{ padding: "40px 0", textAlign: "center", color: "var(--muted)" }}>获取云端规则中...</div>
-            ) : (
-              <div style={{ display: "grid", gap: 12 }}>
-                {items.map((it) => (
-                  <div
-                    key={it.code}
-                    className="ui-item-card"
-                    style={{
-                      display: "flex",
-                      alignItems: "flex-start",
-                      gap: 16,
-                      padding: "16px",
-                      borderRadius: 22,
-                      border: "1px solid var(--panel-border)",
-                      background: "rgba(0,0,0,0.1)",
-                      transition: "all 0.2s",
-                    }}
-                  >
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", marginBottom: 6 }}>
-                        <span style={{ fontSize: 15, fontWeight: 700, color: "var(--fg)" }}>{it.title}</span>
-                        <span style={{
-                          fontSize: 11,
-                          fontWeight: 600,
-                          padding: "2px 8px",
-                          borderRadius: 999,
-                          background: "var(--panel-bg2)",
-                          color: "var(--muted)",
-                          border: "1px solid var(--panel-border)"
-                        }}>
-                          {it.category || "OTHER"}
-                        </span>
-                        <span style={{
-                          fontSize: 11,
-                          fontWeight: 600,
-                          padding: "2px 8px",
-                          borderRadius: 999,
-                          background: it.scannerType === "STATIC_INFO" ? "rgba(34,197,94,0.1)" : "rgba(14,165,233,0.1)",
-                          color: it.scannerType === "STATIC_INFO" ? "#4ade80" : "#38bdf8",
-                          border: `1px solid ${it.scannerType === "STATIC_INFO" ? "rgba(34,197,94,0.2)" : "rgba(14,165,233,0.2)"}`
-                        }}>
-                          {it.scannerType === "STATIC_INFO" ? "静态规则" : "AI 推理"}
-                        </span>
-                      </div>
-                      {it.description && (
-                        <div style={{ fontSize: 13, color: "var(--muted)", lineHeight: 1.5 }}>{it.description}</div>
-                      )}
-                      <div style={{ fontSize: 12, color: "var(--muted2)", marginTop: 8, fontFamily: "ui-monospace, monospace", opacity: 0.7 }}>
-                        {it.code}
-                      </div>
-                    </div>
-                    <div style={{ paddingTop: 2 }}>
-                      <ToggleSwitch
-                        checked={!!selected[it.code]}
-                        onChange={() => toggle(it.code)}
-                        accent="green"
-                      />
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-
-          </div>
-        </div>
+        <SecurityScanItemsTab
+          items={items}
+          itemsLoading={itemsLoading}
+          selected={selected}
+          contextExtra={contextExtra}
+          onContextExtraChange={setContextExtra}
+          privacy={privacy}
+          privacyLoading={privacyLoading}
+          privacySaving={privacySaving}
+          privacyError={privacyError}
+          onSavePrivacy={(p) => void savePrivacy(p)}
+          onToggleItem={toggle}
+          onSelectAll={selectAll}
+        />
       )}
 
-      {/* 扫描历史（独立 Tab） */}
       {subTab === "history" && (
-        <div style={{ ...cardBase, padding: "16px 18px" }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, flexWrap: "wrap", marginBottom: 4 }}>
-            <div style={{ fontSize: 14, fontWeight: 800, color: "var(--fg)" }}>历史扫描任务</div>
-            <button
-              className="ui-btn-hover"
-              type="button"
-              onClick={() => void loadHistory()}
-              disabled={historyLoading}
-              style={{
-                display: "inline-flex",
-                alignItems: "center",
-                gap: 6,
-                padding: "8px 12px",
-                borderRadius: 999,
-                border: "1px solid var(--panel-border)",
-                background: "var(--panel-bg2)",
-                color: "var(--fg)",
-                fontSize: 12,
-                fontWeight: 700,
-                cursor: historyLoading ? "not-allowed" : "pointer",
-                whiteSpace: "nowrap",
-              }}
-            >
-              <MdRefresh style={{ fontSize: 16, animation: historyLoading ? "spin 1s linear infinite" : "none" }} />
-              刷新历史
-            </button>
-          </div>
-
-          {scanHistory.length === 0 ? (
-            <div style={{ marginTop: 10, fontSize: 12, color: "var(--muted)" }}>暂无历史记录</div>
-          ) : (
-            <div style={{ display: "grid", gap: 10, marginTop: 12 }}>
-              {scanHistory.slice(0, 12).map((r) => {
-                const idRaw = (r as any)?.id;
-                const id =
-                  typeof idRaw === "number"
-                    ? idRaw
-                    : (() => {
-                        const n = parseInt(String(idRaw ?? ""), 10);
-                        return Number.isFinite(n) ? n : NaN;
-                      })();
-                const st = String(r?.status || "");
-                const done = Number(r?.doneItems ?? 0);
-                const total = Number(r?.totalItems ?? 0);
-                const countsObj = r?.counts as any;
-                const totalFindings = countsObj?.total ?? null;
-                const canOpen = Number.isFinite(id);
-                const isActive = historyModalOpen && historyModalRunId != null && canOpen && historyModalRunId === id;
-                return (
-                  <button
-                    key={String(r?.id)}
-                    type="button"
-                    onClick={() => canOpen && openHistoryModal(id)}
-                    disabled={!canOpen}
-                    style={{
-                      width: "100%",
-                      textAlign: "left",
-                      display: "flex",
-                      justifyContent: "space-between",
-                      alignItems: "center",
-                      gap: 12,
-                      padding: "10px 12px",
-                      borderRadius: 18,
-                      border: `1px solid ${isActive ? "rgba(14,165,233,0.45)" : "var(--panel-border)"}`,
-                      background: isActive ? "rgba(14,165,233,0.08)" : "var(--panel-bg2)",
-                      color: "var(--fg)",
-                      cursor: canOpen ? "pointer" : "not-allowed",
-                      opacity: canOpen ? 1 : 0.6,
-                    }}
-                  >
-                    <div style={{ minWidth: 0 }}>
-                      <div style={{ fontSize: 13, fontWeight: 800, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                        #{id} · {st}
-                      </div>
-                      <div style={{ fontSize: 12, color: "var(--muted)", marginTop: 4, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                        {String(r?.phase || "") || "—"} {total > 0 ? `· ${Math.min(done, total)}/${total}` : ""}
-                        {totalFindings != null ? ` · 结果 ${totalFindings}` : ""}
-                      </div>
-                    </div>
-                    <span style={{ fontSize: 12, fontWeight: 800, color: "var(--muted2)", border: "1px solid var(--panel-border)", padding: "4px 10px", borderRadius: 999, background: "var(--panel-bg)" }}>
-                      {isActive ? "已打开" : "打开"}
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
-          )}
-        </div>
+        <SecurityScanHistoryTab
+          scanHistory={scanHistory}
+          historyLoading={historyLoading}
+          onRefresh={loadHistory}
+          onOpenRun={openHistoryModal}
+          historyModalOpen={historyModalOpen}
+          historyModalRunId={historyModalRunId}
+        />
       )}
 
-      {/* 扫描结果报告 */}
       {subTab === "results" && (
-        <div>
-          {findings.length === 0 && !scanning ? (
-            <div style={{ ...cardBase, padding: "60px 20px", textAlign: "center", display: "flex", flexDirection: "column", alignItems: "center", gap: 16 }}>
-              <div style={{ width: 64, height: 64, borderRadius: 999, background: "var(--panel-bg2)", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                <MdCheckCircle style={{ fontSize: 32, color: "var(--muted)" }} />
-              </div>
-              <div>
-                <div style={{ fontSize: 16, fontWeight: 600, color: "var(--fg)" }}>暂无发现项</div>
-                <div style={{ fontSize: 14, color: "var(--muted)", marginTop: 6 }}>请在「配置与扫描项」中执行扫描；历史记录可在「扫描历史」中查看。</div>
-              </div>
-            </div>
-          ) : (
-            <>
-              {findings.length > 0 && (
-                <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 20 }}>
-                  {(
-                    [
-                      { id: "ALL" as const, label: "全部结果" },
-                      { id: "CRITICAL" as const, label: "严重 (Critical)" },
-                      { id: "WARN" as const, label: "警告 (Warning)" },
-                      { id: "PASS" as const, label: "通过 (Passed)" },
-                    ]
-                  ).map((c) => {
-                    const active = filter === c.id;
-                    return (
-                      <button
-                        key={c.id}
-                        type="button"
-                        onClick={() => setFilter(c.id)}
-                        style={{
-                          padding: "6px 16px",
-                          borderRadius: 999,
-                          border: `1px solid ${active ? "rgba(14,165,233,0.5)" : "var(--panel-border)"}`,
-                          background: active ? "rgba(14,165,233,0.1)" : "var(--panel-bg)",
-                          color: active ? "#38bdf8" : "var(--muted)",
-                          fontSize: 13,
-                          fontWeight: active ? 700 : 500,
-                          cursor: "pointer",
-                          transition: "all 0.2s",
-                        }}
-                      >
-                        {c.label}
-                      </button>
-                    )
-                  })}
-                </div>
-              )}
-
-              <div style={{ display: "grid", gap: 16 }}>
-                {filteredFindings.map((f, idx) => {
-                  const sev = (f.severity || "").toUpperCase();
-                  const isC = sev === "CRITICAL";
-                  const isW = sev === "WARN";
-                  
-                  const icon = isC ? <MdErrorOutline style={{ color: "#f87171", fontSize: 24 }} /> 
-                            : isW ? <MdWarning style={{ color: "#fbbf24", fontSize: 24 }} /> 
-                            : <MdCheckCircle style={{ color: "#4ade80", fontSize: 24 }} />;
-                  
-                  const badgeBg = isC ? "rgba(248,113,113,0.1)" : isW ? "rgba(251,191,36,0.1)" : "rgba(74,222,128,0.1)";
-                  const badgeColor = isC ? "#fca5a5" : isW ? "#fcd34d" : "#86efac";
-                  const borderColor = isC ? "#ef4444" : isW ? "#f59e0b" : "#22c55e";
-
-                  return (
-                    <div 
-                      key={idx} 
-                      className="ui-item-card"
-                      style={{ 
-                        ...cardBase, 
-                        position: "relative",
-                        overflow: "hidden",
-                        borderLeft: `4px solid ${borderColor}`,
-                        paddingLeft: 24
-                      }}
-                    >
-                      <div style={{ display: "flex", alignItems: "flex-start", gap: 12, marginBottom: 10 }}>
-                        <div style={{ flexShrink: 0, marginTop: 2 }}>{icon}</div>
-                        <div style={{ flex: 1 }}>
-                          <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap", marginBottom: 8 }}>
-                            <span style={{ fontSize: 16, fontWeight: 700, color: "var(--fg)" }}>{f.title}</span>
-                            <span
-                              style={{
-                                fontSize: 11,
-                                fontWeight: 800,
-                                letterSpacing: "0.05em",
-                                padding: "2px 8px",
-                                borderRadius: 999,
-                                background: badgeBg,
-                                color: badgeColor,
-                                border: `1px solid ${badgeBg}`
-                              }}
-                            >
-                              {sev || "WARN"}
-                            </span>
-                          </div>
-                          
-                          {f.detail && <div style={{ fontSize: 14, color: "var(--muted)", lineHeight: 1.6, marginBottom: 12 }}>{f.detail}</div>}
-                          
-                          {f.location && (
-                            <div
-                              className="ss-finding-loc"
-                              style={{ 
-                              fontSize: 13, 
-                              fontFamily: "ui-monospace, SFMono-Regular, monospace", 
-                              padding: "6px 12px",
-                              borderRadius: 16,
-                              marginBottom: 12,
-                              wordBreak: "break-all"
-                            }}>
-                              <span style={{ opacity: 0.5, marginRight: 8 }}>路径/位置:</span>
-                              {f.location}
-                            </div>
-                          )}
-                          
-                          {f.remediation && (
-                            <div
-                              className="ss-finding-remedy"
-                              style={{ 
-                              fontSize: 14, 
-                              lineHeight: 1.6,
-                              padding: "10px 14px",
-                              borderRadius: 18,
-                              borderLeft: "2px solid #38bdf8"
-                            }}>
-                              <strong style={{ marginRight: 8 }}>修复建议:</strong> 
-                              {f.remediation}
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                      
-                      <div style={{ 
-                        position: "absolute", 
-                        top: 16, 
-                        right: 16, 
-                        fontSize: 12, 
-                        color: "var(--muted2)", 
-                        fontFamily: "ui-monospace, monospace",
-                        opacity: 0.5
-                      }}>
-                        #{f.itemCode}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </>
-          )}
-        </div>
+        <SecurityScanResultsTab
+          findings={findings}
+          scanning={scanning}
+          filter={filter}
+          onFilterChange={setFilter}
+          filteredFindings={filteredFindings}
+          severityCounts={counts}
+        />
       )}
 
       <SecurityScanRunModal
@@ -1083,7 +703,7 @@ export function SecurityScanPanel({ status }: { status: LocalStatus | null }) {
         runId={historyModalRunId}
         onClose={() => setHistoryModalOpen(false)}
         onApplyFindings={(fs) => {
-          setFindings(fs as any);
+          setFindings(fs as Finding[]);
           setFilter("ALL");
           setSubTab("results");
           setHistoryModalOpen(false);

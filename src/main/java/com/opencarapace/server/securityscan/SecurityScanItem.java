@@ -35,6 +35,18 @@ public class SecurityScanItem {
     @Column(name = "category", length = 64)
     private String category;
 
+    /**
+     * 顶级安全域（与客户端「沙箱 / 实时运行 / 漏洞防护」大块对齐）：SANDBOX_POLICY / AI_RUNTIME / AI_VULNERABILITY / OTHER
+     */
+    @Column(name = "scan_section", length = 64)
+    private String scanSection;
+
+    /**
+     * 二级分组（如网络访问保护、Prompt 防护等），编码见种子 SQL 与前端 securityScanCatalog
+     */
+    @Column(name = "scan_group", length = 64)
+    private String scanGroup;
+
     /** 默认严重度提示（展示用）：INFO / WARN / CRITICAL */
     @Column(name = "default_severity", length = 32)
     private String defaultSeverity;
@@ -45,6 +57,13 @@ public class SecurityScanItem {
      */
     @Column(name = "scanner_type", nullable = false, length = 32)
     private String scannerType;
+
+    /**
+     * 客户端操作系统适用范围：ALL（默认）/ WINDOWS（仅 Windows 桌面）/ MACOS（仅 macOS 桌面）。
+     * 与 Electron 上报的 {@code process.platform}（win32 / darwin）对应；未上报时不做过滤。
+     */
+    @Column(name = "client_os_scope", nullable = false, length = 16)
+    private String clientOsScope = "ALL";
 
     /**
      * JSON：AI_PROMPT 示例

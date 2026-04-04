@@ -1,5 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { MdClose, MdRefresh } from "react-icons/md";
+import { useI18n } from "../i18n";
+import { localeToHtmlLang } from "../i18n/localeMeta";
+import { translateSecurityScanApiError } from "./security-scan/securityScanShared";
 
 type Finding = {
   itemCode: string;
@@ -29,6 +32,7 @@ export function SecurityScanRunModal(props: {
   onApplyFindings?: (findings: Finding[]) => void;
 }) {
   const { open, runId, onClose, onApplyFindings } = props;
+  const { t, locale } = useI18n();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [detail, setDetail] = useState<RunDetail | null>(null);
@@ -48,7 +52,7 @@ export function SecurityScanRunModal(props: {
     const d = new Date(iso);
     if (Number.isNaN(d.getTime())) return String(iso);
     // 使用本机时区展示，避免把 UTC 当成本地时间误读
-    return d.toLocaleString("zh-CN", {
+    return d.toLocaleString(localeToHtmlLang(locale), {
       year: "numeric",
       month: "2-digit",
       day: "2-digit",
@@ -67,7 +71,11 @@ export function SecurityScanRunModal(props: {
       const res = await fetch(`http://127.0.0.1:19111/api/security-scan/runs/${runId}`);
       const data = await res.json();
       if (!res.ok) {
-        setError(data?.error?.message || `加载失败（${res.status}）`);
+        setError(
+          translateSecurityScanApiError(data, t) ??
+            (data as { error?: { message?: string } })?.error?.message ??
+            t("securityScanPage.runModal.loadFailedHttp").replace("{status}", String(res.status))
+        );
         setDetail(null);
         return;
       }
@@ -84,7 +92,7 @@ export function SecurityScanRunModal(props: {
         errorMessage: data?.errorMessage ?? null,
       });
     } catch {
-      setError("加载失败（网络错误）");
+      setError(t("securityScanPage.runModal.loadFailedNetwork"));
       setDetail(null);
     } finally {
       setLoading(false);
@@ -153,10 +161,15 @@ export function SecurityScanRunModal(props: {
         >
           <div style={{ minWidth: 0 }}>
             <div style={{ fontSize: 14, fontWeight: 900, letterSpacing: "-0.01em" }}>
-              扫描记录 #{runId ?? "—"}
+              {t("securityScanPage.runModal.titlePrefix")}
+              {runId ?? "—"}
             </div>
             <div style={{ fontSize: 12, color: "var(--muted)", marginTop: 4, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-              {detail ? `${detail.status} · ${detail.phase || "—"} · ${detail.doneItems}/${detail.totalItems}` : loading ? "加载中…" : "—"}
+              {detail
+                ? `${detail.status} · ${detail.phase || "—"} · ${detail.doneItems}/${detail.totalItems}`
+                : loading
+                  ? t("securityScanPage.runModal.subtitleLoading")
+                  : "—"}
             </div>
           </div>
 
@@ -177,7 +190,7 @@ export function SecurityScanRunModal(props: {
                   cursor: "pointer",
                 }}
               >
-                应用到当前报告
+                {t("securityScanPage.runModal.applyToReport")}
               </button>
             )}
             <button
@@ -199,10 +212,10 @@ export function SecurityScanRunModal(props: {
                 cursor: loading ? "not-allowed" : "pointer",
                 opacity: loading ? 0.7 : 1,
               }}
-              title={!canFetch ? "无效的 runId" : undefined}
+              title={!canFetch ? t("securityScanPage.runModal.invalidRunId") : undefined}
             >
               <MdRefresh style={{ fontSize: 16, animation: loading ? "spin 1s linear infinite" : "none" }} />
-              刷新
+              {t("securityScanPage.runModal.refresh")}
             </button>
             <button
               type="button"
@@ -220,7 +233,7 @@ export function SecurityScanRunModal(props: {
                 color: "var(--fg)",
                 cursor: "pointer",
               }}
-              aria-label="关闭"
+              aria-label={t("securityScanPage.runModal.closeAria")}
             >
               <MdClose style={{ fontSize: 18 }} />
             </button>
@@ -258,8 +271,8 @@ export function SecurityScanRunModal(props: {
                     .filter(Boolean)
                     .join(" · ")}
                 >
-                  {detail.createdAt ? `创建时间：${formatTime(detail.createdAt)}` : ""}
-                  {detail.updatedAt ? ` · 更新时间：${formatTime(detail.updatedAt)}` : ""}
+                  {detail.createdAt ? `${t("securityScanPage.runModal.createdAt")}${formatTime(detail.createdAt)}` : ""}
+                  {detail.updatedAt ? `${t("securityScanPage.runModal.updatedAt")}${formatTime(detail.updatedAt)}` : ""}
                 </div>
                 {detail.errorMessage ? (
                   <div style={{ marginTop: 8, fontSize: 12, color: "#fca5a5" }}>{detail.errorMessage}</div>
@@ -280,7 +293,13 @@ export function SecurityScanRunModal(props: {
                     <div style={{ display: "flex", gap: 10, alignItems: "baseline", flexWrap: "wrap" }}>
                       <div style={{ fontSize: 14, fontWeight: 900, color: "var(--fg)" }}>{f.title}</div>
                       <span style={{ fontSize: 11, fontWeight: 900, padding: "2px 10px", borderRadius: 999, border: "1px solid var(--panel-border)", color: "var(--muted2)" }}>
-                        {String(f.severity || "WARN").toUpperCase()}
+                        {((): string => {
+                          const u = String(f.severity || "WARN").toUpperCase();
+                          if (u === "CRITICAL") return t("securityScanPage.results.severityCritical");
+                          if (u === "WARN") return t("securityScanPage.results.severityWarn");
+                          if (u === "PASS") return t("securityScanPage.results.severityPass");
+                          return u;
+                        })()}
                       </span>
                       <span style={{ fontSize: 11, fontWeight: 800, padding: "2px 10px", borderRadius: 999, border: "1px solid var(--panel-border)", color: "var(--muted2)" }}>
                         #{f.itemCode}
@@ -289,13 +308,13 @@ export function SecurityScanRunModal(props: {
                     {f.detail ? <div style={{ marginTop: 8, fontSize: 13, color: "var(--muted)", lineHeight: 1.65 }}>{f.detail}</div> : null}
                     {f.location ? (
                       <div style={{ marginTop: 10, fontSize: 12, color: "var(--muted2)", border: "1px solid var(--panel-border)", background: "var(--panel-bg)", padding: "8px 10px", borderRadius: 16, wordBreak: "break-all" }}>
-                        <span style={{ opacity: 0.6, marginRight: 8 }}>路径/位置:</span>
+                        <span style={{ opacity: 0.6, marginRight: 8 }}>{t("securityScanPage.runModal.pathLocation")}</span>
                         {f.location}
                       </div>
                     ) : null}
                     {f.remediation ? (
                       <div style={{ marginTop: 10, fontSize: 13, color: "var(--fg)", background: "rgba(14,165,233,0.10)", border: "1px solid rgba(14,165,233,0.22)", padding: "10px 12px", borderRadius: 18 }}>
-                        <strong style={{ color: "#38bdf8", marginRight: 8 }}>修复建议:</strong>
+                        <strong style={{ color: "#38bdf8", marginRight: 8 }}>{t("securityScanPage.runModal.remediationStrong")}</strong>
                         {f.remediation}
                       </div>
                     ) : null}
@@ -306,7 +325,7 @@ export function SecurityScanRunModal(props: {
           )}
 
           {!loading && !detail && !error && (
-            <div style={{ fontSize: 13, color: "var(--muted)" }}>暂无数据</div>
+            <div style={{ fontSize: 13, color: "var(--muted)" }}>{t("securityScanPage.runModal.noData")}</div>
           )}
         </div>
       </div>

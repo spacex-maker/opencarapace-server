@@ -12,10 +12,19 @@ import java.time.Instant;
 import java.util.*;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 @Service
 @Slf4j
 public class SecurityScanRunService {
+
+    /** Phase 文案用 Unicode 转义写入 class，避免 Windows/构建机源码编码与 UTF-8 不一致导致前缀乱码 */
+    private static final String PHASE_INIT = "\u521d\u59cb\u5316";
+    private static final String PHASE_PREPARE = "\u51c6\u5907\u6267\u884c\u626b\u63cf\u9879";
+    private static final String PHASE_RUN_PREFIX = "\u6267\u884c\uff1a";
+    private static final String PHASE_DONE = "\u5b8c\u6210";
+    private static final String PHASE_FAILED = "\u5931\u8d25";
 
     private final SecurityScanRunRepository runRepository;
     private final SecurityScanItemRepository itemRepository;
@@ -36,22 +45,26 @@ public class SecurityScanRunService {
         this.securityScanService = securityScanService;
     }
 
-    public Map<String, Object> startAsync(User user, List<String> itemCodes, String context) {
+    public Map<String, Object> startAsync(User user, List<String> itemCodes, String context, String clientOsRaw, String localeRaw) {
         if (itemCodes == null || itemCodes.isEmpty()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "itemCodes 不能为空");
         }
         String ctx = context == null ? "" : context.trim();
 
-        List<SecurityScanItem> items = itemRepository.findByCodeInAndEnabledTrue(itemCodes);
-        if (items.isEmpty()) {
+        Map<String, SecurityScanItem> byCode = itemRepository.findByCodeInAndEnabledTrue(itemCodes).stream()
+                .collect(Collectors.toMap(SecurityScanItem::getCode, Function.identity(), (a, b) -> a));
+        if (byCode.isEmpty()) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "未找到可用的扫描项");
         }
+
+        String lang = SecurityScanLocale.normalize(localeRaw);
+        RunBatch batch = buildRunBatch(itemCodes, byCode, clientOsRaw, lang);
 
         SecurityScanRun run = new SecurityScanRun();
         run.setUserId(user.getId());
         run.setStatus("RUNNING");
-        run.setPhase("初始化");
-        run.setTotalItems(items.size());
+        run.setPhase(PHASE_INIT);
+        run.setTotalItems(batch.runnable.size());
         run.setDoneItems(0);
         run.setContextText(ctx);
         run.setRequestItemCodesJson(writeJsonSafe(itemCodes));
@@ -61,7 +74,7 @@ public class SecurityScanRunService {
         run = runRepository.save(run);
 
         Long runId = run.getId();
-        executor.submit(() -> executeRun(runId, user, itemCodes, ctx));
+        executor.submit(() -> executeRun(runId, user, ctx, batch, localeRaw == null ? "" : localeRaw.trim()));
 
         return Map.of(
                 "runId", runId,
@@ -94,30 +107,94 @@ public class SecurityScanRunService {
         return out;
     }
 
-    private void executeRun(Long runId, User user, List<String> itemCodes, String context) {
+    private static final class RunBatch {
+        final List<Map<String, Object>> osSkipFindings;
+        final List<SecurityScanItem> runnable;
+
+        RunBatch(List<Map<String, Object>> osSkipFindings, List<SecurityScanItem> runnable) {
+            this.osSkipFindings = osSkipFindings;
+            this.runnable = runnable;
+        }
+    }
+
+    private RunBatch buildRunBatch(List<String> itemCodes,
+                                   Map<String, SecurityScanItem> byCode,
+                                   String clientOsRaw,
+                                   String lang) {
+        List<SecurityScanItem> ordered = new ArrayList<>();
+        for (String code : itemCodes) {
+            SecurityScanItem it = byCode.get(code);
+            if (it != null) {
+                ordered.add(it);
+            }
+        }
+        String token = SecurityScanService.normalizeClientOsToken(clientOsRaw);
+        List<Map<String, Object>> skips = new ArrayList<>();
+        List<SecurityScanItem> runnable = new ArrayList<>();
+        for (SecurityScanItem item : ordered) {
+            if (!SecurityScanService.itemAppliesToClientOs(item, token)) {
+                skips.add(osSkipFindingMap(item.getCode(), item.getClientOsScope(), lang));
+            } else {
+                runnable.add(item);
+            }
+        }
+        return new RunBatch(skips, runnable);
+    }
+
+    private static Map<String, Object> osSkipFindingMap(String code, String scope, String lang) {
+        Map<String, Object> m = new LinkedHashMap<>();
+        m.put("itemCode", code);
+        m.put("severity", "WARN");
+        if (!"zh".equals(lang)) {
+            m.put("title", "Skipped (wrong operating system)");
+            m.put("detail", "This item applies only to " + clientOsScopeLabelEn(scope) + ".");
+            m.put("remediation", "Run the scan on a client for that OS, or deselect this item.");
+        } else {
+            m.put("title", "\u5df2\u8df3\u8fc7\uff08\u4e0d\u9002\u7528\u5f53\u524d\u64cd\u4f5c\u7cfb\u7edf\uff09");
+            m.put("detail", "\u8be5\u626b\u63cf\u9879\u4ec5\u9002\u7528\u4e8e " + SecurityScanService.clientOsScopeLabel(scope) + "\u3002");
+            m.put("remediation", "\u5728\u5bf9\u5e94\u7cfb\u7edf\u7684\u5ba2\u6237\u7aef\u4e0a\u6267\u884c\u626b\u63cf\uff0c\u6216\u53d6\u6d88\u52fe\u9009\u6b64\u9879\u3002");
+        }
+        m.put("location", "");
+        return m;
+    }
+
+    private static String clientOsScopeLabelEn(String scope) {
+        if (scope == null || scope.isBlank() || "ALL".equalsIgnoreCase(scope)) {
+            return "all operating systems";
+        }
+        if ("WINDOWS".equalsIgnoreCase(scope)) {
+            return "Windows";
+        }
+        if ("MACOS".equalsIgnoreCase(scope)) {
+            return "macOS";
+        }
+        return scope;
+    }
+
+    private void executeRun(Long runId, User user, String context, RunBatch batch, String locale) {
         try {
-            // 复用既有同步逻辑，但我们要能持续写入进度，因此这里自己分步跑
-            List<SecurityScanItem> items = itemRepository.findByCodeInAndEnabledTrue(itemCodes);
-            if (items.isEmpty()) {
-                fail(runId, "未找到可用的扫描项");
+            List<Map<String, Object>> findings = new ArrayList<>(batch.osSkipFindings);
+            List<String> scannedCodes = new ArrayList<>();
+            List<SecurityScanItem> items = batch.runnable;
+            int total = items.size();
+
+            update(runId, "RUNNING", PHASE_PREPARE, 0, total, findings, scannedCodes, null);
+
+            if (total == 0) {
+                update(runId, "SUCCESS", PHASE_DONE, 0, 0, findings, scannedCodes, null);
                 return;
             }
 
-            List<Map<String, Object>> findings = new ArrayList<>();
-            List<String> scannedCodes = new ArrayList<>();
-
-            update(runId, "RUNNING", "准备执行扫描项", 0, items.size(), findings, scannedCodes, null);
-
             int done = 0;
             for (SecurityScanItem item : items) {
-                String phase = "执行：" + (item.getTitle() == null ? item.getCode() : item.getTitle());
-                update(runId, "RUNNING", phase, done, items.size(), findings, scannedCodes, null);
+                String phase = PHASE_RUN_PREFIX + (item.getTitle() == null ? item.getCode() : item.getTitle());
+                update(runId, "RUNNING", phase, done, total, findings, scannedCodes, null);
 
                 scannedCodes.add(item.getCode());
 
                 try {
-                    // 复用 SecurityScanService 的实现，避免复制 prompt / static 解析逻辑
-                    Map<String, Object> one = securityScanService.runScan(user, List.of(item.getCode()), context);
+                    Map<String, Object> one = securityScanService.runScan(
+                            user, List.of(item.getCode()), context, null, locale);
                     Object oneFindings = one.get("findings");
                     if (oneFindings instanceof List<?> lst) {
                         for (Object o : lst) {
@@ -130,18 +207,18 @@ public class SecurityScanRunService {
                     findings.add(Map.of(
                             "itemCode", item.getCode(),
                             "severity", "WARN",
-                            "title", "扫描项执行失败",
+                            "title", "\u626b\u63cf\u9879\u6267\u884c\u5931\u8d25",
                             "detail", e.getMessage() == null ? "" : e.getMessage(),
-                            "remediation", "检查云端扫描项配置或 DeepSeek 配置后重试",
+                            "remediation", "\u68c0\u67e5\u4e91\u7aef\u626b\u63cf\u9879\u914d\u7f6e\u6216 DeepSeek \u914d\u7f6e\u540e\u91cd\u8bd5",
                             "location", ""
                     ));
                 }
 
                 done++;
-                update(runId, "RUNNING", phase, done, items.size(), findings, scannedCodes, null);
+                update(runId, "RUNNING", phase, done, total, findings, scannedCodes, null);
             }
 
-            update(runId, "SUCCESS", "完成", items.size(), items.size(), findings, scannedCodes, null);
+            update(runId, "SUCCESS", PHASE_DONE, total, total, findings, scannedCodes, null);
         } catch (Exception e) {
             log.warn("Async scan failed: runId={} {}", runId, e.getMessage(), e);
             fail(runId, e.getMessage() != null ? e.getMessage() : "扫描失败");
@@ -149,7 +226,7 @@ public class SecurityScanRunService {
     }
 
     private void fail(Long runId, String message) {
-        update(runId, "FAILED", "失败", 0, 0, List.of(), List.of(), message);
+        update(runId, "FAILED", PHASE_FAILED, 0, 0, List.of(), List.of(), message);
     }
 
     private void update(Long runId,

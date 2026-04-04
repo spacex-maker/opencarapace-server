@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useI18n } from "../i18n";
 
 type MarketTab = "featured" | "safe" | "hot" | "new";
 
@@ -161,6 +162,8 @@ function FilterSelect(props: {
 }
 
 export function SkillsPanel({ showAccountSwitchPlaceholder = false }: { showAccountSwitchPlaceholder?: boolean }) {
+  const { t } = useI18n();
+  const smp = (key: string) => t(`skillsMarketPage.${key}`);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
@@ -247,7 +250,7 @@ export function SkillsPanel({ showAccountSwitchPlaceholder = false }: { showAcco
       );
       setSync(syncJson || { running: false, total: 0, synced: 0 });
     } catch (e: any) {
-      setError(e?.message ?? "加载本地数据失败");
+      setError(e?.message ?? smp("errLoadLocal"));
     } finally {
       setLoading(false);
     }
@@ -296,7 +299,7 @@ export function SkillsPanel({ showAccountSwitchPlaceholder = false }: { showAcco
       await fetch("http://127.0.0.1:19111/api/skills/sync", { method: "POST" });
       setSync((s) => ({ ...s, running: true }));
     } catch (e: any) {
-      setError(e?.message ?? "触发同步失败");
+      setError(e?.message ?? smp("errTriggerSync"));
     }
   };
 
@@ -320,17 +323,17 @@ export function SkillsPanel({ showAccountSwitchPlaceholder = false }: { showAcco
       });
       if (!res.ok) {
         const data = await res.json();
-        setError(data?.error?.message || "更新用户技能失败");
+        setError(data?.error?.message || smp("errUpdateUser"));
         setTimeout(() => setError(null), 3000);
         return;
       }
       setSkills((prev) =>
         prev.map((s) => (s.slug === slug ? { ...s, userEnabled: nextEnabled ? 1 : 0 } : s))
       );
-      setMessage(`已${nextEnabled ? "启用" : "禁用"}该技能。`);
+      setMessage(nextEnabled ? smp("toastSkillOn") : smp("toastSkillOff"));
       setTimeout(() => setMessage(null), 2000);
     } catch (e: any) {
-      setError(e?.message ?? "更新用户技能失败");
+      setError(e?.message ?? smp("errUpdateUser"));
       setTimeout(() => setError(null), 3000);
     } finally {
       setUpdatingSlug(null);
@@ -376,13 +379,13 @@ export function SkillsPanel({ showAccountSwitchPlaceholder = false }: { showAcco
           ),
         );
         const data = await res.json().catch(() => ({}));
-        setError(data?.error?.message || "更新技能打标失败");
+        setError(data?.error?.message || smp("errSafetyLabel"));
         return;
       }
-      setMessage(`已标记为${label === "SAFE" ? "安全" : "不安全"}`);
+      setMessage(label === "SAFE" ? smp("toastMarkedSafe") : smp("toastMarkedUnsafe"));
       setTimeout(() => setMessage(null), 2000);
     } catch (e: any) {
-      setError(e?.message ?? "更新技能打标失败");
+      setError(e?.message ?? smp("errSafetyLabel"));
     }
   };
 
@@ -399,7 +402,7 @@ export function SkillsPanel({ showAccountSwitchPlaceholder = false }: { showAcco
       const token = statusJson?.auth?.token ? String(statusJson.auth.token) : null;
 
       if (!token) {
-        setDetailError("请先登录（缺少本地 token）");
+        setDetailError(smp("detailNeedLogin"));
         return;
       }
 
@@ -413,13 +416,13 @@ export function SkillsPanel({ showAccountSwitchPlaceholder = false }: { showAcco
       });
       const searchData = await searchRes.json().catch(() => ({}));
       if (!searchRes.ok) {
-        setDetailError(searchData?.error?.message || searchData?.message || "云端查询详情失败");
+        setDetailError(searchData?.error?.message || searchData?.message || smp("detailCloudSearchFailed"));
         return;
       }
       const hit = Array.isArray(searchData?.content) ? searchData.content[0] : null;
       const id = hit?.id;
       if (!id) {
-        setDetailError("云端未找到该 skill（可能尚未同步或 slug 不匹配）");
+        setDetailError(smp("detailNotFound"));
         return;
       }
 
@@ -428,12 +431,12 @@ export function SkillsPanel({ showAccountSwitchPlaceholder = false }: { showAcco
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        setDetailError(data?.error?.message || data?.message || "加载详情失败");
+        setDetailError(data?.error?.message || data?.message || smp("detailLoadFailed"));
         return;
       }
       setDetail(data);
     } catch (e: any) {
-      setDetailError(e?.message ?? "加载详情失败");
+      setDetailError(e?.message ?? smp("detailLoadFailed"));
     } finally {
       setDetailLoading(false);
     }
@@ -447,7 +450,7 @@ export function SkillsPanel({ showAccountSwitchPlaceholder = false }: { showAcco
       await fetch("http://127.0.0.1:19111/api/skills/clear", { method: "POST" });
       await loadData();
     } catch (e: any) {
-      setError(e?.message ?? "清空本地数据失败");
+      setError(e?.message ?? smp("errClearLocal"));
     }
   };
 
@@ -468,10 +471,8 @@ export function SkillsPanel({ showAccountSwitchPlaceholder = false }: { showAcco
     >
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
         <div>
-          <h1 style={{ fontSize: 20, margin: "0 0 4px", color: "var(--fg)" }}>安全市场</h1>
-          <p style={{ margin: "4px 0 0", fontSize: 13, color: "var(--muted)" }}>
-            按「官方精选 / 安全推荐 / 热门 / 最新」浏览技能；启用状态与云端同步策略不变。
-          </p>
+          <h1 style={{ fontSize: 20, margin: "0 0 4px", color: "var(--fg)" }}>{smp("title")}</h1>
+          <p style={{ margin: "4px 0 0", fontSize: 13, color: "var(--muted)" }}>{smp("intro")}</p>
         </div>
         <div style={{ display: "flex", gap: 8 }}>
           <button
@@ -490,7 +491,7 @@ export function SkillsPanel({ showAccountSwitchPlaceholder = false }: { showAcco
               opacity: sync.running ? 0.7 : 1,
             }}
           >
-            {sync.running ? "同步中…" : "手动同步"}
+            {sync.running ? smp("syncRunning") : smp("syncManual")}
           </button>
           <button
             type="button"
@@ -508,7 +509,7 @@ export function SkillsPanel({ showAccountSwitchPlaceholder = false }: { showAcco
               opacity: sync.running ? 0.7 : 1,
             }}
           >
-            清空本地数据
+            {smp("clearLocal")}
           </button>
         </div>
       </div>
@@ -516,18 +517,18 @@ export function SkillsPanel({ showAccountSwitchPlaceholder = false }: { showAcco
       <div style={{ display: "flex", gap: 8, marginBottom: 12, flexWrap: "wrap" }}>
         {(
           [
-            { id: "featured" as const, label: "官方精选" },
-            { id: "safe" as const, label: "安全推荐" },
-            { id: "hot" as const, label: "热门" },
-            { id: "new" as const, label: "最新" },
+            { id: "featured" as const, label: smp("tabs.featured") },
+            { id: "safe" as const, label: smp("tabs.safe") },
+            { id: "hot" as const, label: smp("tabs.hot") },
+            { id: "new" as const, label: smp("tabs.new") },
           ] as const
-        ).map((t) => {
-          const active = marketTab === t.id;
+        ).map((tab) => {
+          const active = marketTab === tab.id;
           return (
             <button
-              key={t.id}
+              key={tab.id}
               type="button"
-              onClick={() => setMarketTab(t.id)}
+              onClick={() => setMarketTab(tab.id)}
               style={{
                 padding: "8px 16px",
                 borderRadius: 999,
@@ -539,7 +540,7 @@ export function SkillsPanel({ showAccountSwitchPlaceholder = false }: { showAcco
                 cursor: "pointer",
               }}
             >
-              {t.label}
+              {tab.label}
             </button>
           );
         })}
@@ -558,7 +559,7 @@ export function SkillsPanel({ showAccountSwitchPlaceholder = false }: { showAcco
             lineHeight: 1.5,
           }}
         >
-          云端尚未标记「官方精选」项，当前列表为状态「正常」的全部技能；标记同步后将仅显示精选。
+          {smp("featuredFallbackHint")}
         </div>
       )}
 
@@ -583,12 +584,18 @@ export function SkillsPanel({ showAccountSwitchPlaceholder = false }: { showAcco
         </div>
         <div style={{ marginTop: 4, fontSize: 11, color: "var(--muted2)" }}>
           {sync.running
-            ? `同步中：${sync.synced}/${sync.total || "?"} 条`
-            : `已同步：${sync.synced} 条（总计：${sync.total || skills.length}）`}
+            ? smp("syncProgressRunning")
+                .replace("{synced}", String(sync.synced))
+                .replace("{total}", String(sync.total || "?"))
+            : smp("syncProgressDone")
+                .replace("{synced}", String(sync.synced))
+                .replace("{total}", String(sync.total || skills.length))}
         </div>
       </div>
 
-      {loading && <div style={{ color: "var(--muted)", marginBottom: 8 }}>加载中…</div>}
+      {loading && (
+        <div style={{ color: "var(--muted)", marginBottom: 8 }}>{smp("loading")}</div>
+      )}
       {error && (
         <div
           style={{
@@ -632,7 +639,7 @@ export function SkillsPanel({ showAccountSwitchPlaceholder = false }: { showAcco
             fontSize: 12,
           }}
         >
-          正在切换账号并同步用户偏好，请稍候…
+          {smp("accountSwitching")}
         </div>
       )}
 
@@ -660,7 +667,7 @@ export function SkillsPanel({ showAccountSwitchPlaceholder = false }: { showAcco
               runQuery();
             }
           }}
-          placeholder="关键词（名称 / slug）"
+          placeholder={smp("keywordPh")}
           style={{
             flex: "1 1 260px",
             minWidth: 280,
@@ -680,22 +687,22 @@ export function SkillsPanel({ showAccountSwitchPlaceholder = false }: { showAcco
         <FilterSelect
           value={systemStatus}
           onChange={setSystemStatus}
-          placeholder="系统状态（全部）"
+          placeholder={smp("filterSystemAll")}
           options={[
-            { label: "系统状态（全部）", value: "" },
-            { label: "正常", value: "NORMAL" },
-            { label: "系统禁用", value: "DISABLED" },
-            { label: "系统不推荐", value: "DEPRECATED" },
+            { label: smp("filterSystemAll"), value: "" },
+            { label: smp("sysNormal"), value: "NORMAL" },
+            { label: smp("sysDisabled"), value: "DISABLED" },
+            { label: smp("sysDeprecated"), value: "DEPRECATED" },
           ]}
         />
         <FilterSelect
           value={userEnabled}
           onChange={setUserEnabled}
-          placeholder="用户启用（全部）"
+          placeholder={smp("filterUserAll")}
           options={[
-            { label: "用户启用（全部）", value: "" },
-            { label: "启用", value: "1" },
-            { label: "禁用", value: "0" },
+            { label: smp("filterUserAll"), value: "" },
+            { label: smp("userOn"), value: "1" },
+            { label: smp("userOff"), value: "0" },
           ]}
         />
 
@@ -721,7 +728,7 @@ export function SkillsPanel({ showAccountSwitchPlaceholder = false }: { showAcco
             transition: "all 0.2s ease",
           }}
         >
-          {loading ? "查询中…" : "查询"}
+          {loading ? smp("queryRunning") : smp("query")}
         </button>
       </div>
 
@@ -746,11 +753,11 @@ export function SkillsPanel({ showAccountSwitchPlaceholder = false }: { showAcco
         <table style={{ width: "100%", minWidth: 1320, borderCollapse: "collapse" }}>
           <thead style={{ background: "var(--panel-bg)", position: "sticky", top: 0, zIndex: 1 }}>
             <tr>
-              <th style={{ padding: "6px 8px", borderBottom: "1px solid var(--panel-border)", textAlign: "left", color: "var(--muted)" }}>名称</th>
-              <th style={{ padding: "6px 8px", borderBottom: "1px solid var(--panel-border)", textAlign: "left", color: "var(--muted)" }}>提供商</th>
-              <th style={{ padding: "6px 8px", borderBottom: "1px solid var(--panel-border)", textAlign: "center", width: 72, color: "var(--muted)" }}>等级</th>
-              <th style={{ padding: "6px 8px", borderBottom: "1px solid var(--panel-border)", textAlign: "left", color: "var(--muted)" }}>状态</th>
-              <th style={{ padding: "6px 8px", borderBottom: "1px solid var(--panel-border)", textAlign: "left", color: "var(--muted)" }}>简介</th>
+              <th style={{ padding: "6px 8px", borderBottom: "1px solid var(--panel-border)", textAlign: "left", color: "var(--muted)" }}>{smp("colName")}</th>
+              <th style={{ padding: "6px 8px", borderBottom: "1px solid var(--panel-border)", textAlign: "left", color: "var(--muted)" }}>{smp("colProvider")}</th>
+              <th style={{ padding: "6px 8px", borderBottom: "1px solid var(--panel-border)", textAlign: "center", width: 72, color: "var(--muted)" }}>{smp("colGrade")}</th>
+              <th style={{ padding: "6px 8px", borderBottom: "1px solid var(--panel-border)", textAlign: "left", color: "var(--muted)" }}>{smp("colStatus")}</th>
+              <th style={{ padding: "6px 8px", borderBottom: "1px solid var(--panel-border)", textAlign: "left", color: "var(--muted)" }}>{smp("colDesc")}</th>
               <th
                 style={{
                   padding: "6px 8px",
@@ -767,7 +774,7 @@ export function SkillsPanel({ showAccountSwitchPlaceholder = false }: { showAcco
                   color: "var(--muted)",
                 }}
               >
-                启用
+                {smp("colEnable")}
               </th>
             </tr>
           </thead>
@@ -848,7 +855,7 @@ export function SkillsPanel({ showAccountSwitchPlaceholder = false }: { showAcco
                         whiteSpace: "nowrap",
                       }}
                     >
-                      安全 {s.safeMarkCount || 0}
+                      {smp("safePrefix")} {s.safeMarkCount || 0}
                     </span>
                     <span
                       style={{
@@ -862,7 +869,7 @@ export function SkillsPanel({ showAccountSwitchPlaceholder = false }: { showAcco
                         whiteSpace: "nowrap",
                       }}
                     >
-                      不安全 {s.unsafeMarkCount || 0}
+                      {smp("unsafePrefix")} {s.unsafeMarkCount || 0}
                     </span>
                   </div>
                   <div
@@ -876,8 +883,8 @@ export function SkillsPanel({ showAccountSwitchPlaceholder = false }: { showAcco
                       color: "var(--muted)",
                     }}
                   >
-                    <span title="累计下载/安装量">
-                      <span style={{ color: "var(--muted2)" }}>下载 </span>
+                    <span title={smp("downloadsTitle")}>
+                      <span style={{ color: "var(--muted2)" }}>{smp("downloadsPrefix")} </span>
                       <span
                         style={{
                           fontWeight: 600,
@@ -892,8 +899,8 @@ export function SkillsPanel({ showAccountSwitchPlaceholder = false }: { showAcco
                     <span style={{ color: "var(--panel-border)", userSelect: "none" }} aria-hidden>
                       |
                     </span>
-                    <span title="收藏 / 关注量">
-                      <span style={{ color: "var(--muted2)" }}>收藏 </span>
+                    <span title={smp("favoritesTitle")}>
+                      <span style={{ color: "var(--muted2)" }}>{smp("favoritesPrefix")} </span>
                       <span
                         style={{
                           fontWeight: 600,
@@ -910,7 +917,7 @@ export function SkillsPanel({ showAccountSwitchPlaceholder = false }: { showAcco
                         <span style={{ color: "var(--panel-border)", userSelect: "none" }} aria-hidden>
                           |
                         </span>
-                        <span title="星级评分">
+                        <span title={smp("starRatingTitle")}>
                           <span style={{ color: "#fbbf24" }}>★</span>{" "}
                           <span
                             style={{
@@ -930,7 +937,7 @@ export function SkillsPanel({ showAccountSwitchPlaceholder = false }: { showAcco
                 <td style={{ padding: "6px 8px", borderBottom: "1px solid var(--panel-border)", color: "var(--muted)", fontSize: 11 }}>
                   <div style={{ whiteSpace: "nowrap" }}>{s.sourceName || "-"}</div>
                   {s.publisherVerified && (
-                    <div style={{ marginTop: 4, fontSize: 9, fontWeight: 600, color: "#86efac" }}>✓ 已验证发布者</div>
+                    <div style={{ marginTop: 4, fontSize: 9, fontWeight: 600, color: "#86efac" }}>{smp("verifiedPublisher")}</div>
                   )}
                 </td>
                 <td style={{ padding: "6px 8px", borderBottom: "1px solid var(--panel-border)", textAlign: "center", verticalAlign: "middle" }}>
@@ -979,10 +986,10 @@ export function SkillsPanel({ showAccountSwitchPlaceholder = false }: { showAcco
                     }}
                   >
                     {s.systemStatus === "DISABLED"
-                      ? "系统禁用"
+                      ? smp("systemStatusDisabled")
                       : s.systemStatus === "DEPRECATED"
-                        ? "系统不推荐"
-                        : "正常"}
+                        ? smp("systemStatusDeprecated")
+                        : smp("systemStatusNormal")}
                   </span>
                 </td>
                 <td
@@ -1027,7 +1034,7 @@ export function SkillsPanel({ showAccountSwitchPlaceholder = false }: { showAcco
                   <div style={{ display: "flex", flexDirection: "column", gap: 8, alignItems: "center" }}>
                     {/* 启用：置于最右列顶部 */}
                     {s.userEnabled === null ? (
-                      <div style={{ fontSize: 10, color: "var(--muted2)" }}>（未配置）</div>
+                      <div style={{ fontSize: 10, color: "var(--muted2)" }}>{smp("notConfigured")}</div>
                     ) : (
                       <button
                         type="button"
@@ -1044,7 +1051,7 @@ export function SkillsPanel({ showAccountSwitchPlaceholder = false }: { showAcco
                           opacity: updatingSlug === s.slug ? 0.6 : 1,
                           transition: "background 0.2s, opacity 0.2s",
                         }}
-                        title={s.userEnabled === 1 ? "已启用" : "未启用"}
+                        title={s.userEnabled === 1 ? smp("toggleEnabledTitle") : smp("toggleDisabledTitle")}
                       >
                         <span
                           style={{
@@ -1066,7 +1073,7 @@ export function SkillsPanel({ showAccountSwitchPlaceholder = false }: { showAcco
                       <button
                         type="button"
                         disabled
-                        title="即将推出"
+                        title={smp("comingSoonTitle")}
                         style={{
                           height: 26,
                           padding: "0 8px",
@@ -1080,7 +1087,7 @@ export function SkillsPanel({ showAccountSwitchPlaceholder = false }: { showAcco
                           flex: "0 0 auto",
                         }}
                       >
-                        审计报告
+                        {smp("auditReport")}
                       </button>
                       <button
                         type="button"
@@ -1090,10 +1097,10 @@ export function SkillsPanel({ showAccountSwitchPlaceholder = false }: { showAcco
                         }
                         title={
                           s.systemStatus !== "NORMAL"
-                            ? "系统未启用该技能"
+                            ? smp("installTitleSysDisabled")
                             : s.userEnabled === 1 || s.userEnabled === null
-                              ? "已启用"
-                              : "启用该技能"
+                              ? smp("installTitleAlreadyOn")
+                              : smp("installTitleEnable")
                         }
                         style={{
                           height: 26,
@@ -1113,7 +1120,7 @@ export function SkillsPanel({ showAccountSwitchPlaceholder = false }: { showAcco
                           flex: "0 0 auto",
                         }}
                       >
-                        {s.userEnabled === 0 ? "安全安装" : "已启用"}
+                        {s.userEnabled === 0 ? smp("safeInstall") : smp("alreadyEnabledBtn")}
                       </button>
                       <button
                         type="button"
@@ -1131,7 +1138,7 @@ export function SkillsPanel({ showAccountSwitchPlaceholder = false }: { showAcco
                           flex: "0 0 auto",
                         }}
                       >
-                        详情
+                        {smp("detailBtn")}
                       </button>
                     </div>
                   </div>
@@ -1144,9 +1151,7 @@ export function SkillsPanel({ showAccountSwitchPlaceholder = false }: { showAcco
                   colSpan={7}
                   style={{ padding: "8px 10px", textAlign: "center", color: "var(--muted2)", background: "var(--panel-bg)" }}
                 >
-                  {skills.length === 0
-                    ? "当前本地还没有任何技能数据，请先登录并同步。"
-                    : "当前分类下没有符合条件的技能，可切换上方分类或调整筛选条件。"}
+                  {skills.length === 0 ? smp("emptyNoSkills") : smp("emptyNoMatch")}
                 </td>
               </tr>
             )}
@@ -1166,9 +1171,11 @@ export function SkillsPanel({ showAccountSwitchPlaceholder = false }: { showAcco
             }}
           >
             <div style={{ fontSize: 12, color: "var(--muted)" }}>
-              共 <span style={{ color: "var(--fg)", fontWeight: 700 }}>{displaySkills.length}</span> 条，
-              第 <span style={{ color: "var(--fg)", fontWeight: 700 }}>{marketPageSafe}</span> /
-              {marketTotalPages} 页（每页 {marketPageSize} 条）
+              {smp("pageSummary")
+                .replace("{total}", String(displaySkills.length))
+                .replace("{page}", String(marketPageSafe))
+                .replace("{pages}", String(marketTotalPages))
+                .replace("{size}", String(marketPageSize))}
             </div>
 
             <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
@@ -1187,7 +1194,7 @@ export function SkillsPanel({ showAccountSwitchPlaceholder = false }: { showAcco
                   opacity: marketPageSafe <= 1 ? 0.55 : 1,
                 }}
               >
-                首页
+                {smp("pageFirst")}
               </button>
               <button
                 type="button"
@@ -1204,7 +1211,7 @@ export function SkillsPanel({ showAccountSwitchPlaceholder = false }: { showAcco
                   opacity: marketPageSafe <= 1 ? 0.55 : 1,
                 }}
               >
-                上一页
+                {smp("pagePrev")}
               </button>
               <button
                 type="button"
@@ -1221,7 +1228,7 @@ export function SkillsPanel({ showAccountSwitchPlaceholder = false }: { showAcco
                   opacity: marketPageSafe >= marketTotalPages ? 0.55 : 1,
                 }}
               >
-                下一页
+                {smp("pageNext")}
               </button>
               <button
                 type="button"
@@ -1238,7 +1245,7 @@ export function SkillsPanel({ showAccountSwitchPlaceholder = false }: { showAcco
                   opacity: marketPageSafe >= marketTotalPages ? 0.55 : 1,
                 }}
               >
-                末页
+                {smp("pageLast")}
               </button>
             </div>
           </div>
@@ -1290,7 +1297,7 @@ export function SkillsPanel({ showAccountSwitchPlaceholder = false }: { showAcco
               }}
             >
               <div>
-                <div style={{ fontSize: 16, fontWeight: 700, color: "var(--fg)" }}>技能详情</div>
+                <div style={{ fontSize: 16, fontWeight: 700, color: "var(--fg)" }}>{smp("modalTitle")}</div>
                 {detail && (
                   <div
                     style={{
@@ -1322,7 +1329,7 @@ export function SkillsPanel({ showAccountSwitchPlaceholder = false }: { showAcco
                   cursor: "pointer",
                 }}
               >
-                关闭
+                {smp("modalClose")}
               </button>
             </div>
 
@@ -1335,21 +1342,21 @@ export function SkillsPanel({ showAccountSwitchPlaceholder = false }: { showAcco
                 fontSize: 12,
               }}
             >
-              {detailLoading && <div style={{ color: "var(--muted)" }}>加载详情中…</div>}
+              {detailLoading && <div style={{ color: "var(--muted)" }}>{smp("modalLoading")}</div>}
               {detailError && <div style={{ color: "#f97373" }}>{detailError}</div>}
 
               {detail && !detailLoading && !detailError && (
                 <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
                   <div>
                     <div style={{ fontSize: 10, color: "var(--muted2)", marginBottom: 4, textTransform: "uppercase", letterSpacing: "0.05em" }}>
-                      名称
+                      {smp("modalLabelName")}
                     </div>
                     <div style={{ fontSize: 14, fontWeight: 700, color: "var(--fg)" }}>{detail.name || detail.slug}</div>
                   </div>
 
                   <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, fontSize: 11 }}>
                     <div>
-                      <div style={{ fontSize: 10, color: "var(--muted2)", marginBottom: 3 }}>Slug</div>
+                      <div style={{ fontSize: 10, color: "var(--muted2)", marginBottom: 3 }}>{smp("modalLabelSlug")}</div>
                       <code
                         style={{
                           fontFamily:
@@ -1368,24 +1375,24 @@ export function SkillsPanel({ showAccountSwitchPlaceholder = false }: { showAcco
                       </code>
                     </div>
                     <div>
-                      <div style={{ fontSize: 10, color: "var(--muted2)", marginBottom: 3 }}>类型</div>
+                      <div style={{ fontSize: 10, color: "var(--muted2)", marginBottom: 3 }}>{smp("modalLabelType")}</div>
                       <div style={{ color: "var(--fg)" }}>{detail.type || "-"}</div>
                     </div>
                     <div>
-                      <div style={{ fontSize: 10, color: "var(--muted2)", marginBottom: 3 }}>分类</div>
+                      <div style={{ fontSize: 10, color: "var(--muted2)", marginBottom: 3 }}>{smp("modalLabelCategory")}</div>
                       <div style={{ color: "var(--fg)" }}>{detail.category || "-"}</div>
                     </div>
                     <div>
-                      <div style={{ fontSize: 10, color: "var(--muted2)", marginBottom: 3 }}>状态</div>
+                      <div style={{ fontSize: 10, color: "var(--muted2)", marginBottom: 3 }}>{smp("modalLabelStatus")}</div>
                       <div style={{ color: "var(--fg)" }}>{detail.status || "-"}</div>
                     </div>
                     <div>
-                      <div style={{ fontSize: 10, color: "var(--muted2)", marginBottom: 3 }}>来源</div>
+                      <div style={{ fontSize: 10, color: "var(--muted2)", marginBottom: 3 }}>{smp("modalLabelSource")}</div>
                       <div style={{ color: "var(--fg)" }}>{detail.sourceName || "ClawHub"}</div>
                     </div>
                     {detail.version && (
                       <div>
-                        <div style={{ fontSize: 10, color: "var(--muted2)", marginBottom: 3 }}>版本</div>
+                        <div style={{ fontSize: 10, color: "var(--muted2)", marginBottom: 3 }}>{smp("modalLabelVersion")}</div>
                         <div style={{ color: "var(--fg)" }}>v{detail.version}</div>
                       </div>
                     )}
@@ -1394,7 +1401,7 @@ export function SkillsPanel({ showAccountSwitchPlaceholder = false }: { showAcco
                   {detail.shortDesc && (
                     <div>
                       <div style={{ fontSize: 10, color: "var(--muted2)", marginBottom: 4, textTransform: "uppercase", letterSpacing: "0.05em" }}>
-                        简介
+                        {smp("modalLabelShortDesc")}
                       </div>
                       <div style={{ fontSize: 12, color: "var(--muted)", lineHeight: 1.6 }}>{detail.shortDesc}</div>
                     </div>
@@ -1403,7 +1410,7 @@ export function SkillsPanel({ showAccountSwitchPlaceholder = false }: { showAcco
                   {detail.longDesc && (
                     <div>
                       <div style={{ fontSize: 10, color: "var(--muted2)", marginBottom: 4, textTransform: "uppercase", letterSpacing: "0.05em" }}>
-                        详细说明
+                        {smp("modalLabelLongDesc")}
                       </div>
                       <div
                         style={{
@@ -1425,12 +1432,12 @@ export function SkillsPanel({ showAccountSwitchPlaceholder = false }: { showAcco
                   {detail.tags && (
                     <div>
                       <div style={{ fontSize: 10, color: "var(--muted2)", marginBottom: 4, textTransform: "uppercase", letterSpacing: "0.05em" }}>
-                        标签
+                        {smp("modalLabelTags")}
                       </div>
                       <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-                        {detail.tags.split(/[,，\s]+/).filter(Boolean).map((t: string) => (
+                        {detail.tags.split(/[,，\s]+/).filter(Boolean).map((tagStr: string) => (
                           <span
-                            key={t}
+                            key={tagStr}
                             style={{
                               padding: "3px 8px",
                               borderRadius: 999,
@@ -1441,7 +1448,7 @@ export function SkillsPanel({ showAccountSwitchPlaceholder = false }: { showAcco
                               border: "1px solid rgba(34,197,94,0.3)",
                             }}
                           >
-                            {t}
+                            {tagStr}
                           </span>
                         ))}
                       </div>
@@ -1451,7 +1458,7 @@ export function SkillsPanel({ showAccountSwitchPlaceholder = false }: { showAcco
                   {detail.installHint && (
                     <div>
                       <div style={{ fontSize: 10, color: "var(--muted2)", marginBottom: 4, textTransform: "uppercase", letterSpacing: "0.05em" }}>
-                        安装提示
+                        {smp("modalLabelInstallHint")}
                       </div>
                       <code
                         style={{
@@ -1476,7 +1483,7 @@ export function SkillsPanel({ showAccountSwitchPlaceholder = false }: { showAcco
                   {detail.homepageUrl && (
                     <div>
                       <div style={{ fontSize: 10, color: "var(--muted2)", marginBottom: 4, textTransform: "uppercase", letterSpacing: "0.05em" }}>
-                        主页
+                        {smp("modalLabelHomepage")}
                       </div>
                       <a
                         href={detail.homepageUrl}

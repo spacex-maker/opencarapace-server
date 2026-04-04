@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { DocsPanel } from "./DocsPanel";
+import { useI18n } from "../i18n";
 
 type LlmRouteMode = "DIRECT" | "GATEWAY";
 
@@ -12,6 +13,8 @@ type LlmMapping = {
 
 interface Props {
   onApiBaseChanged?: () => void | Promise<void>;
+  /** 已登录时在设置页底部展示「退出」并触发父级确认弹窗 */
+  onRequestLogout?: () => void;
   status?: {
     auth?: {
       email: string;
@@ -22,7 +25,8 @@ interface Props {
 }
 
 export function SettingsPanel(props: Props) {
-  const { onApiBaseChanged, status } = props;
+  const { onApiBaseChanged, onRequestLogout, status } = props;
+  const { t } = useI18n();
   const [mode, setMode] = useState<LlmRouteMode>("GATEWAY");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -58,7 +62,7 @@ export function SettingsPanel(props: Props) {
           setMode("GATEWAY");
         }
       } catch (e: any) {
-        setError(e?.message ?? "加载路由模式失败");
+        setError(e?.message ?? t("settingsPage.err.loadRoute"));
       } finally {
         setLoading(false);
       }
@@ -137,16 +141,18 @@ export function SettingsPanel(props: Props) {
       });
       const data = await res.json();
       if (!res.ok) {
-        setError(data?.error?.message || "切换测试模式失败");
+        setError(data?.error?.message || t("settingsPage.err.toggleTest"));
         return;
       }
       setApiBase(nextApiBase);
-      setMessage(nextApiBase.includes("localhost:8080") ? "已开启测试模式（使用本地后端 8080）。" : "已关闭测试模式（使用线上后端）。");
+      setMessage(
+        nextApiBase.includes("localhost:8080") ? t("settingsPage.toast.testOn") : t("settingsPage.toast.testOff")
+      );
       if (onApiBaseChanged) {
         await onApiBaseChanged();
       }
     } catch (e: any) {
-      setError(e?.message ?? "切换测试模式失败");
+      setError(e?.message ?? t("settingsPage.err.toggleTest"));
     } finally {
       setApiBaseLoading(false);
     }
@@ -164,13 +170,13 @@ export function SettingsPanel(props: Props) {
       });
       const data = await res.json();
       if (!res.ok) {
-        setError(data?.error?.message || "保存失败");
+        setError(data?.error?.message || t("settingsPage.err.save"));
       } else {
         setMode(next);
-        setMessage("已更新 LLM 路由模式。");
+        setMessage(t("settingsPage.toast.routeOk"));
       }
     } catch (e: any) {
-      setError(e?.message ?? "保存失败");
+      setError(e?.message ?? t("settingsPage.err.save"));
     } finally {
       setSaving(false);
     }
@@ -180,7 +186,7 @@ export function SettingsPanel(props: Props) {
     const prefix = mappingPrefix.trim();
     const targetBase = mappingTarget.trim();
     if (!prefix || !targetBase) {
-      setError("请填写前缀与目标地址");
+      setError(t("settingsPage.err.prefixTarget"));
       return;
     }
     setError(null);
@@ -195,7 +201,7 @@ export function SettingsPanel(props: Props) {
       });
       const localData = await localRes.json();
       if (!localRes.ok) {
-        setError(localData?.error?.message || "保存映射失败");
+        setError(localData?.error?.message || t("settingsPage.err.saveMapping"));
         return;
       }
       if (Array.isArray(localData?.items)) {
@@ -215,22 +221,22 @@ export function SettingsPanel(props: Props) {
           });
           if (!cloudRes.ok) {
             console.warn("云端同步映射失败:", await cloudRes.text());
-            setMessage("已保存到本地，但云端同步失败（请检查登录状态）。");
+            setMessage(t("settingsPage.toast.mapLocalCloudFail"));
           } else {
-            setMessage("已更新映射配置并同步到云端。");
+            setMessage(t("settingsPage.toast.mapCloudOk"));
           }
         } catch (e) {
           console.warn("云端同步映射失败:", e);
-          setMessage("已保存到本地，但云端同步失败。");
+          setMessage(t("settingsPage.toast.mapLocalCloudFail"));
         }
       } else {
-        setMessage("已更新映射配置（仅本地）。");
+        setMessage(t("settingsPage.toast.mapLocalOk"));
       }
 
       setMappingPrefix("");
       setMappingTarget("");
     } catch (e: any) {
-      setError(e?.message ?? "保存映射失败");
+      setError(e?.message ?? t("settingsPage.err.saveMapping"));
     } finally {
       setMappingLoading(false);
     }
@@ -250,7 +256,7 @@ export function SettingsPanel(props: Props) {
       });
       const localData = await localRes.json();
       if (!localRes.ok) {
-        setError(localData?.error?.message || "删除映射失败");
+        setError(localData?.error?.message || t("settingsPage.err.delMapping"));
         return;
       }
       if (Array.isArray(localData?.items)) {
@@ -282,9 +288,9 @@ export function SettingsPanel(props: Props) {
         }
       }
 
-      setMessage("已删除一条映射。");
+      setMessage(t("settingsPage.toast.mapDeleted"));
     } catch (e: any) {
-      setError(e?.message ?? "删除映射失败");
+      setError(e?.message ?? t("settingsPage.err.delMapping"));
     } finally {
       setMappingLoading(false);
     }
@@ -303,13 +309,13 @@ export function SettingsPanel(props: Props) {
       });
       const data = await res.json();
       if (!res.ok) {
-        setError(data?.error?.message || "更新同步开关失败");
+        setError(data?.error?.message || t("settingsPage.err.syncToggle"));
       } else {
         setSyncUserSkillsToCloud(nextValue);
-        setMessage(`已${nextValue ? "开启" : "关闭"} Skills 用户设置云端同步。`);
+        setMessage(nextValue ? t("settingsPage.toast.skillsOn") : t("settingsPage.toast.skillsOff"));
       }
     } catch (e: any) {
-      setError(e?.message ?? "更新同步开关失败");
+      setError(e?.message ?? t("settingsPage.err.syncToggle"));
     } finally {
       setSyncLoading(false);
     }
@@ -328,13 +334,13 @@ export function SettingsPanel(props: Props) {
       });
       const data = await res.json();
       if (!res.ok) {
-        setError(data?.error?.message || "更新同步开关失败");
+        setError(data?.error?.message || t("settingsPage.err.syncToggle"));
       } else {
         setSyncUserDangersToCloud(nextValue);
-        setMessage(`已${nextValue ? "开启" : "关闭"}危险指令用户设置云端同步。`);
+        setMessage(nextValue ? t("settingsPage.toast.dangersOn") : t("settingsPage.toast.dangersOff"));
       }
     } catch (e: any) {
-      setError(e?.message ?? "更新同步开关失败");
+      setError(e?.message ?? t("settingsPage.err.syncToggle"));
     } finally {
       setSyncLoading(false);
     }
@@ -342,12 +348,12 @@ export function SettingsPanel(props: Props) {
 
   const handleToggleSyncMappings = () => {
     setSyncMappingsToCloud(!syncMappingsToCloud);
-    setMessage(syncMappingsToCloud ? "已关闭映射同步到云端。" : "已开启映射同步到云端。");
+    setMessage(syncMappingsToCloud ? t("settingsPage.toast.mapSyncOff") : t("settingsPage.toast.mapSyncOn"));
   };
 
   const handleSyncFromCloud = async () => {
     if (!status?.auth?.token) {
-      setError("请先登录");
+      setError(t("settingsPage.err.loginFirst"));
       return;
     }
 
@@ -366,7 +372,7 @@ export function SettingsPanel(props: Props) {
       if (!cloudRes.ok) {
         const text = await cloudRes.text();
         console.error("[SettingsPanel] 云端映射响应内容:", text);
-        setError(`获取云端映射失败 (${cloudRes.status}): ${text.substring(0, 100)}`);
+        setError(`${t("settingsPage.err.cloudFetch")} (${cloudRes.status}): ${text.substring(0, 100)}`);
         return;
       }
       
@@ -374,7 +380,7 @@ export function SettingsPanel(props: Props) {
       if (!contentType || !contentType.includes("application/json")) {
         const text = await cloudRes.text();
         console.error("[SettingsPanel] 云端返回非 JSON:", text);
-        setError("云端返回格式错误（非 JSON），请检查后端配置");
+        setError(t("settingsPage.err.cloudNotJson"));
         return;
       }
       
@@ -382,7 +388,7 @@ export function SettingsPanel(props: Props) {
       console.log("[SettingsPanel] 云端映射数据:", cloudMappings);
       
       if (!Array.isArray(cloudMappings)) {
-        setError("云端映射数据格式错误（不是数组）");
+        setError(t("settingsPage.err.cloudBadShape"));
         return;
       }
       
@@ -404,10 +410,10 @@ export function SettingsPanel(props: Props) {
         setMappings(localData.items);
       }
       
-      setMessage(`已从云端同步 ${cloudMappings.length} 条映射配置。`);
+      setMessage(t("settingsPage.toast.syncedFromCloud").replace("{count}", String(cloudMappings.length)));
     } catch (e: any) {
       console.error("[SettingsPanel] 同步失败:", e);
-      setError(e?.message ?? "从云端同步失败");
+      setError(e?.message ?? t("settingsPage.err.cloudFetch"));
     } finally {
       setSyncingMappings(false);
     }
@@ -426,24 +432,22 @@ export function SettingsPanel(props: Props) {
         fontSize: 12,
       }}
     >
-      <h1 style={{ fontSize: 20, margin: "0 0 4px", color: "var(--fg)" }}>设置</h1>
-      <p style={{ margin: "4px 0 12px", fontSize: 13, color: "var(--muted)" }}>
-        在这里选择本地客户端调用 LLM 时的路由模式，并配置自定义转发映射。使用说明请切换到「文档与使用说明」。
-      </p>
+      <h1 style={{ fontSize: 20, margin: "0 0 4px", color: "var(--fg)" }}>{t("header.settings.title")}</h1>
+      <p style={{ margin: "4px 0 12px", fontSize: 13, color: "var(--muted)" }}>{t("settingsPage.intro")}</p>
 
       <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 4 }}>
         {(
           [
-            { key: "general" as const, label: "常规设置" },
-            { key: "docs" as const, label: "文档与使用说明" },
+            { key: "general" as const, label: t("settingsPage.tabs.general") },
+            { key: "docs" as const, label: t("settingsPage.tabs.docs") },
           ] as const
-        ).map((t) => {
-          const active = settingsTab === t.key;
+        ).map((tab) => {
+          const active = settingsTab === tab.key;
           return (
             <button
-              key={t.key}
+              key={tab.key}
               type="button"
-              onClick={() => setSettingsTab(t.key)}
+              onClick={() => setSettingsTab(tab.key)}
               style={{
                 padding: "8px 14px",
                 borderRadius: 999,
@@ -455,7 +459,7 @@ export function SettingsPanel(props: Props) {
                 cursor: "pointer",
               }}
             >
-              {t.label}
+              {tab.label}
             </button>
           );
         })}
@@ -485,9 +489,11 @@ export function SettingsPanel(props: Props) {
           borderTop: "1px solid var(--panel-border)",
         }}
       >
-        <div style={{ fontSize: 13, fontWeight: 500, color: "var(--fg)", marginBottom: 6 }}>LLM 路由模式</div>
+        <div style={{ fontSize: 13, fontWeight: 500, color: "var(--fg)", marginBottom: 6 }}>
+          {t("settingsPage.llm.sectionTitle")}
+        </div>
         <p style={{ margin: "0 0 10px", fontSize: 12, color: "var(--muted2)", lineHeight: 1.5 }}>
-          你可以选择直接连接上游 LLM，或通过 ClawHeart 云端网关转发（带危险指令监管与意图识别能力）。
+          {t("settingsPage.llm.sectionDesc")}
         </p>
 
         <div style={{ display: "grid", gap: 10 }}>
@@ -515,7 +521,7 @@ export function SettingsPanel(props: Props) {
                 justifyContent: "space-between",
               }}
             >
-              <span>通过 ClawHeart 网关（推荐）</span>
+              <span>{t("settingsPage.llm.gatewayTitle")}</span>
               {mode === "GATEWAY" && (
                 <span
                   style={{
@@ -527,12 +533,12 @@ export function SettingsPanel(props: Props) {
                     border: "1px solid rgba(34,197,94,0.45)",
                   }}
                 >
-                  当前
+                  {t("settingsPage.llm.badgeCurrent")}
                 </span>
               )}
             </div>
             <div style={{ marginTop: 4, fontSize: 11, color: "var(--muted)", lineHeight: 1.6 }}>
-              请求先发到云端网关，由网关执行危险指令拦截与意图识别，再转发到上游 LLM。便于统一审计与策略配置。
+              {t("settingsPage.llm.gatewayDesc")}
             </div>
           </button>
 
@@ -560,7 +566,7 @@ export function SettingsPanel(props: Props) {
                 justifyContent: "space-between",
               }}
             >
-              <span>直接连接 LLM（仅本地校验）</span>
+              <span>{t("settingsPage.llm.directTitle")}</span>
               {mode === "DIRECT" && (
                 <span
                   style={{
@@ -572,18 +578,18 @@ export function SettingsPanel(props: Props) {
                     border: "1px solid rgba(56,189,248,0.45)",
                   }}
                 >
-                  当前
+                  {t("settingsPage.llm.badgeCurrent")}
                 </span>
               )}
             </div>
             <div style={{ marginTop: 4, fontSize: 11, color: "var(--muted)", lineHeight: 1.6 }}>
-              本地客户端直接调用上游 LLM，仅使用本地危险指令库做拦截。适合内网环境或对延迟更敏感的场景。
+              {t("settingsPage.llm.directDesc")}
             </div>
           </button>
         </div>
 
         {loading && (
-          <div style={{ marginTop: 8, fontSize: 11, color: "var(--muted2)" }}>正在加载当前配置…</div>
+          <div style={{ marginTop: 8, fontSize: 11, color: "var(--muted2)" }}>{t("settingsPage.loadingConfig")}</div>
         )}
       </div>
 
@@ -594,9 +600,11 @@ export function SettingsPanel(props: Props) {
           borderTop: "1px solid var(--panel-border)",
         }}
       >
-        <div style={{ fontSize: 13, fontWeight: 500, color: "var(--fg)", marginBottom: 6 }}>Skills 用户设置同步</div>
+        <div style={{ fontSize: 13, fontWeight: 500, color: "var(--fg)", marginBottom: 6 }}>
+          {t("settingsPage.skills.title")}
+        </div>
         <p style={{ margin: "0 0 10px", fontSize: 12, color: "var(--muted2)", lineHeight: 1.5 }}>
-          当你在本地客户端修改 Skill 的启用状态时，是否同步到云端。开启后，你的偏好设置将在多设备间保持一致。
+          {t("settingsPage.skills.desc")}
         </p>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
           <button
@@ -616,10 +624,10 @@ export function SettingsPanel(props: Props) {
               color: syncUserSkillsToCloud ? "#bbf7d0" : "var(--fg)",
             }}
           >
-            {syncUserSkillsToCloud ? "已开启" : "已关闭"}
+            {syncUserSkillsToCloud ? t("settingsPage.state.on") : t("settingsPage.state.off")}
           </button>
           <span style={{ fontSize: 11, color: "var(--muted)" }}>
-            {syncUserSkillsToCloud ? "修改 Skill 启用状态时会同步到云端" : "修改 Skill 启用状态时仅保存在本地"}
+            {syncUserSkillsToCloud ? t("settingsPage.skills.detailOn") : t("settingsPage.skills.detailOff")}
           </span>
         </div>
       </div>
@@ -631,9 +639,11 @@ export function SettingsPanel(props: Props) {
           borderTop: "1px solid var(--panel-border)",
         }}
       >
-        <div style={{ fontSize: 13, fontWeight: 500, color: "var(--fg)", marginBottom: 6 }}>危险指令用户设置同步</div>
+        <div style={{ fontSize: 13, fontWeight: 500, color: "var(--fg)", marginBottom: 6 }}>
+          {t("settingsPage.dangers.title")}
+        </div>
         <p style={{ margin: "0 0 10px", fontSize: 12, color: "var(--muted2)", lineHeight: 1.5 }}>
-          当你在本地客户端修改危险指令的启用状态时，是否同步到云端。开启后，你的偏好设置将在多设备间保持一致。
+          {t("settingsPage.dangers.desc")}
         </p>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
           <button
@@ -653,10 +663,10 @@ export function SettingsPanel(props: Props) {
               color: syncUserDangersToCloud ? "#bbf7d0" : "var(--fg)",
             }}
           >
-            {syncUserDangersToCloud ? "已开启" : "已关闭"}
+            {syncUserDangersToCloud ? t("settingsPage.state.on") : t("settingsPage.state.off")}
           </button>
           <span style={{ fontSize: 11, color: "var(--muted)" }}>
-            {syncUserDangersToCloud ? "修改危险指令启用状态时会同步到云端" : "修改危险指令启用状态时仅保存在本地"}
+            {syncUserDangersToCloud ? t("settingsPage.dangers.detailOn") : t("settingsPage.dangers.detailOff")}
           </span>
         </div>
       </div>
@@ -668,9 +678,11 @@ export function SettingsPanel(props: Props) {
           borderTop: "1px solid var(--panel-border)",
         }}
       >
-        <div style={{ fontSize: 13, fontWeight: 500, color: "var(--fg)", marginBottom: 6 }}>映射配置云端同步</div>
+        <div style={{ fontSize: 13, fontWeight: 500, color: "var(--fg)", marginBottom: 6 }}>
+          {t("settingsPage.mappingSync.title")}
+        </div>
         <p style={{ margin: "0 0 10px", fontSize: 12, color: "var(--muted2)", lineHeight: 1.5 }}>
-          开启后，添加/删除映射时会自动同步到云端。GATEWAY 模式需要云端映射才能正常工作。
+          {t("settingsPage.mappingSync.desc")}
         </p>
         <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
           <button
@@ -689,10 +701,10 @@ export function SettingsPanel(props: Props) {
               color: syncMappingsToCloud ? "#bbf7d0" : "var(--fg)",
             }}
           >
-            {syncMappingsToCloud ? "已开启" : "已关闭"}
+            {syncMappingsToCloud ? t("settingsPage.state.on") : t("settingsPage.state.off")}
           </button>
           <span style={{ fontSize: 11, color: "var(--muted)" }}>
-            {syncMappingsToCloud ? "映射会同步到云端（推荐）" : "映射仅保存在本地"}
+            {syncMappingsToCloud ? t("settingsPage.mappingSync.detailOn") : t("settingsPage.mappingSync.detailOff")}
           </span>
         </div>
         <div style={{ display: "flex", gap: 8 }}>
@@ -711,10 +723,10 @@ export function SettingsPanel(props: Props) {
               whiteSpace: "nowrap",
             }}
           >
-            {syncingMappings ? "同步中..." : "从云端拉取映射"}
+            {syncingMappings ? t("settingsPage.mappingSync.pulling") : t("settingsPage.mappingSync.pull")}
           </button>
           <span style={{ fontSize: 11, color: "var(--muted2)", lineHeight: "28px" }}>
-            将云端映射配置同步到本地（会覆盖本地同名映射）
+            {t("settingsPage.mappingSync.pullHint")}
           </span>
         </div>
       </div>
@@ -726,20 +738,26 @@ export function SettingsPanel(props: Props) {
           borderTop: "1px solid var(--panel-border)",
         }}
       >
-        <div style={{ fontSize: 13, fontWeight: 500, color: "var(--fg)", marginBottom: 6 }}>网络映射配置</div>
-        <p style={{ margin: "0 0 10px", fontSize: 12, color: "var(--muted2)", lineHeight: 1.5 }}>
-          配置自定义前缀，将 <span style={{ color: "var(--fg)" }}>http://127.0.0.1:19111/&lt;前缀&gt;/…</span> 转发到任意上游网络基地址（不限于纯文本 LLM，亦可对接多模态等 HTTP API）。
-          <br/>
-          • <span style={{ color: "var(--fg)" }}>DIRECT 模式</span>：本地直接转发到目标基地址
-          <br/>
-          • <span style={{ color: "var(--fg)" }}>GATEWAY 模式</span>：转发到云端，云端查映射表并执行监管（需开启云端同步）
+        <div style={{ fontSize: 13, fontWeight: 500, color: "var(--fg)", marginBottom: 6 }}>
+          {t("settingsPage.networkMap.title")}
+        </div>
+        <p
+          style={{
+            margin: "0 0 10px",
+            fontSize: 12,
+            color: "var(--muted2)",
+            lineHeight: 1.5,
+            whiteSpace: "pre-line",
+          }}
+        >
+          {t("settingsPage.networkMap.body")}
         </p>
 
         <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>
           <input
             value={mappingPrefix}
             onChange={(e) => setMappingPrefix(e.target.value)}
-            placeholder="前缀，例如 deepseek"
+            placeholder={t("settingsPage.mappingForm.phPrefix")}
             style={{
               flex: 0.5,
               background: "var(--panel-bg)",
@@ -754,7 +772,7 @@ export function SettingsPanel(props: Props) {
           <input
             value={mappingTarget}
             onChange={(e) => setMappingTarget(e.target.value)}
-            placeholder="目标基地址，例如 https://api.openai.com"
+            placeholder={t("settingsPage.mappingForm.phTarget")}
             style={{
               flex: 1.2,
               background: "var(--panel-bg)",
@@ -781,7 +799,7 @@ export function SettingsPanel(props: Props) {
               whiteSpace: "nowrap",
             }}
           >
-            新增 / 更新
+            {t("settingsPage.mappingForm.addOrUpdate")}
           </button>
         </div>
 
@@ -795,9 +813,13 @@ export function SettingsPanel(props: Props) {
           }}
         >
           {mappingLoading && mappings.length === 0 ? (
-            <div style={{ padding: "8px 10px", fontSize: 11, color: "var(--muted2)" }}>正在加载映射配置…</div>
+            <div style={{ padding: "8px 10px", fontSize: 11, color: "var(--muted2)" }}>
+              {t("settingsPage.mappingTable.loading")}
+            </div>
           ) : mappings.length === 0 ? (
-            <div style={{ padding: "8px 10px", fontSize: 11, color: "var(--muted2)" }}>暂无映射配置。</div>
+            <div style={{ padding: "8px 10px", fontSize: 11, color: "var(--muted2)" }}>
+              {t("settingsPage.mappingTable.empty")}
+            </div>
           ) : (
             <table
               style={{
@@ -808,12 +830,14 @@ export function SettingsPanel(props: Props) {
             >
               <thead>
                 <tr style={{ background: "var(--panel-bg)" }}>
-                  <th style={{ textAlign: "left", padding: "6px 10px", color: "var(--muted)", fontWeight: 500 }}>前缀</th>
                   <th style={{ textAlign: "left", padding: "6px 10px", color: "var(--muted)", fontWeight: 500 }}>
-                    目标基地址
+                    {t("settingsPage.mappingTable.colPrefix")}
                   </th>
                   <th style={{ textAlign: "left", padding: "6px 10px", color: "var(--muted)", fontWeight: 500 }}>
-                    本地网关地址（可复制）
+                    {t("settingsPage.mappingTable.colTarget")}
+                  </th>
+                  <th style={{ textAlign: "left", padding: "6px 10px", color: "var(--muted)", fontWeight: 500 }}>
+                    {t("settingsPage.mappingTable.colGw")}
                   </th>
                   <th style={{ width: 80 }}></th>
                 </tr>
@@ -832,7 +856,7 @@ export function SettingsPanel(props: Props) {
                         http://127.0.0.1:19111/{m.prefix}
                       </div>
                       <div style={{ fontSize: 10, color: "var(--muted2)", marginTop: 2 }}>
-                        可作为第三方应用的 Base URL
+                        {t("settingsPage.mappingTable.gwHint")}
                       </div>
                     </td>
                     <td
@@ -856,7 +880,7 @@ export function SettingsPanel(props: Props) {
                           cursor: mappingLoading ? "not-allowed" : "pointer",
                         }}
                       >
-                        删除
+                        {t("settingsPage.mappingTable.delete")}
                       </button>
                     </td>
                   </tr>
@@ -875,9 +899,11 @@ export function SettingsPanel(props: Props) {
           borderTop: "1px solid var(--panel-border)",
         }}
       >
-        <div style={{ fontSize: 13, fontWeight: 500, color: "var(--fg)", marginBottom: 6 }}>高级系统设置</div>
+        <div style={{ fontSize: 13, fontWeight: 500, color: "var(--fg)", marginBottom: 6 }}>
+          {t("settingsPage.advanced.title")}
+        </div>
         <p style={{ margin: "0 0 10px", fontSize: 12, color: "var(--muted2)", lineHeight: 1.5 }}>
-          用于本地联调/测试。开启后，云端 API Base 将切换为 <code style={{ color: "var(--fg)" }}>http://localhost:8080</code>。
+          {t("settingsPage.advanced.desc")}
         </p>
 
         <div
@@ -893,9 +919,11 @@ export function SettingsPanel(props: Props) {
           }}
         >
           <div style={{ minWidth: 0 }}>
-            <div style={{ fontSize: 12, fontWeight: 600, color: "var(--fg)" }}>测试模式（本地后端 8080）</div>
+            <div style={{ fontSize: 12, fontWeight: 600, color: "var(--fg)" }}>
+              {t("settingsPage.advanced.testTitle")}
+            </div>
             <div style={{ marginTop: 4, fontSize: 11, color: "var(--muted)", lineHeight: 1.5 }}>
-              当前：{" "}
+              {t("settingsPage.advanced.currentApi")}{" "}
               <span
                 style={{
                   fontFamily:
@@ -928,7 +956,7 @@ export function SettingsPanel(props: Props) {
                 opacity: apiBaseLoading ? 0.7 : 1,
                 flexShrink: 0,
               }}
-              title={isLocalBackend ? "已开启：使用 http://localhost:8080" : "已关闭：使用 https://api.clawheart.live"}
+              title={isLocalBackend ? t("settingsPage.advanced.toggleOn") : t("settingsPage.advanced.toggleOff")}
             >
               <span
                 style={{
@@ -943,10 +971,55 @@ export function SettingsPanel(props: Props) {
                 }}
               />
             </button>
-            <span style={{ fontSize: 11, color: "var(--muted)" }}>{isLocalBackend ? "已开启" : "已关闭"}</span>
+            <span style={{ fontSize: 11, color: "var(--muted)" }}>
+              {isLocalBackend ? t("settingsPage.state.on") : t("settingsPage.state.off")}
+            </span>
           </div>
         </div>
       </div>
+
+      {status?.auth?.email && onRequestLogout && (
+        <div
+          style={{
+            marginTop: 22,
+            paddingTop: 18,
+            borderTop: "1px solid var(--panel-border)",
+          }}
+        >
+          <div style={{ fontSize: 13, fontWeight: 600, color: "var(--fg)", marginBottom: 6 }}>
+            {t("settingsPage.account.title")}
+          </div>
+          <p style={{ margin: "0 0 14px", fontSize: 12, color: "var(--muted2)", lineHeight: 1.55, maxWidth: 560 }}>
+            {t("settingsPage.account.hint")}
+          </p>
+          <button
+            type="button"
+            onClick={onRequestLogout}
+            title={t("header.logout.title")}
+            style={{
+              padding: "10px 18px",
+              borderRadius: 12,
+              border: "1px solid rgba(248,113,113,0.45)",
+              background: "rgba(239,68,68,0.08)",
+              color: "#f87171",
+              fontSize: 13,
+              fontWeight: 700,
+              cursor: "pointer",
+              transition: "background 0.15s, border-color 0.15s, transform 0.15s",
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.background = "rgba(239,68,68,0.14)";
+              e.currentTarget.style.borderColor = "rgba(248,113,113,0.65)";
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.background = "rgba(239,68,68,0.08)";
+              e.currentTarget.style.borderColor = "rgba(248,113,113,0.45)";
+            }}
+          >
+            {t("header.logout.label")}
+          </button>
+        </div>
+      )}
       </>
       )}
 

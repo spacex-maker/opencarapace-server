@@ -135,10 +135,16 @@ function registerSecurityScanRoutes(app) {
     try {
       const { apiBase, headers } = await cloudAxiosConfig();
       if (!headers.Authorization) {
-        res.status(401).json({ error: { message: "请先登录云端账户后再获取安全扫描项。" } });
+        res.status(401).json({
+          error: {
+            code: "security_scan_login_items",
+            message: "请先登录云端账户后再获取安全扫描项。",
+          },
+        });
         return;
       }
-      const url = `${apiBase}/api/security-scan/items`;
+      const clientOs = encodeURIComponent(process.platform || "");
+      const url = `${apiBase}/api/security-scan/items?clientOs=${clientOs}`;
       const r = await axios.get(url, { headers, validateStatus: () => true });
       res.status(r.status).json(r.data);
     } catch (e) {
@@ -151,6 +157,7 @@ function registerSecurityScanRoutes(app) {
       const body = req.body || {};
       const baseContext = body.context != null ? String(body.context) : "";
       const requestedCodes = Array.isArray(body.itemCodes) ? body.itemCodes.map((c) => String(c)) : [];
+      const locale = body.locale != null ? String(body.locale).trim() : "";
 
       const privacy = await getSecurityScanPrivacy();
       const historyCodes = requestedCodes.filter((c) => c && c.startsWith(HISTORY_PREFIX));
@@ -198,7 +205,12 @@ function registerSecurityScanRoutes(app) {
       // 执行云端扫描前：需要云端鉴权
       const { apiBase, headers } = await cloudAxiosConfig();
       if (!headers.Authorization) {
-        res.status(401).json({ error: { message: "请先登录云端账户后再执行安全扫描。" } });
+        res.status(401).json({
+          error: {
+            code: "security_scan_login_scan",
+            message: "请先登录云端账户后再执行安全扫描。",
+          },
+        });
         return;
       }
 
@@ -259,7 +271,12 @@ function registerSecurityScanRoutes(app) {
 
       const r = await axios.post(
         url,
-        { itemCodes: allowedCodesForCloud, context: finalContext },
+        {
+          itemCodes: allowedCodesForCloud,
+          context: finalContext,
+          clientOs: process.platform || "",
+          locale,
+        },
         {
           headers: { ...headers, "Content-Type": "application/json" },
           validateStatus: () => true,
@@ -282,7 +299,12 @@ function registerSecurityScanRoutes(app) {
     try {
       const { apiBase, headers } = await cloudAxiosConfig();
       if (!headers.Authorization) {
-        res.status(401).json({ error: { message: "请先登录云端账户后再查看扫描历史。" } });
+        res.status(401).json({
+          error: {
+            code: "security_scan_login_history",
+            message: "请先登录云端账户后再查看扫描历史。",
+          },
+        });
         return;
       }
       const url = `${apiBase}/api/security-scan/runs`;
@@ -298,7 +320,12 @@ function registerSecurityScanRoutes(app) {
       const id = String(req.params.id || "").trim();
       const { apiBase, headers } = await cloudAxiosConfig();
       if (!headers.Authorization) {
-        res.status(401).json({ error: { message: "请先登录云端账户后再查看扫描记录。" } });
+        res.status(401).json({
+          error: {
+            code: "security_scan_login_run_detail",
+            message: "请先登录云端账户后再查看扫描记录。",
+          },
+        });
         return;
       }
       const url = `${apiBase}/api/security-scan/runs/${encodeURIComponent(id)}`;
@@ -314,6 +341,7 @@ function registerSecurityScanRoutes(app) {
       const body = req.body || {};
       const baseContext = body.context != null ? String(body.context) : "";
       const requestedCodes = Array.isArray(body.itemCodes) ? body.itemCodes.map((c) => String(c)) : [];
+      const locale = body.locale != null ? String(body.locale).trim() : "";
 
       const privacy = await getSecurityScanPrivacy();
       const historyCodes = requestedCodes.filter((c) => c && c.startsWith(HISTORY_PREFIX));
@@ -331,7 +359,12 @@ function registerSecurityScanRoutes(app) {
       // 执行云端扫描前：需要云端鉴权
       const { apiBase, headers } = await cloudAxiosConfig();
       if (!headers.Authorization) {
-        res.status(401).json({ error: { message: "请先登录云端账户后再执行安全扫描。" } });
+        res.status(401).json({
+          error: {
+            code: "security_scan_login_scan",
+            message: "请先登录云端账户后再执行安全扫描。",
+          },
+        });
         return;
       }
 
@@ -390,7 +423,12 @@ function registerSecurityScanRoutes(app) {
 
       const r = await axios.post(
         url,
-        { itemCodes: allowedCodesForCloud, context: finalContext },
+        {
+          itemCodes: allowedCodesForCloud,
+          context: finalContext,
+          clientOs: process.platform || "",
+          locale,
+        },
         {
           headers: { ...headers, "Content-Type": "application/json" },
           validateStatus: () => true,
@@ -432,7 +470,12 @@ async function getLocalStatus() {
   });
   const auth = await getLocalAuth();
   const llmRouteMode = await getLlmRouteMode();
-  return { ...counts, auth, llmRouteMode };
+  const platform = process.platform || "";
+  let platformLabel = "未知";
+  if (platform === "win32") platformLabel = "Windows";
+  else if (platform === "darwin") platformLabel = "macOS";
+  else if (platform) platformLabel = platform;
+  return { ...counts, auth, llmRouteMode, platform, platformLabel };
 }
 
 async function startServer() {
@@ -456,7 +499,7 @@ async function startServer() {
 
   app.get("/api/status", async (_req, res) => {
     try {
-      const { danger, disabled, deprecated, auth, llmRouteMode } = await getLocalStatus();
+      const { danger, disabled, deprecated, auth, llmRouteMode, platform, platformLabel } = await getLocalStatus();
       const settings = await getLocalSettings();
       res.status(200).json({
         danger,
@@ -465,6 +508,8 @@ async function startServer() {
         auth,
         settings,
         llmRouteMode,
+        platform,
+        platformLabel,
       });
     } catch (e) {
       res.status(500).json({ error: { message: e?.message ?? "读取本地状态失败" } });

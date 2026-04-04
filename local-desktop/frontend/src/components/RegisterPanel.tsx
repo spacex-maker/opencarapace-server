@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { LocalStatus } from "./Common";
-import { MdEmail, MdLock, MdShield } from "react-icons/md";
+import { MdEmail, MdLock, MdPerson, MdShield } from "react-icons/md";
 
 const pillRow: React.CSSProperties = {
   display: "flex",
@@ -26,30 +26,41 @@ const pillInput: React.CSSProperties = {
   fontSize: 14,
 };
 
-export function AuthPanel({
-  onLoggedIn,
-  onGoRegister,
+export function RegisterPanel({
+  onRegistered,
+  onGoLogin,
 }: {
-  onLoggedIn: (s: LocalStatus) => void;
-  onGoRegister?: () => void;
+  onRegistered: (s: LocalStatus) => void;
+  onGoLogin: () => void;
 }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [displayName, setDisplayName] = useState("");
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [emailFocus, setEmailFocus] = useState(false);
   const [passwordFocus, setPasswordFocus] = useState(false);
+  const [nameFocus, setNameFocus] = useState(false);
 
-  const handleLogin = async () => {
+  const handleRegister = async () => {
     setLoading(true);
     setMessage(null);
     setError(null);
+    if (password.length < 6) {
+      setError("密码至少 6 位");
+      setLoading(false);
+      return;
+    }
     try {
-      const res = await fetch("http://127.0.0.1:19111/api/auth/login", {
+      const res = await fetch("http://127.0.0.1:19111/api/auth/register", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: email.trim(), password }),
+        body: JSON.stringify({
+          email: email.trim(),
+          password,
+          displayName: displayName.trim() || undefined,
+        }),
       });
       const text = await res.text();
       let data: any = null;
@@ -58,23 +69,23 @@ export function AuthPanel({
         const jsonStr = firstBrace >= 0 ? text.slice(firstBrace) : text;
         data = JSON.parse(jsonStr);
       } catch {
-        setError(text.substring(0, 120) || "登录响应不是合法 JSON");
+        setError(text.substring(0, 120) || "注册响应不是合法 JSON");
         return;
       }
 
       if (!res.ok) {
-        setError(data?.error?.message || "登录失败");
+        setError(data?.error?.message || data?.message || "注册失败，该邮箱可能已被使用");
         return;
       }
 
       const shown = (data?.displayName && String(data.displayName).trim()) || data?.email || email;
-      setMessage(`登录成功：${shown}`);
+      setMessage(`注册成功：${shown}`);
       const statusRes = await fetch("http://127.0.0.1:19111/api/status");
       const statusData = await statusRes.json();
-      onLoggedIn(statusData);
+      onRegistered(statusData);
       setPassword("");
     } catch (e: any) {
-      setError(e?.message ?? "登录失败");
+      setError(e?.message ?? "注册失败");
     } finally {
       setLoading(false);
     }
@@ -135,7 +146,7 @@ export function AuthPanel({
               textAlign: "center",
             }}
           >
-            登录云端账户
+            注册云端账户
           </h1>
           <p
             style={{
@@ -147,24 +158,19 @@ export function AuthPanel({
               maxWidth: 320,
             }}
           >
-            使用与网页端相同的账号。Token 保存在本机，用于同步规则与偏好设置。
+            与网页端使用同一套接口。注册成功后自动登录并同步规则。
           </p>
         </div>
 
         <form
           onSubmit={(e) => {
             e.preventDefault();
-            if (!loading) void handleLogin();
+            if (!loading) void handleRegister();
           }}
           style={{ display: "flex", flexDirection: "column", gap: 14 }}
         >
           <div>
-            <div
-              style={{
-                ...pillRow,
-                ...rowFocusStyle(emailFocus),
-              }}
-            >
+            <div style={{ ...pillRow, ...rowFocusStyle(emailFocus) }}>
               <MdEmail style={{ fontSize: 20, color: "#64748b", flexShrink: 0 }} aria-hidden />
               <input
                 type="email"
@@ -175,26 +181,40 @@ export function AuthPanel({
                 onFocus={() => setEmailFocus(true)}
                 onBlur={() => setEmailFocus(false)}
                 style={pillInput}
+                required
               />
             </div>
           </div>
 
           <div>
-            <div
-              style={{
-                ...pillRow,
-                ...rowFocusStyle(passwordFocus),
-              }}
-            >
+            <div style={{ ...pillRow, ...rowFocusStyle(passwordFocus) }}>
               <MdLock style={{ fontSize: 20, color: "#64748b", flexShrink: 0 }} aria-hidden />
               <input
                 type="password"
-                autoComplete="current-password"
-                placeholder="密码"
+                autoComplete="new-password"
+                placeholder="密码（至少 6 位）"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 onFocus={() => setPasswordFocus(true)}
                 onBlur={() => setPasswordFocus(false)}
+                style={pillInput}
+                minLength={6}
+                required
+              />
+            </div>
+          </div>
+
+          <div>
+            <div style={{ ...pillRow, ...rowFocusStyle(nameFocus) }}>
+              <MdPerson style={{ fontSize: 20, color: "#64748b", flexShrink: 0 }} aria-hidden />
+              <input
+                type="text"
+                autoComplete="nickname"
+                placeholder="昵称（选填）"
+                value={displayName}
+                onChange={(e) => setDisplayName(e.target.value)}
+                onFocus={() => setNameFocus(true)}
+                onBlur={() => setNameFocus(false)}
                 style={pillInput}
               />
             </div>
@@ -221,38 +241,36 @@ export function AuthPanel({
               transition: "opacity 0.15s, transform 0.15s",
             }}
           >
-            {loading ? "登录中…" : "登录"}
+            {loading ? "注册中…" : "注册并登录"}
           </button>
         </form>
 
-        {onGoRegister && (
-          <p
+        <p
+          style={{
+            marginTop: 22,
+            textAlign: "center",
+            fontSize: 13,
+            color: "#94a3b8",
+          }}
+        >
+          已有账号？{" "}
+          <button
+            type="button"
+            onClick={onGoLogin}
             style={{
-              marginTop: 22,
-              textAlign: "center",
-              fontSize: 13,
-              color: "#94a3b8",
+              background: "none",
+              border: "none",
+              padding: 0,
+              color: "#4ade80",
+              fontWeight: 700,
+              cursor: "pointer",
+              textDecoration: "underline",
+              textUnderlineOffset: 3,
             }}
           >
-            没有账号？{" "}
-            <button
-              type="button"
-              onClick={onGoRegister}
-              style={{
-                background: "none",
-                border: "none",
-                padding: 0,
-                color: "#4ade80",
-                fontWeight: 700,
-                cursor: "pointer",
-                textDecoration: "underline",
-                textUnderlineOffset: 3,
-              }}
-            >
-              注册
-            </button>
-          </p>
-        )}
+            去登录
+          </button>
+        </p>
 
         {message && (
           <div

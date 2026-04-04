@@ -99,7 +99,7 @@ npm run rebuild:native
 
 ### 应用图标
 
-安装包与快捷方式使用 `build/icon.png`（由 electron-builder 生成各平台图标）。请勿删除该文件；更换品牌图时替换同名 PNG 后重新打包即可。
+**只维护一张图：`build/icon.png`**（主窗口、electron-builder、安装向导同源）。Windows 下 NSIS 需要 ICO，打包脚本会自动执行 `npm run sync-brand-icon` 生成 `build/icon.ico`（勿手改、勿提交过期的独立 ICO 覆盖流程）。
 
 ### OpenClaw 依赖
 

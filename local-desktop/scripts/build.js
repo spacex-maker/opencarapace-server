@@ -4,11 +4,13 @@ const os = require("os");
 const path = require("path");
 
 const rootDir = path.join(__dirname, "..");
+const brand = require("./brand-icon-paths");
 
 /** Windows 上 electron-builder 从 bundled 直拷 node.exe 时易出现 EBUSY；先拷到 %TEMP% 再作为 extraResources 来源 */
 let stagedBundledNodePath = null;
 /** 程序化传入的 config 会与 package.json 的 build 做 deepAssign，数组会 concat，导致 win.extraResources 仍含 bundled/node.exe；Windows 下改为写入临时 JSON 并以路径交给 build()，避免合并 */
 let generatedEbConfigPath = null;
+/** 勿对 NSIS 的 Setup*.exe 使用 rcedit/set-icon：会重写 PE 并丢掉尾部 overlay，安装包只剩几百 KB 且无法安装 */
 
 function sleepSync(ms) {
   const end = Date.now() + ms;
@@ -124,6 +126,37 @@ if (process.platform === "win32") {
   }
 }
 
+// 删掉曾手动放置的 NSIS 专用 ico，避免覆盖「从 icon.png 生成的 icon.ico」逻辑
+if (process.platform === "win32") {
+  const staleNsisIcons = ["installerIcon.ico", "uninstallerIcon.ico", "installerHeaderIcon.ico"];
+  const bd = path.join(rootDir, "build");
+  for (const name of staleNsisIcons) {
+    const p = path.join(bd, name);
+    if (fs.existsSync(p)) {
+      try {
+        fs.unlinkSync(p);
+        console.log(`   已移除过时资源: build/${name}`);
+      } catch {
+        // ignore
+      }
+    }
+  }
+  console.log(`\n4b-brand. 唯一品牌图 ${brand.relPng} → ${brand.relIco}（NSIS 等需 ICO）...`);
+  try {
+    execSync("node scripts/sync-brand-icon-from-png.js", { cwd: rootDir, stdio: "inherit" });
+  } catch (e) {
+    console.error("   ✗ 同步品牌 ICO 失败");
+    process.exit(1);
+  }
+  console.log("\n4b-nsis-patch. 修补 electron-builder NSIS 模板（MUI2 后注入 Icon，去掉安装包绿盾）...");
+  try {
+    execSync("node scripts/patch-nsis-installer-template.js", { cwd: rootDir, stdio: "inherit" });
+  } catch (e) {
+    console.error("   ✗ patch-nsis-installer-template 失败");
+    process.exit(1);
+  }
+}
+
 // 6. 打包
 console.log("\n5. 开始打包 Electron 应用（Windows）...");
 const buildStamp = new Date().toISOString().replace(/[:.]/g, "-");
@@ -155,15 +188,48 @@ function buildElectronConfig() {
     config.files = files;
   }
 
-  if (process.platform === "win32" && stagedBundledNodePath) {
+  if (process.platform === "win32") {
     config.win = JSON.parse(JSON.stringify(config.win || {}));
-    const keep = (config.win.extraResources || []).filter(
-      (r) => r && String(r.to) !== "node.exe"
+    config.icon = brand.relPng;
+    // 官方 Windows 链路透传多尺寸 ICO；与 PNG 同源，sync-brand 已生成
+    config.win.icon = brand.relIco;
+    config.win.signAndEditExecutable = true;
+    const files = [...(config.files || [])];
+    for (const f of ["build/icon.ico", "build/electron-brand.json"]) {
+      const norm = (s) => String(s).replace(/\\/g, "/");
+      if (!files.some((e) => norm(e) === f)) files.push(f);
+    }
+    config.files = files;
+    const unpack = new Set([
+      ...(config.asarUnpack || []),
+      "build/icon.png",
+      "build/icon.ico",
+      "build/electron-brand.json",
+    ]);
+    config.asarUnpack = [...unpack];
+    const metaPath = path.join(rootDir, "build", "electron-brand.json");
+    fs.mkdirSync(path.dirname(metaPath), { recursive: true });
+    fs.writeFileSync(
+      metaPath,
+      JSON.stringify({ appUserModelId: config.appId || pkg.build.appId }, null, 2),
+      "utf8"
     );
-    config.win.extraResources = [
-      ...keep,
-      { from: stagedBundledNodePath, to: "node.exe" },
-    ];
+    config.nsis = {
+      ...(config.nsis || {}),
+      include: "scripts/nsis/refresh-shortcut-icons.nsh",
+      installerIcon: brand.relIco,
+      uninstallerIcon: brand.relIco,
+      installerHeaderIcon: brand.relIco,
+    };
+    if (stagedBundledNodePath) {
+      const keep = (config.win.extraResources || []).filter(
+        (r) => r && String(r.to) !== "node.exe"
+      );
+      config.win.extraResources = [
+        ...keep,
+        { from: stagedBundledNodePath, to: "node.exe" },
+      ];
+    }
   }
 
   return config;
@@ -183,6 +249,8 @@ async function runPack() {
   const winTarget = buildType === "dir" ? "dir" : "nsis";
   let configArg = config;
   if (process.platform === "win32") {
+    // 避免可执行文件缓存沿用旧 rcedit 结果导致图标不更新
+    process.env.ELECTRON_BUILDER_DISABLE_BUILD_CACHE = "true";
     generatedEbConfigPath = path.join(
       os.tmpdir(),
       `clawheart-electron-builder-${process.pid}-${Date.now()}.json`

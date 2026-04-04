@@ -3,6 +3,7 @@ import { LocalStatus } from "./types";
 import { OverviewPanel } from "./components/OverviewPanel";
 import { SkillsPanel } from "./components/SkillsPanel";
 import { AuthPanel } from "./components/AuthPanel";
+import { RegisterPanel } from "./components/RegisterPanel";
 import { SettingsPanel } from "./components/SettingsPanel";
 import { OpenClawPanel } from "./components/OpenClawPanel";
 import { InterceptLogsPanel } from "./components/InterceptLogsPanel";
@@ -46,6 +47,7 @@ export function App() {
   const lastAuthEmailRef = useRef<string | null>(null);
   const [logoutConfirmOpen, setLogoutConfirmOpen] = useState(false);
   const [logoutSubmitting, setLogoutSubmitting] = useState(false);
+  const [authSubView, setAuthSubView] = useState<"login" | "register">("login");
   const [theme, setTheme] = useState<"dark" | "light">(() => {
     try {
       const v = localStorage.getItem("oc_theme");
@@ -62,6 +64,10 @@ export function App() {
       // ignore
     }
   }, [theme]);
+
+  useEffect(() => {
+    if (activeTab !== "auth") setAuthSubView("login");
+  }, [activeTab]);
 
   useEffect(() => {
     const load = async () => {
@@ -204,6 +210,7 @@ export function App() {
 
   const handleLoggedIn = (s: LocalStatus) => {
     setStatus(s);
+    setAuthSubView("login");
     setActiveTab("overview");
   };
 
@@ -605,25 +612,51 @@ export function App() {
             </button>
 
             {!status?.auth?.email ? (
-              <button
-                type="button"
-                title="登录云端账户"
-                onClick={() => setActiveTab("auth")}
-                style={{
-                  height: 34,
-                  padding: "0 12px",
-                  borderRadius: 12,
-                  border: "none",
-                  background: "linear-gradient(135deg, #22c55e, #16a34a)",
-                  color: "#022c22",
-                  fontSize: 12,
-                  fontWeight: 900,
-                  cursor: "pointer",
-                  boxShadow: "0 2px 10px rgba(34,197,94,0.22)",
-                }}
-              >
-                登录
-              </button>
+              <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                <button
+                  type="button"
+                  title="登录云端账户"
+                  onClick={() => {
+                    setAuthSubView("login");
+                    setActiveTab("auth");
+                  }}
+                  style={{
+                    height: 34,
+                    padding: "0 12px",
+                    borderRadius: 12,
+                    border: "none",
+                    background: "linear-gradient(135deg, #22c55e, #16a34a)",
+                    color: "#022c22",
+                    fontSize: 12,
+                    fontWeight: 900,
+                    cursor: "pointer",
+                    boxShadow: "0 2px 10px rgba(34,197,94,0.22)",
+                  }}
+                >
+                  登录
+                </button>
+                <button
+                  type="button"
+                  title="注册云端账户"
+                  onClick={() => {
+                    setAuthSubView("register");
+                    setActiveTab("auth");
+                  }}
+                  style={{
+                    height: 34,
+                    padding: "0 12px",
+                    borderRadius: 12,
+                    border: "1px solid var(--btn-border)",
+                    background: "var(--btn-bg)",
+                    color: "var(--fg)",
+                    fontSize: 12,
+                    fontWeight: 800,
+                    cursor: "pointer",
+                  }}
+                >
+                  注册
+                </button>
+              </div>
             ) : (
               <button
                 type="button"
@@ -673,7 +706,12 @@ export function App() {
         {activeTab === "openclaw" && <OpenClawPanel />}
         {activeTab === "agentMgmt" && <AgentMgmtPanel />}
         {activeTab === "settings" && <SettingsPanel onApiBaseChanged={refreshStatus} status={status} />}
-        {activeTab === "auth" && <AuthPanel onLoggedIn={handleLoggedIn} />}
+        {activeTab === "auth" &&
+          (authSubView === "register" ? (
+            <RegisterPanel onRegistered={handleLoggedIn} onGoLogin={() => setAuthSubView("login")} />
+          ) : (
+            <AuthPanel onLoggedIn={handleLoggedIn} onGoRegister={() => setAuthSubView("register")} />
+          ))}
       </div>
 
       {/* 右下角服务器连接状态 */}

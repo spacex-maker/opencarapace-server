@@ -1,17 +1,25 @@
 import { Link } from "react-router-dom";
-import { Apple, ChevronDown, Download, ExternalLink, Monitor, Shield, Zap } from "lucide-react";
-import { useMemo, useState } from "react";
+import { Apple, ChevronDown, Download, ExternalLink, Monitor, Shield, Zap, Cpu } from "lucide-react";
+import React, { useMemo, useState } from "react";
 import { useTheme } from "../contexts/ThemeContext";
 import { useAuth } from "../contexts/AuthContext";
+
+type MacDownloadVariant = {
+  label: string;
+  hint: string;
+  href: string;
+};
 
 type DownloadTarget = {
   id: "windows" | "mac";
   title: string;
   subtitle: string;
   badge: string;
-  icon: any;
+  icon: React.ElementType;
+  /** Windows 单包 */
   href?: string;
-  secondaryHref?: string;
+  /** macOS：Intel / Apple Silicon 分包 */
+  macVariants?: MacDownloadVariant[];
 };
 
 function isNonEmptyUrl(v: unknown): v is string {
@@ -27,20 +35,48 @@ function normalizeMaybeUrl(v: unknown): string | undefined {
 const DEFAULT_WIN_DOWNLOAD_URL =
   "https://public-1258150206.cos.ap-nanjing.myqcloud.com/ClawHeart%20Desktop%20Setup%200.1.0.exe";
 
+const DEFAULT_MAC_INTEL_DMG =
+  "https://download.anxin.anakkix.cn/ClawHeart%20Desktop-0.1.0.dmg";
+const DEFAULT_MAC_ARM64_DMG =
+  "https://download.anxin.anakkix.cn/ClawHeart%20Desktop-0.1.0-arm64.dmg";
+
 export function DownloadPage() {
   const { theme, toggleTheme } = useTheme();
   const { isAuthenticated, user, logout } = useAuth();
 
   const winUrlFromEnv = normalizeMaybeUrl((import.meta as any).env?.VITE_DESKTOP_DOWNLOAD_WIN_URL);
   const winUrl = winUrlFromEnv || DEFAULT_WIN_DOWNLOAD_URL;
+  const macIntelUrl =
+    normalizeMaybeUrl((import.meta as any).env?.VITE_DESKTOP_DOWNLOAD_MAC_INTEL_URL) || DEFAULT_MAC_INTEL_DMG;
+  const macArm64Url =
+    normalizeMaybeUrl((import.meta as any).env?.VITE_DESKTOP_DOWNLOAD_MAC_ARM64_URL) || DEFAULT_MAC_ARM64_DMG;
   const releaseNotesUrl = normalizeMaybeUrl((import.meta as any).env?.VITE_DESKTOP_RELEASE_NOTES_URL);
+
+  const macVariants: MacDownloadVariant[] = useMemo(() => {
+    const out: MacDownloadVariant[] = [];
+    if (isNonEmptyUrl(macIntelUrl)) {
+      out.push({
+        label: "Intel 芯片",
+        hint: "适用于采用 Intel 处理器的 Mac",
+        href: macIntelUrl.trim(),
+      });
+    }
+    if (isNonEmptyUrl(macArm64Url)) {
+      out.push({
+        label: "Apple Silicon",
+        hint: "适用于采用 M 系列芯片的 Mac",
+        href: macArm64Url.trim(),
+      });
+    }
+    return out;
+  }, [macIntelUrl, macArm64Url]);
 
   const targets: DownloadTarget[] = useMemo(
     () => [
       {
         id: "windows",
         title: "Windows",
-        subtitle: "Windows 10/11（x64）",
+        subtitle: "Windows 10 / 11 (64位)",
         badge: "推荐版本",
         icon: Monitor,
         href: winUrl,
@@ -48,13 +84,13 @@ export function DownloadPage() {
       {
         id: "mac",
         title: "macOS",
-        subtitle: "Intel / Apple Silicon（筹备中）",
-        badge: "敬请期待",
+        subtitle: "macOS 12.0+ · 请根据本机芯片架构选择",
+        badge: macVariants.length > 0 ? "双架构支持" : "敬请期待",
         icon: Apple,
-        href: undefined,
+        macVariants: macVariants.length > 0 ? macVariants : undefined,
       },
     ],
-    [winUrl],
+    [winUrl, macVariants],
   );
 
   const [openFaq, setOpenFaq] = useState<null | "gate" | "openclaw" | "trust">("gate");
@@ -191,25 +227,24 @@ export function DownloadPage() {
 
             {/* 右侧下载卡片 */}
             <div className="lg:col-span-7 lg:pl-10">
-              <div className="grid sm:grid-cols-2 gap-5 relative">
+              <div className="grid sm:grid-cols-2 gap-6 relative">
                 
-                {/* 推荐下载 (Windows) */}
                 {targets.map((t) => {
                   const Icon = t.icon;
-                  const isAvailable = !!t.href;
+                  const isAvailable = !!(t.href || (t.macVariants && t.macVariants.length > 0));
                   
                   return (
                     <div
                       key={t.id}
-                      className={`relative group rounded-3xl border p-6 flex flex-col justify-between transition-all duration-300
+                      className={`relative group rounded-[24px] border p-7 flex flex-col justify-between transition-all duration-300
                         ${isAvailable 
-                          ? "bg-white dark:bg-slate-900 border-brand-500/30 dark:border-brand-500/20 shadow-xl shadow-brand-500/5 hover:shadow-brand-500/15 hover:-translate-y-1" 
+                          ? "bg-white dark:bg-slate-900/80 border-brand-500/20 dark:border-brand-500/20 shadow-xl shadow-brand-500/5 hover:shadow-brand-500/10 hover:-translate-y-1" 
                           : "bg-slate-50/50 dark:bg-slate-900/20 border-slate-200 dark:border-slate-800/50 opacity-80"}
                       `}
                     >
                       {/* 可用时的辉光背景 */}
                       {isAvailable && (
-                        <div className="absolute inset-0 bg-gradient-to-br from-brand-500/5 to-transparent rounded-3xl pointer-events-none" />
+                        <div className="absolute inset-0 bg-gradient-to-br from-brand-500/[0.03] to-transparent rounded-[24px] pointer-events-none" />
                       )}
 
                       <div>
@@ -229,21 +264,21 @@ export function DownloadPage() {
                         </div>
 
                         <div className="relative z-10">
-                          <h3 className="text-xl font-bold text-slate-900 dark:text-white">{t.title}</h3>
-                          <p className="text-sm font-medium text-slate-500 dark:text-slate-400 mt-1">{t.subtitle}</p>
+                          <h3 className="text-2xl font-bold text-slate-900 dark:text-white">{t.title}</h3>
+                          <p className="text-sm font-medium text-slate-500 dark:text-slate-400 mt-1.5">{t.subtitle}</p>
                         </div>
 
                         <ul className="mt-6 space-y-3 relative z-10">
                           <li className="flex items-start gap-2.5 text-[13px] font-medium text-slate-600 dark:text-slate-400">
-                            <span className={`mt-1 h-1.5 w-1.5 rounded-full shrink-0 ${isAvailable ? "bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]" : "bg-slate-300 dark:bg-slate-600"}`} />
+                            <span className={`mt-1.5 h-1.5 w-1.5 rounded-full shrink-0 ${isAvailable ? "bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]" : "bg-slate-300 dark:bg-slate-600"}`} />
                             提供本地 OpenAI 兼容接口
                           </li>
                           <li className="flex items-start gap-2.5 text-[13px] font-medium text-slate-600 dark:text-slate-400">
-                            <span className={`mt-1 h-1.5 w-1.5 rounded-full shrink-0 ${isAvailable ? "bg-violet-500" : "bg-slate-300 dark:bg-slate-600"}`} />
+                            <span className={`mt-1.5 h-1.5 w-1.5 rounded-full shrink-0 ${isAvailable ? "bg-violet-500" : "bg-slate-300 dark:bg-slate-600"}`} />
                             内置 OpenClaw 网关引擎
                           </li>
                           <li className="flex items-start gap-2.5 text-[13px] font-medium text-slate-600 dark:text-slate-400">
-                            <span className={`mt-1 h-1.5 w-1.5 rounded-full shrink-0 ${isAvailable ? "bg-sky-500" : "bg-slate-300 dark:bg-slate-600"}`} />
+                            <span className={`mt-1.5 h-1.5 w-1.5 rounded-full shrink-0 ${isAvailable ? "bg-sky-500" : "bg-slate-300 dark:bg-slate-600"}`} />
                             云端策略实时联动与拦截
                           </li>
                         </ul>
@@ -251,22 +286,59 @@ export function DownloadPage() {
 
                       <div className="mt-8 relative z-10">
                         {isAvailable ? (
-                          <a
-                            href={t.href}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="w-full inline-flex items-center justify-center gap-2 px-4 py-3.5 rounded-xl bg-brand-600 text-white dark:bg-brand-500 text-sm font-bold shadow-md shadow-brand-500/20 hover:bg-brand-700 dark:hover:bg-brand-400 transition-colors"
-                          >
-                            <Download className="w-4 h-4" />
-                            立即下载 {t.title} 版
-                          </a>
+                          t.macVariants && t.macVariants.length > 0 ? (
+                            <div className="space-y-2.5">
+                              {t.macVariants.map((v) => (
+                                <a
+                                  key={v.href}
+                                  href={v.href}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="group/btn flex items-center justify-between p-3.5 rounded-xl border border-slate-200 dark:border-slate-700/60 bg-slate-50/50 hover:bg-white dark:bg-slate-800/40 dark:hover:bg-slate-800 transition-all hover:shadow-sm hover:border-brand-500/30 dark:hover:border-brand-500/30"
+                                >
+                                  <div className="flex items-center gap-3.5">
+                                    <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-white dark:bg-slate-900 shadow-sm border border-slate-200/60 dark:border-slate-700/60 text-slate-500 dark:text-slate-400 group-hover/btn:text-brand-500 dark:group-hover/btn:text-brand-400 transition-colors">
+                                      <Cpu className="w-4 h-4" />
+                                    </div>
+                                    <div className="text-left">
+                                      <div className="text-[13px] font-bold text-slate-900 dark:text-white leading-tight">
+                                        {v.label}
+                                      </div>
+                                      <div className="text-[11px] font-medium text-slate-500 dark:text-slate-400 mt-1">
+                                        {v.hint}
+                                      </div>
+                                    </div>
+                                  </div>
+                                  <div className="flex h-7 w-7 items-center justify-center rounded-full bg-brand-50 dark:bg-brand-500/10 text-brand-600 dark:text-brand-400 opacity-0 -translate-x-2 group-hover/btn:opacity-100 group-hover/btn:translate-x-0 transition-all">
+                                    <Download className="w-3.5 h-3.5" />
+                                  </div>
+                                </a>
+                              ))}
+                            </div>
+                          ) : t.href ? (
+                            <div className="flex flex-col">
+                              <a
+                                href={t.href}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="w-full group/btn flex items-center justify-center gap-2 px-4 py-3.5 rounded-xl bg-gradient-to-r from-brand-600 to-brand-500 hover:from-brand-500 hover:to-brand-400 text-white text-[14px] font-bold shadow-lg shadow-brand-500/25 hover:shadow-brand-500/40 transition-all hover:-translate-y-0.5"
+                              >
+                                <Download className="w-4 h-4 transition-transform group-hover/btn:-translate-y-0.5" />
+                                立即下载 {t.title} 版
+                              </a>
+                              <div className="mt-3 text-center text-[12px] font-medium text-slate-500 dark:text-slate-400">
+                                包含完整的 x64 架构安装包
+                              </div>
+                            </div>
+                          ) : null
                         ) : (
                           <button
+                            type="button"
                             disabled
                             className="w-full inline-flex items-center justify-center gap-2 px-4 py-3.5 rounded-xl bg-slate-100 text-slate-400 dark:bg-slate-800/50 dark:text-slate-500 text-sm font-bold cursor-not-allowed"
                           >
                             <Apple className="w-4 h-4" />
-                            macOS 版本筹备中
+                            macOS 下载暂不可用
                           </button>
                         )}
                       </div>
@@ -296,7 +368,10 @@ export function DownloadPage() {
               
               <div className="space-y-6">
                 {[
-                  { title: "下载并安装", desc: "双击运行下载好的 ClawHeart Desktop 安装程序。" },
+                  {
+                    title: "下载并安装",
+                    desc: "Windows：运行安装程序完成向导。macOS：打开 DMG，将 ClawHeart Desktop 拖入「应用程序」文件夹。",
+                  },
                   { title: "账号同步", desc: "在控制台中登录你的云端账号，自动拉取最新的技能与拦截规则库。" },
                   { title: "配置 SDK", desc: <>在你的 Agent 框架或 OpenAI SDK 中，将 Base URL 替换为 <code className="px-2 py-1 mx-1 rounded-md bg-slate-100 dark:bg-slate-800 text-brand-600 dark:text-brand-400 text-xs font-mono font-bold">http://127.0.0.1:19111/v1</code></> },
                 ].map((step, idx) => (

@@ -11,6 +11,7 @@
     "postinstall": "node scripts/setup-openclaw.js",
     "rebuild:native": "electron-builder install-app-deps",
     "ensure-node": "node scripts/ensure-bundled-node.js",
+    "sync-brand-icon": "node scripts/sync-brand-icon-from-png.js",
     "build": "node scripts/build.js",
     "build:win-no-openclaw": "node scripts/build.js no-openclaw",
     "build:win-no-openclaw-dir": "node scripts/build.js no-openclaw dir",
@@ -30,9 +31,10 @@
     "concurrently": "^9.2.1",
     "cross-env": "^7.0.3",
     "electron": "^31.0.0",
-    "electron-builder": "^25.1.8"
+    "electron-builder": "^25.1.8",
+    "png2icons": "^2.0.1"
   },
-    "build": {
+  "build": {
     "appId": "com.clawheart.desktop",
     "productName": "ClawHeart Desktop",
     "icon": "build/icon.png",
@@ -47,15 +49,19 @@
       "src/**/*",
       "frontend/dist/**/*",
       "build/icon.png",
+      "build/icon.ico",
       "scripts/**/*",
       "node_modules/**/*",
       "package.json"
     ],
     "win": {
+      "signAndEditExecutable": true,
       "target": [
         {
           "target": "nsis",
-          "arch": ["x64"]
+          "arch": [
+            "x64"
+          ]
         }
       ],
       "extraResources": [
@@ -67,8 +73,20 @@
     },
     "mac": {
       "target": [
-        { "target": "dmg", "arch": ["x64", "arm64"] },
-        { "target": "zip", "arch": ["x64", "arm64"] }
+        {
+          "target": "dmg",
+          "arch": [
+            "x64",
+            "arm64"
+          ]
+        },
+        {
+          "target": "zip",
+          "arch": [
+            "x64",
+            "arm64"
+          ]
+        }
       ],
       "category": "public.app-category.utilities",
       "hardenedRuntime": true,
@@ -77,15 +95,21 @@
     "nsis": {
       "oneClick": false,
       "allowToChangeInstallationDirectory": true,
+      "include": "scripts/nsis/refresh-shortcut-icons.nsh",
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
-      "shortcutName": "ClawHeart Desktop"
+      "shortcutName": "ClawHeart Desktop",
+      "installerIcon": "build/icon.ico",
+      "uninstallerIcon": "build/icon.ico",
+      "installerHeaderIcon": "build/icon.ico"
     },
     "extraResources": [
       {
         "from": "node_modules/openclaw",
         "to": "openclaw",
-        "filter": ["**/*"]
+        "filter": [
+          "**/*"
+        ]
       }
     ]
   }

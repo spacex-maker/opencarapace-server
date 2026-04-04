@@ -16,13 +16,65 @@ function getRendererIndexPath() {
   return path.join(__dirname, "..", "frontend", "dist", "index.html");
 }
 
-function getAppIconPath() {
+function getPackagedUnpackedRoot() {
+  if (!app.isPackaged) return null;
+  const ap = app.getAppPath();
+  return ap.toLowerCase().endsWith(".asar") ? `${ap}.unpacked` : ap;
+}
+
+function getWindowsAppUserModelId() {
+  const devRoot = path.join(__dirname, "..");
+  const candidates = [];
   if (app.isPackaged) {
-    const p = path.join(app.getAppPath(), "build", "icon.png");
-    if (fs.existsSync(p)) return p;
+    const up = getPackagedUnpackedRoot();
+    if (up) candidates.push(path.join(up, "build", "electron-brand.json"));
+    candidates.push(path.join(app.getAppPath(), "build", "electron-brand.json"));
+  } else {
+    candidates.push(path.join(devRoot, "build", "electron-brand.json"));
   }
-  const dev = path.join(__dirname, "..", "build", "icon.png");
-  if (fs.existsSync(dev)) return dev;
+  for (const meta of candidates) {
+    try {
+      if (fs.existsSync(meta)) {
+        const j = JSON.parse(fs.readFileSync(meta, "utf8"));
+        if (j.appUserModelId) return j.appUserModelId;
+      }
+    } catch {
+      /* ignore */
+    }
+  }
+  try {
+    return require(path.join(devRoot, "package.json")).build?.appId || "com.clawheart.desktop";
+  } catch {
+    return "com.clawheart.desktop";
+  }
+}
+
+/** 窗口图标：build/icon.ico（Windows 优先）与 build/icon.png 同源 */
+function getAppIconPath() {
+  const devRoot = path.join(__dirname, "..");
+  const winFirst = process.platform === "win32";
+  const rels = winFirst
+    ? [["build", "icon.ico"], ["build", "icon.png"]]
+    : [["build", "icon.png"], ["build", "icon.ico"]];
+
+  if (!app.isPackaged) {
+    for (const segs of rels) {
+      const p = path.join(devRoot, ...segs);
+      if (fs.existsSync(p)) return p;
+    }
+    return undefined;
+  }
+
+  const unpacked = getPackagedUnpackedRoot();
+  const roots = [];
+  if (unpacked) roots.push(unpacked);
+  roots.push(app.getAppPath());
+  for (const root of roots) {
+    for (const segs of rels) {
+      const p = path.join(root, ...segs);
+      if (fs.existsSync(p)) return p;
+    }
+  }
   return undefined;
 }
 
@@ -98,7 +150,12 @@ async function createWindow() {
   });
 }
 
-app.whenReady().then(() => createWindow().catch(logFatal));
+app.whenReady().then(() => {
+  if (process.platform === "win32") {
+    app.setAppUserModelId(getWindowsAppUserModelId());
+  }
+  return createWindow();
+}).catch(logFatal);
 
 app.on("window-all-closed", () => {
   if (process.platform !== "darwin") {

@@ -138,12 +138,22 @@ export const DashboardPage = () => {
   const [granularity, setGranularity] = useState<"minute" | "hour" | "day" | "week" | "month">("hour");
 
   const extractErrorMessage = (e: unknown, fallback: string) => {
-    const msg =
-      e && typeof e === "object" && "response" in e
-        ? (e as { response?: { data?: { message?: string; error?: string } } }).response?.data?.message ||
-          (e as { response?: { data?: { message?: string; error?: string } } }).response?.data?.error
-        : null;
-    return msg || fallback;
+    if (!e || typeof e !== "object" || !("response" in e)) return fallback;
+    const res = (e as { response?: { status?: number; data?: unknown } }).response;
+    const status = res?.status;
+    const data = res?.data;
+    let body = "";
+    if (typeof data === "string") body = data.trim();
+    else if (data && typeof data === "object") {
+      const o = data as Record<string, unknown>;
+      if (typeof o.message === "string") body = o.message;
+      else if (typeof o.error === "string") body = o.error;
+      else if (o.error && typeof o.error === "object" && typeof (o.error as { message?: string }).message === "string") {
+        body = String((o.error as { message: string }).message);
+      }
+    }
+    const prefix = typeof status === "number" ? `${status} ` : "";
+    return (prefix + (body || fallback)).trim() || fallback;
   };
 
   const loadSkills = async () => {

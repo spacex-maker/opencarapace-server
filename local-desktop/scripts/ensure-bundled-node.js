@@ -2,7 +2,8 @@
 /**
  * 打包前下载官方 Node.js 二进制，供 OpenClaw 子进程使用（不依赖用户本机 Node）。
  *
- * - Windows：bundled/win-x64/node.exe → 安装包 resources/node.exe（见 package.json win.extraResources）
+ * - Windows x64：bundled/win-x64/node.exe → 安装包 resources/node.exe
+ * - Windows 32 位：bundled/win-ia32/node.exe（官方包名为 win-x86；打包时传参 ia32，见 scripts/build.js）
  * - macOS：bundled/darwin-{x64,arm64}/bin/node → 由 scripts/after-pack.js 写入 .app/Contents/Resources/node
  *
  * 版本需与 node-manager.js 中 NODE_VERSION 保持一致；且须满足 openclaw（例如 Node >= 22.16.0）。
@@ -108,10 +109,15 @@ function download(url, dest) {
   });
 }
 
-async function ensureWinNode() {
-  const outDir = path.join(rootDir, "bundled", "win-x64");
+/**
+ * @param {"x64" | "ia32"} arch  ia32 对应官方 dist 中的 win-x86 包
+ */
+async function ensureWinNode(arch) {
+  const distTag = arch === "ia32" ? "win-x86" : "win-x64";
+  const bundleFolder = arch === "ia32" ? "win-ia32" : "win-x64";
+  const outDir = path.join(rootDir, "bundled", bundleFolder);
   const nodeExe = path.join(outDir, "node.exe");
-  const zipName = `node-v${NODE_VERSION}-win-x64.zip`;
+  const zipName = `node-v${NODE_VERSION}-${distTag}.zip`;
   const zipPath = path.join(outDir, zipName);
   const distUrl = `https://nodejs.org/dist/v${NODE_VERSION}/${zipName}`;
 
@@ -129,7 +135,7 @@ async function ensureWinNode() {
   }
 
   fs.mkdirSync(outDir, { recursive: true });
-  console.log("[ensure-bundled-node] 正在下载 Node.js", NODE_VERSION, "win-x64 ...");
+  console.log("[ensure-bundled-node] 正在下载 Node.js", NODE_VERSION, distTag, "...");
   console.log("[ensure-bundled-node]", distUrl);
   await download(distUrl, zipPath);
 
@@ -147,7 +153,7 @@ async function ensureWinNode() {
     { stdio: "inherit" }
   );
 
-  const innerExe = path.join(extractDir, `node-v${NODE_VERSION}-win-x64`, "node.exe");
+  const innerExe = path.join(extractDir, `node-v${NODE_VERSION}-${distTag}`, "node.exe");
   if (!fs.existsSync(innerExe)) {
     throw new Error(`解压后未找到: ${innerExe}`);
   }
@@ -231,9 +237,13 @@ function resolveTarget() {
 }
 
 async function main() {
+  /** 可选命令行参数：`ia32` 表示下载 Windows 32 位 Node 到 bundled/win-ia32（供 32 位安装包使用） */
+  const winArchArg = process.argv[2];
+  const winBundleArch = winArchArg === "ia32" ? "ia32" : "x64";
+
   const target = resolveTarget();
   if (target === "win32") {
-    await ensureWinNode();
+    await ensureWinNode(winBundleArch);
   } else if (target === "darwin") {
     const raw = process.env.BUNDLE_NODE_ARCHS;
     const archList = raw

@@ -2,6 +2,69 @@
 @tailwind components;
 @tailwind utilities;
 
+/* 登录 / 注册页：环境光斑微动（尊重减少动效） */
+@keyframes auth-blob {
+  0%,
+  100% {
+    transform: translate(0, 0) scale(1);
+  }
+  33% {
+    transform: translate(8%, -6%) scale(1.06);
+  }
+  66% {
+    transform: translate(-6%, 4%) scale(0.96);
+  }
+}
+
+@keyframes auth-shimmer {
+  0% {
+    background-position: 0% 50%;
+  }
+  100% {
+    background-position: 200% 50%;
+  }
+}
+
+.auth-blob {
+  animation: auth-blob 22s ease-in-out infinite;
+}
+
+.auth-blob-delayed {
+  animation: auth-blob 28s ease-in-out infinite;
+  animation-delay: -8s;
+}
+
+.auth-gradient-sheen {
+  background: linear-gradient(
+    120deg,
+    rgba(59, 130, 246, 0.15) 0%,
+    rgba(139, 92, 246, 0.12) 35%,
+    rgba(6, 182, 212, 0.12) 70%,
+    rgba(59, 130, 246, 0.15) 100%
+  );
+  background-size: 200% 200%;
+  animation: auth-shimmer 16s linear infinite;
+}
+
+.dark .auth-gradient-sheen {
+  background: linear-gradient(
+    120deg,
+    rgba(59, 130, 246, 0.22) 0%,
+    rgba(139, 92, 246, 0.18) 35%,
+    rgba(6, 182, 212, 0.15) 70%,
+    rgba(59, 130, 246, 0.2) 100%
+  );
+  background-size: 200% 200%;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .auth-blob,
+  .auth-blob-delayed,
+  .auth-gradient-sheen {
+    animation: none;
+  }
+}
+
 body {
   @apply bg-slate-50 text-slate-900 antialiased dark:bg-slate-950 dark:text-slate-100;
 }

@@ -3,6 +3,7 @@ package com.opencarapace.server.dashboard;
 import com.opencarapace.server.billing.TokenUsageRepository;
 import com.opencarapace.server.danger.DangerCommandRepository;
 import com.opencarapace.server.safety.SafetyEvaluationRepository;
+import com.opencarapace.server.skill.Skill;
 import com.opencarapace.server.skill.SkillRepository;
 import com.opencarapace.server.user.UserSkillSafetyLabelRepository;
 import com.opencarapace.server.user.UserSkillRepository;
@@ -62,49 +63,38 @@ public class DashboardService {
         long userUnsafeLabelCount = userSkillSafetyLabelRepository.countByUserIdAndLabel(userId, "UNSAFE");
         result.put("userUnsafeLabelCount", userUnsafeLabelCount);
 
-        long totalSafeMarks = skillRepository.findAll().stream()
-                .mapToLong(s -> s.getSafeMarkCount() == null ? 0L : s.getSafeMarkCount())
-                .sum();
+        List<Skill> skills = skillRepository.findAll();
+        long totalSafeMarks = 0L;
+        long totalUnsafeMarks = 0L;
+        Map<String, Long> categoryBuckets = new HashMap<>();
+        Map<String, Long> typeBuckets = new HashMap<>();
+        for (Skill s : skills) {
+            totalSafeMarks += s.getSafeMarkCount() == null ? 0L : s.getSafeMarkCount();
+            totalUnsafeMarks += s.getUnsafeMarkCount() == null ? 0L : s.getUnsafeMarkCount();
+            String cat = s.getCategory() != null ? s.getCategory() : "未分类";
+            categoryBuckets.merge(cat, 1L, Long::sum);
+            String typ = s.getType() != null ? s.getType() : "未分类";
+            typeBuckets.merge(typ, 1L, Long::sum);
+        }
         result.put("totalSafeMarks", totalSafeMarks);
-
-        long totalUnsafeMarks = skillRepository.findAll().stream()
-                .mapToLong(s -> s.getUnsafeMarkCount() == null ? 0L : s.getUnsafeMarkCount())
-                .sum();
         result.put("totalUnsafeMarks", totalUnsafeMarks);
-        
-        List<Map<String, Object>> categoryDistribution = skillRepository.findAll().stream()
-            .collect(Collectors.groupingBy(
-                skill -> skill.getCategory() != null ? skill.getCategory() : "未分类",
-                Collectors.counting()
-            ))
-            .entrySet().stream()
-            .map(entry -> {
-                Map<String, Object> item = new HashMap<>();
-                item.put("category", entry.getKey());
-                item.put("count", entry.getValue());
-                return item;
-            })
-            .sorted((a, b) -> Long.compare((Long) b.get("count"), (Long) a.get("count")))
-            .collect(Collectors.toList());
-        result.put("categoryDistribution", categoryDistribution);
-        
-        List<Map<String, Object>> typeDistribution = skillRepository.findAll().stream()
-            .collect(Collectors.groupingBy(
-                skill -> skill.getType() != null ? skill.getType() : "未分类",
-                Collectors.counting()
-            ))
-            .entrySet().stream()
-            .map(entry -> {
-                Map<String, Object> item = new HashMap<>();
-                item.put("type", entry.getKey());
-                item.put("count", entry.getValue());
-                return item;
-            })
-            .sorted((a, b) -> Long.compare((Long) b.get("count"), (Long) a.get("count")))
-            .collect(Collectors.toList());
-        result.put("typeDistribution", typeDistribution);
-        
+        result.put("categoryDistribution", sortDistributionByCountDesc(categoryBuckets, "category"));
+        result.put("typeDistribution", sortDistributionByCountDesc(typeBuckets, "type"));
+
         return result;
+    }
+
+    private static List<Map<String, Object>> sortDistributionByCountDesc(
+            Map<String, Long> buckets, String labelKey) {
+        return buckets.entrySet().stream()
+                .map(entry -> {
+                    Map<String, Object> item = new HashMap<>();
+                    item.put(labelKey, entry.getKey());
+                    item.put("count", entry.getValue());
+                    return item;
+                })
+                .sorted((a, b) -> Long.compare((Long) b.get("count"), (Long) a.get("count")))
+                .collect(Collectors.toList());
     }
 
     public Map<String, Object> getDangerCommandStats() {

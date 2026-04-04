@@ -1,10 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useI18n } from "../i18n";
 
 function SelectDropdownInput(props: {
   value: string;
   onValueChange: (v: string) => void;
   options: string[];
   placeholder: string;
+  pickerLabels: { expand: string; collapse: string; noMatch: string };
 }) {
   const [open, setOpen] = useState(false);
   // query 用来做“筛选/搜索”，不要默认等于当前选中的 value。
@@ -121,7 +123,7 @@ function SelectDropdownInput(props: {
             padding: 0,
             flexShrink: 0,
           }}
-          title={open ? "收起" : "展开"}
+          title={open ? props.pickerLabels.collapse : props.pickerLabels.expand}
         >
           <svg
             width="14"
@@ -156,7 +158,7 @@ function SelectDropdownInput(props: {
           }}
         >
           {filtered.length === 0 ? (
-            <div style={{ padding: "10px 12px", color: "#64748b", fontSize: 12 }}>暂无匹配项</div>
+            <div style={{ padding: "10px 12px", color: "#64748b", fontSize: 12 }}>{props.pickerLabels.noMatch}</div>
           ) : (
             filtered.map((opt) => (
               <button
@@ -234,6 +236,12 @@ export function BudgetRuleModal(props: {
   onClose: () => void;
   onSave: () => void;
 }) {
+  const { t } = useI18n();
+  const pickerLabels = {
+    expand: t("interceptMonitorPage.budgetModal.selectExpand"),
+    collapse: t("interceptMonitorPage.budgetModal.selectCollapse"),
+    noMatch: t("interceptMonitorPage.budgetModal.selectNoMatch"),
+  };
   return (
     <div
       onMouseDown={(e) => {
@@ -263,7 +271,9 @@ export function BudgetRuleModal(props: {
       >
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20 }}>
           <div style={{ fontSize: 18, fontWeight: 600, color: "var(--fg)" }}>
-            {props.modalMode === "create" ? "新增费率与预算规则" : "编辑规则"}
+            {props.modalMode === "create"
+              ? t("interceptMonitorPage.budgetModal.titleCreate")
+              : t("interceptMonitorPage.budgetModal.titleEdit")}
           </div>
           <button
             type="button"
@@ -287,25 +297,27 @@ export function BudgetRuleModal(props: {
         {/* Section 1: 基础识别 */}
         <div className="llm-modal-section">
           <div className="llm-modal-title">
-            <TagIcon /> 基础识别
+            <TagIcon /> {t("interceptMonitorPage.budgetModal.sectionIdentity")}
           </div>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
             <div className="llm-input-group">
-              <span className="llm-input-label">Provider 提供商</span>
+              <span className="llm-input-label">{t("interceptMonitorPage.budgetModal.labelProvider")}</span>
               <SelectDropdownInput
                 value={String(props.form.provider_key ?? "")}
                 onValueChange={(v) => props.setForm((f) => ({ ...f, provider_key: v }))}
                 options={props.providerSuggestions}
-                placeholder="例如: openai, anthropic"
+                placeholder={t("interceptMonitorPage.budgetModal.phProvider")}
+                pickerLabels={pickerLabels}
               />
             </div>
             <div className="llm-input-group">
-              <span className="llm-input-label">Model ID (* 为该 Provider 通配)</span>
+              <span className="llm-input-label">{t("interceptMonitorPage.budgetModal.labelModel")}</span>
               <SelectDropdownInput
                 value={String(props.form.model_id ?? "")}
                 onValueChange={(v) => props.setForm((f) => ({ ...f, model_id: v }))}
                 options={props.modelSuggestions}
-                placeholder="例如: gpt-4o, claude-3"
+                placeholder={t("interceptMonitorPage.budgetModal.phModel")}
+                pickerLabels={pickerLabels}
               />
             </div>
           </div>
@@ -314,11 +326,11 @@ export function BudgetRuleModal(props: {
         {/* Section 2: 计费单价 */}
         <div className="llm-modal-section">
           <div className="llm-modal-title">
-            <CoinIcon /> 费率单价
+            <CoinIcon /> {t("interceptMonitorPage.budgetModal.sectionPricing")}
           </div>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
             <div className="llm-input-group">
-              <span className="llm-input-label">输入计费 ($ / 1K Tokens)</span>
+              <span className="llm-input-label">{t("interceptMonitorPage.budgetModal.labelInputPrice")}</span>
               <input
                 className="llm-input"
                 type="number"
@@ -338,7 +350,7 @@ export function BudgetRuleModal(props: {
               />
             </div>
             <div className="llm-input-group">
-              <span className="llm-input-label">输出计费 ($ / 1K Tokens)</span>
+              <span className="llm-input-label">{t("interceptMonitorPage.budgetModal.labelOutputPrice")}</span>
               <input
                 className="llm-input"
                 type="number"
@@ -363,16 +375,16 @@ export function BudgetRuleModal(props: {
         {/* Section 3: 预算上限 */}
         <div className="llm-modal-section" style={{ marginBottom: 20 }}>
           <div className="llm-modal-title">
-            <ChartIcon /> 预算上限控制 (可选)
+            <ChartIcon /> {t("interceptMonitorPage.budgetModal.sectionBudget")}
           </div>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 16 }}>
             <div className="llm-input-group">
-              <span className="llm-input-label">日上限 ($)</span>
+              <span className="llm-input-label">{t("interceptMonitorPage.budgetModal.labelDayCap")}</span>
               <input
                 className="llm-input"
                 type="number"
                 step="any"
-                placeholder="不限制则留空"
+                placeholder={t("interceptMonitorPage.budgetModal.phUnlimited")}
                 value={props.form.budget_day_usd}
                 onChange={(e) => props.setForm((f) => ({ ...f, budget_day_usd: e.target.value }))}
                 style={{
@@ -387,12 +399,12 @@ export function BudgetRuleModal(props: {
               />
             </div>
             <div className="llm-input-group">
-              <span className="llm-input-label">周上限 ($)</span>
+              <span className="llm-input-label">{t("interceptMonitorPage.budgetModal.labelWeekCap")}</span>
               <input
                 className="llm-input"
                 type="number"
                 step="any"
-                placeholder="不限制则留空"
+                placeholder={t("interceptMonitorPage.budgetModal.phUnlimited")}
                 value={props.form.budget_week_usd}
                 onChange={(e) => props.setForm((f) => ({ ...f, budget_week_usd: e.target.value }))}
                 style={{
@@ -407,12 +419,12 @@ export function BudgetRuleModal(props: {
               />
             </div>
             <div className="llm-input-group">
-              <span className="llm-input-label">月上限 ($)</span>
+              <span className="llm-input-label">{t("interceptMonitorPage.budgetModal.labelMonthCap")}</span>
               <input
                 className="llm-input"
                 type="number"
                 step="any"
-                placeholder="不限制则留空"
+                placeholder={t("interceptMonitorPage.budgetModal.phUnlimited")}
                 value={props.form.budget_month_usd}
                 onChange={(e) => props.setForm((f) => ({ ...f, budget_month_usd: e.target.value }))}
                 style={{
@@ -438,7 +450,7 @@ export function BudgetRuleModal(props: {
               onChange={(e) => props.setForm((f) => ({ ...f, enabled: e.target.checked }))}
               style={{ width: 18, height: 18, accentColor: "#3b82f6", cursor: "pointer" }}
             />
-            <span style={{ fontSize: 13, color: "var(--fg)", fontWeight: 500 }}>启用此规则</span>
+            <span style={{ fontSize: 13, color: "var(--fg)", fontWeight: 500 }}>{t("interceptMonitorPage.budgetModal.enableRule")}</span>
           </label>
 
           <div style={{ display: "flex", gap: 12 }}>
@@ -449,7 +461,7 @@ export function BudgetRuleModal(props: {
               disabled={props.saving}
               style={{ padding: "8px 18px", borderRadius: 999, border: "1px solid var(--panel-border)", background: "transparent", color: "var(--muted)", fontSize: 13, fontWeight: 500 }}
             >
-              取消
+              {t("interceptMonitorPage.budgetModal.cancel")}
             </button>
             <button
               type="button"
@@ -458,7 +470,7 @@ export function BudgetRuleModal(props: {
               onClick={props.onSave}
               style={{ padding: "8px 24px", borderRadius: 999, border: "none", background: "#3b82f6", color: "#ffffff", fontSize: 13, fontWeight: 500, boxShadow: "0 4px 12px rgba(59, 130, 246, 0.3)" }}
             >
-              {props.saving ? "保存中…" : "确认保存"}
+              {props.saving ? t("interceptMonitorPage.budgetModal.saving") : t("interceptMonitorPage.budgetModal.save")}
             </button>
           </div>
         </div>

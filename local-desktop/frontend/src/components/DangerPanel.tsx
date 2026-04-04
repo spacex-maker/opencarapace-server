@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type CSSProperties } from "react";
-import { StatCard } from "./Common";
+import { useI18n } from "../i18n";
 import "./DangerPanel.css";
 
 function FilterSelect(props: {
@@ -102,6 +102,8 @@ export function DangerPanel({
   /** 嵌入「拦截监控」内作为「拦截项目」时，去掉外层卡片样式与独立页标题 */
   embedded?: boolean;
 }) {
+  const { t } = useI18n();
+  const ir = (key: string) => t(`interceptMonitorPage.interceptRules.${key}`);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
@@ -175,7 +177,7 @@ export function DangerPanel({
       setDangerCommands(dataJson.items || []);
       setSync(syncJson || { running: false, total: 0, synced: 0 });
     } catch (e: any) {
-      setError(e?.message ?? "加载本地数据失败");
+      setError(e?.message ?? ir("errLoadLocal"));
     } finally {
       setLoading(false);
     }
@@ -185,7 +187,7 @@ export function DangerPanel({
 
   const toggleUserEnabled = async (id: number, currentUserEnabled: number | null, systemEnabled: number) => {
     if (systemEnabled === 0) {
-      setError("系统已禁用此危险指令，无法修改用户启用状态");
+      setError(ir("errSystemDisabled"));
       setTimeout(() => setError(null), 3000);
       return;
     }
@@ -203,17 +205,17 @@ export function DangerPanel({
       });
       if (!res.ok) {
         const data = await res.json();
-        setError(data?.error?.message || "更新用户危险指令失败");
+        setError(data?.error?.message || ir("errUpdateUser"));
         setTimeout(() => setError(null), 3000);
         return;
       }
       setDangerCommands((prev) =>
         prev.map((d) => (d.id === id ? { ...d, user_enabled: nextEnabled ? 1 : 0 } : d))
       );
-      setMessage(`已${nextEnabled ? "启用" : "禁用"}该危险指令。`);
+      setMessage(nextEnabled ? ir("toastEnabled") : ir("toastDisabled"));
       setTimeout(() => setMessage(null), 2000);
     } catch (e: any) {
-      setError(e?.message ?? "更新用户危险指令失败");
+      setError(e?.message ?? ir("errUpdateUser"));
       setTimeout(() => setError(null), 3000);
     } finally {
       setUpdatingId(null);
@@ -264,7 +266,7 @@ export function DangerPanel({
       setError(null);
       const res = await fetch("http://127.0.0.1:19111/api/danger-commands/sync", { method: "POST" });
       if (!res.ok) {
-        let msg = `无法开始同步（HTTP ${res.status}）`;
+        let msg = ir("errSyncHttp").replace("{status}", String(res.status));
         try {
           const j = await res.json();
           if (j?.error?.message) msg = j.error.message;
@@ -277,7 +279,7 @@ export function DangerPanel({
       }
       setSync((s) => ({ ...s, running: true }));
     } catch (e: any) {
-      setError(e?.message ?? "触发同步失败");
+      setError(e?.message ?? ir("errTriggerSync"));
       setTimeout(() => setError(null), 5000);
     }
   };
@@ -319,12 +321,10 @@ export function DangerPanel({
               fontWeight: 700,
             }}
           >
-            {embedded ? "拦截项目" : "危险指令库"}
+            {embedded ? ir("titleEmbedded") : ir("titleStandalone")}
           </h1>
           <p style={{ margin: "4px 0 0", fontSize: embedded ? 12 : 13, color: "var(--muted)", lineHeight: 1.45 }}>
-            {embedded
-              ? "以下为参与本地拦截匹配的「危险指令」规则：从云端同步至本地，可配置用户级启用/禁用。"
-              : "从云端增量同步至本地 SQLite，每批次 10 条。"}
+            {embedded ? ir("descEmbedded") : ir("descStandalone")}
           </p>
         </div>
         <button
@@ -343,7 +343,7 @@ export function DangerPanel({
             opacity: sync.running ? 0.7 : 1,
           }}
         >
-          {sync.running ? "同步中…" : "手动同步"}
+          {sync.running ? ir("syncRunning") : ir("syncManual")}
         </button>
       </div>
 
@@ -369,12 +369,18 @@ export function DangerPanel({
         </div>
         <div style={{ marginTop: 4, fontSize: 11, color: "var(--muted2)" }}>
           {sync.running
-            ? `同步中：${sync.synced}/${sync.total || "?"} 条`
-            : `已同步：${sync.synced} 条（总计：${sync.total || dangerCommands.length}）`}
+            ? ir("syncProgressRunning")
+                .replace("{synced}", String(sync.synced))
+                .replace("{total}", String(sync.total || "?"))
+            : ir("syncProgressDone")
+                .replace("{synced}", String(sync.synced))
+                .replace("{total}", String(sync.total || dangerCommands.length))}
         </div>
       </div>
 
-      {loading && <div style={{ color: "var(--muted)", marginBottom: 8 }}>加载中…</div>}
+      {loading && (
+        <div style={{ color: "var(--muted)", marginBottom: 8 }}>{ir("loading")}</div>
+      )}
       {error && (
         <div
           style={{
@@ -418,7 +424,7 @@ export function DangerPanel({
             fontSize: 12,
           }}
         >
-          正在切换账号并同步用户偏好，请稍候…
+          {ir("accountSwitching")}
         </div>
       )}
 
@@ -441,7 +447,7 @@ export function DangerPanel({
               runQuery();
             }
           }}
-          placeholder="关键词（规则片段）"
+          placeholder={ir("keywordPh")}
           style={{
             flex: "1 1 220px",
             minWidth: 220,
@@ -460,48 +466,48 @@ export function DangerPanel({
         <FilterSelect
           value={systemType}
           onChange={setSystemType}
-          placeholder="系统类型（全部）"
+          placeholder={ir("filterSystemAll")}
           options={[
-            { label: "系统类型（全部）", value: "" },
+            { label: ir("filterSystemAll"), value: "" },
             ...meta.systemTypes.map((v) => ({ label: v, value: v })),
           ]}
         />
         <FilterSelect
           value={category}
           onChange={setCategory}
-          placeholder="分类（全部）"
+          placeholder={ir("filterCategoryAll")}
           options={[
-            { label: "分类（全部）", value: "" },
+            { label: ir("filterCategoryAll"), value: "" },
             ...meta.categories.map((v) => ({ label: v, value: v })),
           ]}
         />
         <FilterSelect
           value={riskLevel}
           onChange={setRiskLevel}
-          placeholder="风险等级（全部）"
+          placeholder={ir("filterRiskAll")}
           options={[
-            { label: "风险等级（全部）", value: "" },
+            { label: ir("filterRiskAll"), value: "" },
             ...meta.riskLevels.map((v) => ({ label: v, value: v })),
           ]}
         />
         <FilterSelect
           value={systemEnabled}
           onChange={setSystemEnabled}
-          placeholder="官方状态（全部）"
+          placeholder={ir("filterOfficialAll")}
           options={[
-            { label: "官方状态（全部）", value: "" },
-            { label: "正常", value: "1" },
-            { label: "禁用", value: "0" },
+            { label: ir("filterOfficialAll"), value: "" },
+            { label: ir("filterOfficialOn"), value: "1" },
+            { label: ir("filterOfficialOff"), value: "0" },
           ]}
         />
         <FilterSelect
           value={userEnabled}
           onChange={setUserEnabled}
-          placeholder="用户启用（全部）"
+          placeholder={ir("filterUserAll")}
           options={[
-            { label: "用户启用（全部）", value: "" },
-            { label: "启用", value: "1" },
-            { label: "禁用", value: "0" },
+            { label: ir("filterUserAll"), value: "" },
+            { label: ir("filterUserOn"), value: "1" },
+            { label: ir("filterUserOff"), value: "0" },
           ]}
         />
 
@@ -521,7 +527,7 @@ export function DangerPanel({
             cursor: loading ? "not-allowed" : "pointer",
           }}
         >
-          {loading ? "查询中…" : "查询"}
+          {loading ? ir("queryRunning") : ir("query")}
         </button>
       </div>
 
@@ -535,13 +541,13 @@ export function DangerPanel({
         <table style={{ width: "100%", borderCollapse: "collapse" }}>
           <thead style={{ background: "var(--panel-bg)" }}>
             <tr>
-              <th style={{ padding: "6px 8px", borderBottom: "1px solid var(--panel-border)", textAlign: "left", color: "var(--muted)" }}>ID</th>
-              <th style={{ padding: "6px 8px", borderBottom: "1px solid var(--panel-border)", textAlign: "left", color: "var(--muted)" }}>规则片段</th>
-              <th style={{ padding: "6px 8px", borderBottom: "1px solid var(--panel-border)", textAlign: "left", color: "var(--muted)" }}>系统</th>
-              <th style={{ padding: "6px 8px", borderBottom: "1px solid var(--panel-border)", textAlign: "left", color: "var(--muted)" }}>分类</th>
-              <th style={{ padding: "6px 8px", borderBottom: "1px solid var(--panel-border)", textAlign: "left", color: "var(--muted)" }}>风险等级</th>
-              <th style={{ padding: "6px 8px", borderBottom: "1px solid var(--panel-border)", textAlign: "left", color: "var(--muted)" }}>官方状态</th>
-              <th style={{ padding: "6px 8px", borderBottom: "1px solid var(--panel-border)", textAlign: "left", color: "var(--muted)" }}>用户启用</th>
+              <th style={{ padding: "6px 8px", borderBottom: "1px solid var(--panel-border)", textAlign: "left", color: "var(--muted)" }}>{ir("colId")}</th>
+              <th style={{ padding: "6px 8px", borderBottom: "1px solid var(--panel-border)", textAlign: "left", color: "var(--muted)" }}>{ir("colPattern")}</th>
+              <th style={{ padding: "6px 8px", borderBottom: "1px solid var(--panel-border)", textAlign: "left", color: "var(--muted)" }}>{ir("colSystem")}</th>
+              <th style={{ padding: "6px 8px", borderBottom: "1px solid var(--panel-border)", textAlign: "left", color: "var(--muted)" }}>{ir("colCategory")}</th>
+              <th style={{ padding: "6px 8px", borderBottom: "1px solid var(--panel-border)", textAlign: "left", color: "var(--muted)" }}>{ir("colRisk")}</th>
+              <th style={{ padding: "6px 8px", borderBottom: "1px solid var(--panel-border)", textAlign: "left", color: "var(--muted)" }}>{ir("colOfficial")}</th>
+              <th style={{ padding: "6px 8px", borderBottom: "1px solid var(--panel-border)", textAlign: "left", color: "var(--muted)" }}>{ir("colUserEnabled")}</th>
             </tr>
           </thead>
           <tbody>
@@ -584,12 +590,12 @@ export function DangerPanel({
                       border: r.enabled ? "1px solid rgba(34,197,94,0.3)" : "1px solid rgba(239,68,68,0.3)",
                     }}
                   >
-                    {r.enabled ? "正常" : "禁用"}
+                    {r.enabled ? ir("officialNormal") : ir("officialDisabled")}
                   </span>
                 </td>
                 <td style={{ padding: "6px 8px", borderBottom: "1px solid var(--panel-border)", whiteSpace: "nowrap" }}>
                   {r.enabled === 0 ? (
-                    <div style={{ fontSize: 10, color: "var(--muted2)" }}>（系统禁用）</div>
+                    <div style={{ fontSize: 10, color: "var(--muted2)" }}>{ir("systemDisabledHint")}</div>
                   ) : (
                     <button
                       type="button"
@@ -630,7 +636,7 @@ export function DangerPanel({
                   colSpan={7}
                   style={{ padding: "8px 10px", textAlign: "center", color: "var(--muted2)", background: "var(--panel-bg)" }}
                 >
-                  当前本地还没有同步到危险指令规则。
+                  {ir("emptyLocal")}
                 </td>
               </tr>
             )}

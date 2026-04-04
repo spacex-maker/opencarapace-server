@@ -1,4 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useI18n } from "../i18n";
+import { localeToHtmlLang } from "../i18n/localeMeta";
 import { DangerPanel } from "./DangerPanel";
 import { BudgetMonitorPanel } from "./BudgetMonitorPanel";
 import { RealtimeOverviewPanel } from "./RealtimeOverviewPanel";
@@ -128,19 +130,19 @@ type BlockLogDetail = {
   rawInput: string | null;
 };
 
-function formatLocalDateTime(value?: string | null): string {
+function formatLocalDateTime(value: string | null | undefined, htmlLang: string): string {
   if (!value) return "-";
   const d = new Date(value);
   if (Number.isNaN(d.getTime())) return String(value);
-  return d.toLocaleString("zh-CN", { hour12: false });
+  return d.toLocaleString(htmlLang, { hour12: false });
 }
 
-function formatBlockType(t: string | null) {
-  if (!t) return "-";
-  if (t === "danger_command") return "危险指令";
-  if (t === "skill_disabled") return "技能禁用";
-  if (t === "budget_exceeded") return "预算拦截";
-  return t;
+function formatBlockType(code: string | null, t: (key: string) => string) {
+  if (!code) return "-";
+  if (code === "danger_command") return t("interceptMonitorPage.blockTypes.danger_command");
+  if (code === "skill_disabled") return t("interceptMonitorPage.blockTypes.skill_disabled");
+  if (code === "budget_exceeded") return t("interceptMonitorPage.blockTypes.budget_exceeded");
+  return code;
 }
 
 function riskTagStyle(riskLevel: string | null): React.CSSProperties {
@@ -169,6 +171,8 @@ export function InterceptLogsPanel({
 }: {
   showAccountSwitchPlaceholder?: boolean;
 }) {
+  const { t, locale } = useI18n();
+  const dateLocale = localeToHtmlLang(locale);
   const [panelTab, setPanelTab] = useState<"overview" | "alerts" | "rules" | "requests" | "budget">("overview");
   const [items, setItems] = useState<BlockLog[]>([]);
   const [loading, setLoading] = useState(false);
@@ -199,7 +203,7 @@ export function InterceptLogsPanel({
       const res = await fetch(`http://127.0.0.1:19111/api/intercept-logs?${qs.toString()}`);
       const data = await res.json();
       if (!res.ok) {
-        setError(data?.error?.message || "加载失败");
+        setError(data?.error?.message || t("interceptMonitorPage.alerts.loadFailed"));
         setItems([]);
         setTotal(0);
         return;
@@ -207,7 +211,7 @@ export function InterceptLogsPanel({
       setItems(Array.isArray(data?.items) ? data.items : []);
       setTotal(typeof data?.total === "number" ? data.total : 0);
     } catch (e: any) {
-      setError(e?.message ?? "加载失败");
+      setError(e?.message ?? t("interceptMonitorPage.alerts.loadFailed"));
     } finally {
       setLoading(false);
     }
@@ -228,12 +232,12 @@ export function InterceptLogsPanel({
       const res = await fetch(`http://127.0.0.1:19111/api/intercept-logs/${id}`);
       const data = await res.json();
       if (!res.ok) {
-        setDetailError(data?.error?.message || "加载详情失败");
+        setDetailError(data?.error?.message || t("interceptMonitorPage.alerts.loadDetailFailed"));
         return;
       }
       setDetail(data);
     } catch (e: any) {
-      setDetailError(e?.message ?? "加载详情失败");
+      setDetailError(e?.message ?? t("interceptMonitorPage.alerts.loadDetailFailed"));
     } finally {
       setDetailLoading(false);
     }
@@ -251,19 +255,19 @@ export function InterceptLogsPanel({
         boxShadow: "none",
       }}
     >
-      <h1 style={{ fontSize: 20, margin: "0 0 6px", color: "var(--fg)" }}>拦截监控</h1>
+      <h1 style={{ fontSize: 20, margin: "0 0 6px", color: "var(--fg)" }}>{t("interceptMonitorPage.title")}</h1>
       <p style={{ margin: "0 0 12px", fontSize: 12, color: "var(--muted)", lineHeight: 1.5 }}>
-        查看云端记录的拦截事件，并在此管理「拦截项目」——即参与本地匹配的危险指令规则库（原独立「危险指令库」已并入本页）。
+        {t("interceptMonitorPage.intro")}
       </p>
 
       <div style={{ display: "flex", gap: 8, marginBottom: 16, flexWrap: "wrap" }}>
         {(
           [
-            { id: "overview" as const, label: "实时概览" },
-            { id: "alerts" as const, label: "告警记录" },
-            { id: "rules" as const, label: "拦截项目" },
-            { id: "requests" as const, label: "请求日志" },
-            { id: "budget" as const, label: "预算设置" },
+            { id: "overview" as const, label: t("interceptMonitorPage.tabs.overview") },
+            { id: "alerts" as const, label: t("interceptMonitorPage.tabs.alerts") },
+            { id: "rules" as const, label: t("interceptMonitorPage.tabs.rules") },
+            { id: "requests" as const, label: t("interceptMonitorPage.tabs.requests") },
+            { id: "budget" as const, label: t("interceptMonitorPage.tabs.budget") },
           ]
         ).map((t) => {
           const active = panelTab === t.id;
@@ -302,20 +306,20 @@ export function InterceptLogsPanel({
       {panelTab === "alerts" && (
         <>
       <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
-        <div style={{ fontSize: 12, color: "var(--muted)" }}>类型</div>
+        <div style={{ fontSize: 12, color: "var(--muted)" }}>{t("interceptMonitorPage.alerts.typeLabel")}</div>
         <FilterSelect
           value={blockType}
           onChange={(v) => {
             setPage(1);
             setBlockType(v);
           }}
-          placeholder="全部"
+          placeholder={t("interceptMonitorPage.alerts.filterAll")}
           width={240}
           options={[
-            { label: "全部", value: "" },
-            { label: "危险指令", value: "danger_command" },
-            { label: "技能禁用", value: "skill_disabled" },
-            { label: "预算拦截", value: "budget_exceeded" },
+            { label: t("interceptMonitorPage.alerts.filterAll"), value: "" },
+            { label: t("interceptMonitorPage.blockTypes.danger_command"), value: "danger_command" },
+            { label: t("interceptMonitorPage.blockTypes.skill_disabled"), value: "skill_disabled" },
+            { label: t("interceptMonitorPage.blockTypes.budget_exceeded"), value: "budget_exceeded" },
           ]}
         />
 
@@ -334,7 +338,7 @@ export function InterceptLogsPanel({
             cursor: loading ? "not-allowed" : "pointer",
           }}
         >
-          {loading ? "加载中…" : "刷新"}
+          {loading ? t("interceptMonitorPage.alerts.refreshing") : t("interceptMonitorPage.alerts.refresh")}
         </button>
       </div>
 
@@ -353,14 +357,14 @@ export function InterceptLogsPanel({
           <thead>
             <tr style={{ background: "var(--panel-bg)" }}>
               <th style={{ textAlign: "left", padding: "8px 10px", color: "var(--muted)", fontWeight: 500, width: 170 }}>
-                类型 / 风险
+                {t("interceptMonitorPage.alerts.colTypeRisk")}
               </th>
               <th style={{ textAlign: "left", padding: "8px 10px", color: "var(--muted)", fontWeight: 500 }}>
-                触发原因
+                {t("interceptMonitorPage.alerts.colReasons")}
               </th>
               <th style={{ width: 84 }} />
               <th style={{ textAlign: "left", padding: "8px 10px", color: "var(--muted)", fontWeight: 500, width: 170 }}>
-                时间
+                {t("interceptMonitorPage.alerts.colTime")}
               </th>
             </tr>
           </thead>
@@ -368,7 +372,7 @@ export function InterceptLogsPanel({
             {items.length === 0 ? (
               <tr>
                 <td colSpan={4} style={{ padding: "10px", color: "var(--muted2)" }}>
-                  {loading ? "正在加载…" : "暂无拦截记录。"}
+                  {loading ? t("interceptMonitorPage.alerts.tableLoading") : t("interceptMonitorPage.alerts.tableEmpty")}
                 </td>
               </tr>
             ) : (
@@ -376,7 +380,7 @@ export function InterceptLogsPanel({
                 <tr key={it.id} style={{ borderTop: "1px solid var(--panel-border)" }}>
                   <td style={{ padding: "8px 10px", color: "var(--fg)" }}>
                     <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                      <div style={{ fontWeight: 600, color: "var(--fg)" }}>{formatBlockType(it.blockType)}</div>
+                      <div style={{ fontWeight: 600, color: "var(--fg)" }}>{formatBlockType(it.blockType, t)}</div>
                       <div style={riskTagStyle(it.riskLevel)}>{String(it.riskLevel || "-").toUpperCase()}</div>
                     </div>
                   </td>
@@ -395,11 +399,11 @@ export function InterceptLogsPanel({
                         cursor: "pointer",
                       }}
                     >
-                      详情
+                      {t("interceptMonitorPage.alerts.detail")}
                     </button>
                   </td>
                   <td style={{ padding: "8px 10px", color: "var(--fg)", whiteSpace: "nowrap" }}>
-                    {formatLocalDateTime(it.createdAt)}
+                    {formatLocalDateTime(it.createdAt, dateLocale)}
                   </td>
                 </tr>
               ))
@@ -423,10 +427,13 @@ export function InterceptLogsPanel({
             opacity: loading || page <= 1 ? 0.5 : 1,
           }}
         >
-          上一页
+          {t("interceptMonitorPage.alerts.prevPage")}
         </button>
         <div>
-          第 <span style={{ color: "var(--fg)" }}>{page}</span> / {totalPages} 页（共 {total} 条）
+          {t("interceptMonitorPage.alerts.pageInfo")
+            .replace("{page}", String(page))
+            .replace("{totalPages}", String(totalPages))
+            .replace("{total}", String(total))}
         </div>
         <button
           type="button"
@@ -442,7 +449,7 @@ export function InterceptLogsPanel({
             opacity: loading || page >= totalPages ? 0.5 : 1,
           }}
         >
-          下一页
+          {t("interceptMonitorPage.alerts.nextPage")}
         </button>
       </div>
         </>
@@ -479,10 +486,12 @@ export function InterceptLogsPanel({
           >
             <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12 }}>
               <div>
-                <div style={{ fontSize: 16, fontWeight: 700, color: "var(--fg)" }}>拦截详情</div>
+                <div style={{ fontSize: 16, fontWeight: 700, color: "var(--fg)" }}>
+                  {t("interceptMonitorPage.alerts.modalTitle")}
+                </div>
                 <div style={{ marginTop: 6, display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
                   <div style={{ fontSize: 12, color: "var(--fg)", fontWeight: 600 }}>
-                    {formatBlockType(detail?.blockType || null)}
+                    {formatBlockType(detail?.blockType || null, t)}
                   </div>
                   <div style={riskTagStyle(detail?.riskLevel || null)}>{String(detail?.riskLevel || "-").toUpperCase()}</div>
                   <div style={{ fontSize: 11, color: "var(--muted2)" }}>ID: {detail?.id ?? "-"}</div>
@@ -501,7 +510,7 @@ export function InterceptLogsPanel({
                   flexShrink: 0,
                 }}
               >
-                关闭
+                {t("interceptMonitorPage.alerts.close")}
               </button>
             </div>
 
@@ -514,7 +523,9 @@ export function InterceptLogsPanel({
                   padding: "10px 12px",
                 }}
               >
-                <div style={{ fontSize: 11, color: "var(--muted)", marginBottom: 6 }}>时间</div>
+                <div style={{ fontSize: 11, color: "var(--muted)", marginBottom: 6 }}>
+                  {t("interceptMonitorPage.alerts.labelTime")}
+                </div>
                 <div
                   style={{
                     fontSize: 12,
@@ -523,7 +534,7 @@ export function InterceptLogsPanel({
                       'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
                   }}
                 >
-                  {formatLocalDateTime(detail?.createdAt)}
+                  {formatLocalDateTime(detail?.createdAt, dateLocale)}
                 </div>
               </div>
 
@@ -535,9 +546,15 @@ export function InterceptLogsPanel({
                   padding: "10px 12px",
                 }}
               >
-                <div style={{ fontSize: 11, color: "var(--muted)", marginBottom: 6 }}>触发原因</div>
+                <div style={{ fontSize: 11, color: "var(--muted)", marginBottom: 6 }}>
+                  {t("interceptMonitorPage.alerts.labelReasons")}
+                </div>
                 <div style={{ fontSize: 12, color: "var(--fg)", whiteSpace: "pre-wrap", wordBreak: "break-word" }}>
-                  {detailLoading ? "加载中…" : detailError ? detailError : detail?.reasons || "-"}
+                  {detailLoading
+                    ? t("interceptMonitorPage.alerts.loading")
+                    : detailError
+                      ? detailError
+                      : detail?.reasons || "-"}
                 </div>
               </div>
             </div>
@@ -552,7 +569,7 @@ export function InterceptLogsPanel({
               }}
             >
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
-                <div style={{ fontSize: 11, color: "var(--muted)" }}>完整内容</div>
+                <div style={{ fontSize: 11, color: "var(--muted)" }}>{t("interceptMonitorPage.alerts.fullContent")}</div>
                 <button
                   type="button"
                   disabled={!detail?.rawInput}
@@ -575,7 +592,7 @@ export function InterceptLogsPanel({
                     fontSize: 11,
                   }}
                 >
-                  复制
+                  {t("interceptMonitorPage.alerts.copy")}
                 </button>
               </div>
 
@@ -596,7 +613,11 @@ export function InterceptLogsPanel({
                   overflowY: "auto",
                 }}
               >
-                {detailLoading ? "加载中…" : detailError ? "" : detail?.rawInput || "-"}
+                {detailLoading
+                  ? t("interceptMonitorPage.alerts.loading")
+                  : detailError
+                    ? ""
+                    : detail?.rawInput || "-"}
               </pre>
             </div>
           </div>

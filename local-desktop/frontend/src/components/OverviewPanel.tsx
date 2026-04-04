@@ -74,6 +74,7 @@ export function OverviewPanel(props: Props) {
   const [tokenGranularity, setTokenGranularity] = useState<"minute" | "hour" | "day" | "week" | "month">("hour");
   const [interceptGranularity, setInterceptGranularity] = useState<"minute" | "hour" | "day" | "week" | "month">("hour");
   const [lastCacheTime, setLastCacheTime] = useState<string | null>(null);
+  const [skillsLoadError, setSkillsLoadError] = useState<string | null>(null);
 
   useEffect(() => {
     if (status?.auth?.token) {
@@ -97,10 +98,14 @@ export function OverviewPanel(props: Props) {
 
   const loadSkillsStats = async () => {
     setSkillsLoading(true);
+    setSkillsLoadError(null);
     try {
       const auth = status?.auth?.token;
       const apiBase = (status?.settings?.apiBase || "https://api.clawheart.live").replace(/\/+$/, "");
-      if (!auth) return;
+      if (!auth) {
+        setSkillsLoadError("未登录：无法请求看板接口（需要 Bearer Token）。");
+        return;
+      }
 
       const res = await fetch(`${apiBase}/api/dashboard/skills-stats`, {
         headers: { Authorization: `Bearer ${auth}` },
@@ -108,9 +113,22 @@ export function OverviewPanel(props: Props) {
       if (res.ok) {
         const data = await res.json();
         setDashboardStats((prev) => ({ ...prev, skillsStats: data }));
+        return;
       }
+      const raw = await res.text();
+      let detail = "";
+      try {
+        const j = JSON.parse(raw) as { error?: string; message?: string };
+        detail = j?.error || j?.message || "";
+      } catch {
+        detail = raw.slice(0, 200);
+      }
+      setSkillsLoadError(
+        `skills-stats 失败（HTTP ${res.status}）${detail ? `：${detail}` : "。请在浏览器直连时附带 Authorization: Bearer <JWT>；数据库无技能时总数为 0 属正常。"}`
+      );
     } catch (e) {
       console.error("加载技能统计失败:", e);
+      setSkillsLoadError(e instanceof Error ? e.message : "网络或 CORS 错误，请确认云端地址与后端已启动。");
     } finally {
       setSkillsLoading(false);
     }
@@ -600,6 +618,23 @@ export function OverviewPanel(props: Props) {
           value={skillsLoading ? "…" : dashboardStats.skillsStats?.userUnsafeLabelCount ?? 0}
         />
       </div>
+
+      {skillsLoadError && (
+        <div
+          style={{
+            marginBottom: 20,
+            padding: "12px 14px",
+            borderRadius: 12,
+            fontSize: 13,
+            lineHeight: 1.5,
+            background: "rgba(248,113,113,0.08)",
+            border: "1px solid rgba(248,113,113,0.35)",
+            color: "#fca5a5",
+          }}
+        >
+          云端技能统计未加载：{skillsLoadError}
+        </div>
+      )}
 
       {/* 中部图表：统一网格布局 */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(400px, 1fr))", gap: 24, marginBottom: 24 }}>

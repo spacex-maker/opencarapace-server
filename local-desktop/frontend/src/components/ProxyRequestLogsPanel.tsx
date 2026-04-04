@@ -1,4 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
+import { useI18n } from "../i18n";
+import { localeToHtmlLang } from "../i18n/localeMeta";
 
 type ProxyRequestLog = {
   id: number;
@@ -25,11 +27,11 @@ type PageResponse = {
   items: ProxyRequestLog[];
 };
 
-function fmtLocalDateTime(value?: string | null): string {
+function fmtLocalDateTime(value: string | null | undefined, htmlLang: string): string {
   if (!value) return "-";
   const d = new Date(value);
   if (Number.isNaN(d.getTime())) return String(value);
-  return d.toLocaleString("zh-CN", { hour12: false });
+  return d.toLocaleString(htmlLang, { hour12: false });
 }
 
 function fmtUsd(n: number) {
@@ -44,15 +46,17 @@ function fmtLatencyMs(n: number | null) {
   return `${(n / 1000).toFixed(2)} s`;
 }
 
-function formatBlockType(t: string | null) {
-  if (!t) return "-";
-  if (t === "danger_command") return "危险指令";
-  if (t === "skill_disabled") return "技能禁用";
-  if (t === "budget_exceeded") return "预算拦截";
-  return t;
+function formatBlockType(code: string | null, tr: (key: string) => string) {
+  if (!code) return "-";
+  if (code === "danger_command") return tr("interceptMonitorPage.blockTypes.danger_command");
+  if (code === "skill_disabled") return tr("interceptMonitorPage.blockTypes.skill_disabled");
+  if (code === "budget_exceeded") return tr("interceptMonitorPage.blockTypes.budget_exceeded");
+  return code;
 }
 
 export function ProxyRequestLogsPanel() {
+  const { t, locale } = useI18n();
+  const dateLocale = localeToHtmlLang(locale);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [items, setItems] = useState<ProxyRequestLog[]>([]);
@@ -77,7 +81,7 @@ export function ProxyRequestLogsPanel() {
       const res = await fetch(`http://127.0.0.1:19111/api/intercept-request-logs?${qs.toString()}`);
       const data = (await res.json()) as PageResponse;
       if (!res.ok) {
-        setError(data?.["error"]?.message || "加载请求日志失败");
+        setError(data?.["error"]?.message || t("interceptMonitorPage.proxyRequests.loadFailed"));
         setItems([]);
         setTotal(0);
         return;
@@ -85,7 +89,7 @@ export function ProxyRequestLogsPanel() {
       setItems(Array.isArray(data?.items) ? data.items : []);
       setTotal(typeof data?.total === "number" ? data.total : 0);
     } catch (e: any) {
-      setError(e?.message ?? "加载请求日志失败");
+      setError(e?.message ?? t("interceptMonitorPage.proxyRequests.loadFailed"));
     } finally {
       setLoading(false);
     }
@@ -104,17 +108,18 @@ export function ProxyRequestLogsPanel() {
       const res = await fetch("http://127.0.0.1:19111/api/token-usages/sync", { method: "POST" });
       const json = await res.json();
       if (!res.ok) {
-        setError(json?.error?.message || "同步失败");
+        setError(json?.error?.message || t("interceptMonitorPage.proxyRequests.syncFailed"));
         return;
       }
       setSyncMsg(
-        `已同步：上送 ${json.pushed ?? 0} 条（回写云端 ID ${json.idMappingsApplied ?? 0} 条），下行入库 ${
-          json.pulled ?? 0
-        } 条。`
+        t("interceptMonitorPage.proxyRequests.syncResult")
+          .replace("{pushed}", String(json.pushed ?? 0))
+          .replace("{idMaps}", String(json.idMappingsApplied ?? 0))
+          .replace("{pulled}", String(json.pulled ?? 0))
       );
       await load();
     } catch (e: any) {
-      setError(e?.message ?? "同步失败");
+      setError(e?.message ?? t("interceptMonitorPage.proxyRequests.syncFailed"));
     } finally {
       setSyncing(false);
     }
@@ -137,7 +142,7 @@ export function ProxyRequestLogsPanel() {
             cursor: loading || syncing ? "not-allowed" : "pointer",
           }}
         >
-          {syncing ? "同步中…" : "与云端同步"}
+          {syncing ? t("interceptMonitorPage.proxyRequests.syncing") : t("interceptMonitorPage.proxyRequests.syncCloud")}
         </button>
         <button
           type="button"
@@ -153,7 +158,7 @@ export function ProxyRequestLogsPanel() {
             cursor: loading ? "not-allowed" : "pointer",
           }}
         >
-          {loading ? "加载中…" : "刷新"}
+          {loading ? t("interceptMonitorPage.proxyRequests.loading") : t("interceptMonitorPage.proxyRequests.refresh")}
         </button>
       </div>
 
@@ -173,15 +178,15 @@ export function ProxyRequestLogsPanel() {
           <thead>
             <tr>
               {[
-                "时间",
-                "Provider",
-                "Model",
-                "路由",
-                "状态",
-                "告警类型",
-                "延时",
-                "费用",
-                "Tokens",
+                t("interceptMonitorPage.proxyRequests.colTime"),
+                t("interceptMonitorPage.proxyRequests.colProvider"),
+                t("interceptMonitorPage.proxyRequests.colModel"),
+                t("interceptMonitorPage.proxyRequests.colRoute"),
+                t("interceptMonitorPage.proxyRequests.colStatus"),
+                t("interceptMonitorPage.proxyRequests.colAlertType"),
+                t("interceptMonitorPage.proxyRequests.colLatency"),
+                t("interceptMonitorPage.proxyRequests.colCost"),
+                t("interceptMonitorPage.proxyRequests.colTokens"),
               ].map((h) => (
                 <th
                   key={h}
@@ -205,14 +210,14 @@ export function ProxyRequestLogsPanel() {
             {items.length === 0 ? (
               <tr>
                 <td colSpan={9} style={{ padding: 16, color: "var(--muted)", fontSize: 12 }}>
-                  暂无请求日志
+                  {t("interceptMonitorPage.proxyRequests.tableEmpty")}
                 </td>
               </tr>
             ) : (
               items.map((ev) => (
                 <tr key={ev.id}>
                   <td style={{ padding: "10px 12px", fontSize: 12, color: "var(--fg)" }}>
-                    {fmtLocalDateTime(ev.createdAt)}
+                    {fmtLocalDateTime(ev.createdAt, dateLocale)}
                   </td>
                   <td style={{ padding: "10px 12px", fontSize: 12, color: "var(--fg)" }}>{ev.providerKey}</td>
                   <td style={{ padding: "10px 12px", fontSize: 12, color: "var(--fg)" }}>{ev.model || "-"}</td>
@@ -221,7 +226,7 @@ export function ProxyRequestLogsPanel() {
                     {ev.statusCode ?? "-"}
                   </td>
                   <td style={{ padding: "10px 12px", fontSize: 12, color: "var(--fg)" }}>
-                    {formatBlockType(ev.blockType)}
+                    {formatBlockType(ev.blockType, t)}
                   </td>
                   <td style={{ padding: "10px 12px", fontSize: 12, color: "var(--fg)" }}>
                     {fmtLatencyMs(ev.latencyMs)}
@@ -249,7 +254,10 @@ export function ProxyRequestLogsPanel() {
         }}
       >
         <div style={{ fontSize: 12, color: "var(--muted)", marginRight: 8 }}>
-          第 {page} / {totalPages} 页（共 {total} 条）
+          {t("interceptMonitorPage.proxyRequests.pageInfo")
+            .replace("{page}", String(page))
+            .replace("{totalPages}", String(totalPages))
+            .replace("{total}", String(total))}
         </div>
         <button
           type="button"
@@ -265,7 +273,7 @@ export function ProxyRequestLogsPanel() {
             cursor: page <= 1 ? "not-allowed" : "pointer",
           }}
         >
-          上一页
+          {t("interceptMonitorPage.proxyRequests.prevPage")}
         </button>
         <button
           type="button"
@@ -281,7 +289,7 @@ export function ProxyRequestLogsPanel() {
             cursor: page >= totalPages ? "not-allowed" : "pointer",
           }}
         >
-          下一页
+          {t("interceptMonitorPage.proxyRequests.nextPage")}
         </button>
       </div>
     </div>

@@ -117,7 +117,7 @@ export function SecurityScanPanel({ status }: { status: LocalStatus | null }) {
   const [findings, setFindings] = useState<Finding[]>([]);
   const [scanError, setScanError] = useState<string | null>(null);
   const [filter, setFilter] = useState<"ALL" | "CRITICAL" | "WARN" | "PASS">("ALL");
-  const [subTab, setSubTab] = useState<"results" | "items">("items");
+  const [subTab, setSubTab] = useState<"items" | "results" | "history">("items");
   const [scanRunId, setScanRunId] = useState<number | null>(null);
   const [scanProgress, setScanProgress] = useState<{ done: number; total: number; status: string } | null>(null);
   const [scanHistory, setScanHistory] = useState<any[]>([]);
@@ -265,7 +265,7 @@ export function SecurityScanPanel({ status }: { status: LocalStatus | null }) {
   }, []);
 
   useEffect(() => {
-    if (subTab === "results") void loadHistory();
+    if (subTab === "history") void loadHistory();
   }, [subTab, loadHistory]);
 
   const openHistoryModal = useCallback((id: number) => {
@@ -371,6 +371,8 @@ export function SecurityScanPanel({ status }: { status: LocalStatus | null }) {
         /* SecurityScanPanel tabs: theme-adaptive */
         .ss-tabs {
           display: flex;
+          flex-wrap: wrap;
+          gap: 4px;
           background: var(--panel-bg2);
           padding: 4px;
           border-radius: 999px;
@@ -542,8 +544,13 @@ export function SecurityScanPanel({ status }: { status: LocalStatus | null }) {
         <div className="ss-tabs">
           {(
             [
-              { id: "items" as const, label: "配置与扫描项" },
-              { id: "results" as const, label: "扫描结果报告" },
+              { id: "items" as const, label: "配置与扫描项", badge: null as number | null },
+              { id: "results" as const, label: "扫描结果报告", badge: counts.total > 0 ? counts.total : null },
+              {
+                id: "history" as const,
+                label: "扫描历史",
+                badge: scanHistory.length > 0 ? scanHistory.length : null,
+              },
             ]
           ).map((t) => {
             const isActive = subTab === t.id;
@@ -555,9 +562,9 @@ export function SecurityScanPanel({ status }: { status: LocalStatus | null }) {
                 className={`ss-tab ${isActive ? "ss-tab--active" : ""}`}
               >
                 {t.label}
-                {t.id === "results" && counts.total > 0 && (
+                {t.badge != null && (
                   <span className="ss-tab-badge">
-                    {counts.total}
+                    {t.badge}
                   </span>
                 )}
               </button>
@@ -827,111 +834,101 @@ export function SecurityScanPanel({ status }: { status: LocalStatus | null }) {
         </div>
       )}
 
-      {/* 扫描结果面板 */}
-      {subTab === "results" && (
-        <div>
-          {/* 扫描历史 */}
-          <div style={{ ...cardBase, marginBottom: 16, padding: "16px 18px" }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
-              <div style={{ fontSize: 14, fontWeight: 800, color: "var(--fg)" }}>扫描历史</div>
-              <button
-                className="ui-btn-hover"
-                type="button"
-                onClick={() => void loadHistory()}
-                disabled={historyLoading}
-                style={{
-                  display: "inline-flex",
-                  alignItems: "center",
-                  gap: 6,
-                  padding: "8px 12px",
-                  borderRadius: 999,
-                  border: "1px solid var(--panel-border)",
-                  background: "var(--panel-bg2)",
-                  color: "var(--fg)",
-                  fontSize: 12,
-                  fontWeight: 700,
-                  cursor: historyLoading ? "not-allowed" : "pointer",
-                  whiteSpace: "nowrap",
-                }}
-              >
-                <MdRefresh style={{ fontSize: 16, animation: historyLoading ? "spin 1s linear infinite" : "none" }} />
-                刷新历史
-              </button>
-            </div>
-
-            {scanHistory.length === 0 ? (
-              <div style={{ marginTop: 10, fontSize: 12, color: "var(--muted)" }}>暂无历史记录</div>
-            ) : (
-              <div style={{ display: "grid", gap: 10, marginTop: 12 }}>
-                {scanHistory.slice(0, 12).map((r) => {
-                  const idRaw = (r as any)?.id;
-                  const id =
-                    typeof idRaw === "number"
-                      ? idRaw
-                      : (() => {
-                          const n = parseInt(String(idRaw ?? ""), 10);
-                          return Number.isFinite(n) ? n : NaN;
-                        })();
-                  const st = String(r?.status || "");
-                  const done = Number(r?.doneItems ?? 0);
-                  const total = Number(r?.totalItems ?? 0);
-                  const countsObj = r?.counts as any;
-                  const totalFindings = countsObj?.total ?? null;
-                  const canOpen = Number.isFinite(id);
-                  const isActive = historyModalOpen && historyModalRunId != null && canOpen && historyModalRunId === id;
-                  return (
-                    <button
-                      key={String(r?.id)}
-                      type="button"
-                      onClick={() => canOpen && openHistoryModal(id)}
-                      disabled={!canOpen}
-                      style={{
-                        width: "100%",
-                        textAlign: "left",
-                        display: "flex",
-                        justifyContent: "space-between",
-                        alignItems: "center",
-                        gap: 12,
-                        padding: "10px 12px",
-                        borderRadius: 18,
-                        border: `1px solid ${isActive ? "rgba(14,165,233,0.45)" : "var(--panel-border)"}`,
-                        background: isActive ? "rgba(14,165,233,0.08)" : "var(--panel-bg2)",
-                        color: "var(--fg)",
-                        cursor: canOpen ? "pointer" : "not-allowed",
-                        opacity: canOpen ? 1 : 0.6,
-                      }}
-                    >
-                      <div style={{ minWidth: 0 }}>
-                        <div style={{ fontSize: 13, fontWeight: 800, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                          #{id} · {st}
-                        </div>
-                        <div style={{ fontSize: 12, color: "var(--muted)", marginTop: 4, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                          {String(r?.phase || "") || "—"} {total > 0 ? `· ${Math.min(done, total)}/${total}` : ""}
-                          {totalFindings != null ? ` · 结果 ${totalFindings}` : ""}
-                        </div>
-                      </div>
-                      <span style={{ fontSize: 12, fontWeight: 800, color: "var(--muted2)", border: "1px solid var(--panel-border)", padding: "4px 10px", borderRadius: 999, background: "var(--panel-bg)" }}>
-                        {isActive ? "已打开" : "打开"}
-                      </span>
-                    </button>
-                  );
-                })}
-              </div>
-            )}
+      {/* 扫描历史（独立 Tab） */}
+      {subTab === "history" && (
+        <div style={{ ...cardBase, padding: "16px 18px" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, flexWrap: "wrap", marginBottom: 4 }}>
+            <div style={{ fontSize: 14, fontWeight: 800, color: "var(--fg)" }}>历史扫描任务</div>
+            <button
+              className="ui-btn-hover"
+              type="button"
+              onClick={() => void loadHistory()}
+              disabled={historyLoading}
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 6,
+                padding: "8px 12px",
+                borderRadius: 999,
+                border: "1px solid var(--panel-border)",
+                background: "var(--panel-bg2)",
+                color: "var(--fg)",
+                fontSize: 12,
+                fontWeight: 700,
+                cursor: historyLoading ? "not-allowed" : "pointer",
+                whiteSpace: "nowrap",
+              }}
+            >
+              <MdRefresh style={{ fontSize: 16, animation: historyLoading ? "spin 1s linear infinite" : "none" }} />
+              刷新历史
+            </button>
           </div>
 
-          <SecurityScanRunModal
-            open={historyModalOpen}
-            runId={historyModalRunId}
-            onClose={() => setHistoryModalOpen(false)}
-            onApplyFindings={(fs) => {
-              setFindings(fs as any);
-              setFilter("ALL");
-              setSubTab("results");
-              setHistoryModalOpen(false);
-            }}
-          />
+          {scanHistory.length === 0 ? (
+            <div style={{ marginTop: 10, fontSize: 12, color: "var(--muted)" }}>暂无历史记录</div>
+          ) : (
+            <div style={{ display: "grid", gap: 10, marginTop: 12 }}>
+              {scanHistory.slice(0, 12).map((r) => {
+                const idRaw = (r as any)?.id;
+                const id =
+                  typeof idRaw === "number"
+                    ? idRaw
+                    : (() => {
+                        const n = parseInt(String(idRaw ?? ""), 10);
+                        return Number.isFinite(n) ? n : NaN;
+                      })();
+                const st = String(r?.status || "");
+                const done = Number(r?.doneItems ?? 0);
+                const total = Number(r?.totalItems ?? 0);
+                const countsObj = r?.counts as any;
+                const totalFindings = countsObj?.total ?? null;
+                const canOpen = Number.isFinite(id);
+                const isActive = historyModalOpen && historyModalRunId != null && canOpen && historyModalRunId === id;
+                return (
+                  <button
+                    key={String(r?.id)}
+                    type="button"
+                    onClick={() => canOpen && openHistoryModal(id)}
+                    disabled={!canOpen}
+                    style={{
+                      width: "100%",
+                      textAlign: "left",
+                      display: "flex",
+                      justifyContent: "space-between",
+                      alignItems: "center",
+                      gap: 12,
+                      padding: "10px 12px",
+                      borderRadius: 18,
+                      border: `1px solid ${isActive ? "rgba(14,165,233,0.45)" : "var(--panel-border)"}`,
+                      background: isActive ? "rgba(14,165,233,0.08)" : "var(--panel-bg2)",
+                      color: "var(--fg)",
+                      cursor: canOpen ? "pointer" : "not-allowed",
+                      opacity: canOpen ? 1 : 0.6,
+                    }}
+                  >
+                    <div style={{ minWidth: 0 }}>
+                      <div style={{ fontSize: 13, fontWeight: 800, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                        #{id} · {st}
+                      </div>
+                      <div style={{ fontSize: 12, color: "var(--muted)", marginTop: 4, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                        {String(r?.phase || "") || "—"} {total > 0 ? `· ${Math.min(done, total)}/${total}` : ""}
+                        {totalFindings != null ? ` · 结果 ${totalFindings}` : ""}
+                      </div>
+                    </div>
+                    <span style={{ fontSize: 12, fontWeight: 800, color: "var(--muted2)", border: "1px solid var(--panel-border)", padding: "4px 10px", borderRadius: 999, background: "var(--panel-bg)" }}>
+                      {isActive ? "已打开" : "打开"}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
 
+      {/* 扫描结果报告 */}
+      {subTab === "results" && (
+        <div>
           {findings.length === 0 && !scanning ? (
             <div style={{ ...cardBase, padding: "60px 20px", textAlign: "center", display: "flex", flexDirection: "column", alignItems: "center", gap: 16 }}>
               <div style={{ width: 64, height: 64, borderRadius: 999, background: "var(--panel-bg2)", display: "flex", alignItems: "center", justifyContent: "center" }}>
@@ -939,7 +936,7 @@ export function SecurityScanPanel({ status }: { status: LocalStatus | null }) {
               </div>
               <div>
                 <div style={{ fontSize: 16, fontWeight: 600, color: "var(--fg)" }}>暂无发现项</div>
-                <div style={{ fontSize: 14, color: "var(--muted)", marginTop: 6 }}>请在「配置与扫描项」中点击开始扫描以获取报告。</div>
+                <div style={{ fontSize: 14, color: "var(--muted)", marginTop: 6 }}>请在「配置与扫描项」中执行扫描；历史记录可在「扫描历史」中查看。</div>
               </div>
             </div>
           ) : (
@@ -1080,6 +1077,18 @@ export function SecurityScanPanel({ status }: { status: LocalStatus | null }) {
           )}
         </div>
       )}
+
+      <SecurityScanRunModal
+        open={historyModalOpen}
+        runId={historyModalRunId}
+        onClose={() => setHistoryModalOpen(false)}
+        onApplyFindings={(fs) => {
+          setFindings(fs as any);
+          setFilter("ALL");
+          setSubTab("results");
+          setHistoryModalOpen(false);
+        }}
+      />
     </div>
   );
 }

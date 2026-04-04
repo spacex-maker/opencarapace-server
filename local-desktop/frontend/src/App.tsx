@@ -708,9 +708,13 @@ export function App() {
         {activeTab === "settings" && <SettingsPanel onApiBaseChanged={refreshStatus} status={status} />}
         {activeTab === "auth" &&
           (authSubView === "register" ? (
-            <RegisterPanel onRegistered={handleLoggedIn} onGoLogin={() => setAuthSubView("login")} />
+            <RegisterPanel
+              theme={theme}
+              onRegistered={handleLoggedIn}
+              onGoLogin={() => setAuthSubView("login")}
+            />
           ) : (
-            <AuthPanel onLoggedIn={handleLoggedIn} onGoRegister={() => setAuthSubView("register")} />
+            <AuthPanel theme={theme} onLoggedIn={handleLoggedIn} onGoRegister={() => setAuthSubView("register")} />
           ))}
       </div>
 

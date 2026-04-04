@@ -54,11 +54,11 @@ let cacheTimestamp: number = 0;
 // 基础卡片样式提取，保持风格统一
 const cardBaseStyle: React.CSSProperties = {
   background: "var(--panel-bg)",
-  border: "1px solid var(--panel-border)",
+  border: "none",
   borderRadius: 16,
   padding: "clamp(16px, 2vw, 24px)",
-  boxShadow: "0 4px 20px -2px rgba(0, 0, 0, 0.1), 0 0 0 1px rgba(255,255,255,0.02) inset",
-  transition: "all 0.3s ease",
+  boxShadow: "none",
+  transition: "background 0.3s ease",
 };
 
 export function OverviewPanel(props: Props) {
@@ -581,18 +581,21 @@ export function OverviewPanel(props: Props) {
           marginBottom: 32,
         }}
       >
-        <StatCard label="危险指令规则" value={loading ? "…" : status?.danger ?? 0} />
-        <StatCard label="系统禁用技能" value={loading ? "…" : status?.disabled ?? 0} />
-        <StatCard label="不推荐技能" value={loading ? "…" : status?.deprecated ?? 0} />
+        <StatCard noBorder label="危险指令规则" value={loading ? "…" : status?.danger ?? 0} />
+        <StatCard noBorder label="系统禁用技能" value={loading ? "…" : status?.disabled ?? 0} />
+        <StatCard noBorder label="不推荐技能" value={loading ? "…" : status?.deprecated ?? 0} />
         <StatCard
+          noBorder
           label="用户禁用技能"
           value={skillsLoading ? "…" : dashboardStats.skillsStats?.userDisabledCount ?? 0}
         />
         <StatCard
+          noBorder
           label="我标记为安全"
           value={skillsLoading ? "…" : dashboardStats.skillsStats?.userSafeLabelCount ?? 0}
         />
         <StatCard
+          noBorder
           label="我标记为不安全"
           value={skillsLoading ? "…" : dashboardStats.skillsStats?.userUnsafeLabelCount ?? 0}
         />

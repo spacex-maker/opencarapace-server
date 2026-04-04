@@ -28,14 +28,22 @@ export function NavButton(props: { label: string; active: boolean; onClick: () =
   );
 }
 
-export function StatCard({ label, value }: { label: string; value: string | number }) {
+export function StatCard({
+  label,
+  value,
+  noBorder,
+}: {
+  label: string;
+  value: string | number;
+  noBorder?: boolean;
+}) {
   return (
     <div
       style={{
         padding: "10px 12px",
         borderRadius: 10,
         background: "var(--panel-bg2)",
-        border: "1px solid var(--panel-border)",
+        border: noBorder ? "none" : "1px solid var(--panel-border)",
       }}
     >
       <div

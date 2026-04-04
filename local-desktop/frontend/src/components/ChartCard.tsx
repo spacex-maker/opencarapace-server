@@ -17,8 +17,8 @@ export function ChartCard({ title, option, height = 300, loading = false }: Prop
         background: "var(--panel-bg2)",
         borderRadius: 12,
         padding: "16px 20px",
-        border: "1px solid var(--panel-border)",
-        boxShadow: "0 4px 12px rgba(0,0,0,0.18)",
+        border: "none",
+        boxShadow: "none",
         minWidth: 0,
       }}
     >

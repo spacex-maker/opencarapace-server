@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useI18n } from "../i18n";
 
 type SummaryResponse = {
   todayToken: number;
@@ -26,6 +27,7 @@ function fmtLatencyMs(n: number | null) {
 }
 
 export function RealtimeOverviewPanel() {
+  const { t } = useI18n();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [summary, setSummary] = useState<SummaryResponse | null>(null);
@@ -37,13 +39,13 @@ export function RealtimeOverviewPanel() {
       const res = await fetch("http://127.0.0.1:19111/api/intercept-request-logs/summary");
       const data = await res.json();
       if (!res.ok) {
-        setError(data?.error?.message || "加载实时概览失败");
+        setError(data?.error?.message || t("interceptMonitorPage.realtime.loadFailed"));
         setSummary(null);
         return;
       }
       setSummary(data as SummaryResponse);
     } catch (e: any) {
-      setError(e?.message ?? "加载实时概览失败");
+      setError(e?.message ?? t("interceptMonitorPage.realtime.loadFailed"));
       setSummary(null);
     } finally {
       setLoading(false);
@@ -70,7 +72,7 @@ export function RealtimeOverviewPanel() {
             padding: "14px 16px",
           }}
         >
-          <div style={{ fontSize: 12, color: "var(--muted)" }}>今日 Token</div>
+          <div style={{ fontSize: 12, color: "var(--muted)" }}>{t("interceptMonitorPage.realtime.labelTodayTokens")}</div>
           <div style={{ fontSize: 18, fontWeight: 800, color: "var(--fg)", marginTop: 6 }}>
             {summary ? fmtKTokens(summary.todayToken) : loading ? "…" : "-"}
           </div>
@@ -84,7 +86,7 @@ export function RealtimeOverviewPanel() {
             padding: "14px 16px",
           }}
         >
-          <div style={{ fontSize: 12, color: "var(--muted)" }}>今日费用</div>
+          <div style={{ fontSize: 12, color: "var(--muted)" }}>{t("interceptMonitorPage.realtime.labelTodayCost")}</div>
           <div style={{ fontSize: 18, fontWeight: 800, color: "var(--fg)", marginTop: 6 }}>
             {summary ? fmtUsd(summary.todayCostUsd) : loading ? "…" : "-"}
           </div>
@@ -98,7 +100,7 @@ export function RealtimeOverviewPanel() {
             padding: "14px 16px",
           }}
         >
-          <div style={{ fontSize: 12, color: "var(--muted)" }}>请求次数</div>
+          <div style={{ fontSize: 12, color: "var(--muted)" }}>{t("interceptMonitorPage.realtime.labelRequestCount")}</div>
           <div style={{ fontSize: 18, fontWeight: 800, color: "var(--fg)", marginTop: 6 }}>
             {summary ? summary.requestCount : loading ? "…" : "-"}
           </div>
@@ -112,7 +114,7 @@ export function RealtimeOverviewPanel() {
             padding: "14px 16px",
           }}
         >
-          <div style={{ fontSize: 12, color: "var(--muted)" }}>平均延时</div>
+          <div style={{ fontSize: 12, color: "var(--muted)" }}>{t("interceptMonitorPage.realtime.labelAvgLatency")}</div>
           <div style={{ fontSize: 18, fontWeight: 800, color: "var(--fg)", marginTop: 6 }}>
             {summary ? fmtLatencyMs(summary.avgLatencyMs) : loading ? "…" : "-"}
           </div>

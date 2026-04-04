@@ -3,9 +3,7 @@ import { Link, useNavigate, useLocation } from "react-router-dom";
 import { Loader2, Lock, Mail, UserRound } from "lucide-react";
 import { useAuth } from "../contexts/AuthContext";
 import { AuthPageShell } from "../components/AuthPageShell";
-
-const fieldClass =
-  "w-full rounded-full border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-950/50 px-4 py-2.5 pl-11 text-sm text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-brand-500/35 focus:border-brand-500/40 transition-shadow";
+import { authErrorClass, authFieldClass, authPrimaryButtonClass } from "../components/authPageStyles";
 
 export const RegisterPage = () => {
   const navigate = useNavigate();
@@ -27,7 +25,7 @@ export const RegisterPage = () => {
     e.preventDefault();
     setError("");
     if (password.length < 6) {
-      setError("密码至少 6 位");
+      setError("密码长度至少为 6 位");
       return;
     }
     setSubmitting(true);
@@ -39,7 +37,7 @@ export const RegisterPage = () => {
         err && typeof err === "object" && "response" in err
           ? (err as { response?: { data?: { message?: string } } }).response?.data?.message
           : null;
-      setError(msg || "注册失败，该邮箱可能已被使用");
+      setError(msg || "注册未成功，该邮箱可能已存在");
     } finally {
       setSubmitting(false);
     }
@@ -47,25 +45,22 @@ export const RegisterPage = () => {
 
   return (
     <AuthPageShell
-      title="创建你的账号"
-      subtitle="几分钟内完成注册，即可使用安全评估、危险指令库与 API Key 管理。"
+      title="注册账户"
+      subtitle="开通后与官网控制台共用同一账号，可随时登录管理配置。"
     >
       {error && (
-        <div
-          role="alert"
-          className="mb-6 rounded-full border border-red-500/35 bg-red-500/10 text-red-700 dark:text-red-300 text-sm px-4 py-2.5"
-        >
+        <div role="alert" className={authErrorClass}>
           {error}
         </div>
       )}
 
       <form onSubmit={handleSubmit} className="space-y-4">
         <div>
-          <label htmlFor="reg-email" className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-2 ml-1">
-            邮箱 <span className="text-red-500 dark:text-red-400 font-normal">*</span>
+          <label htmlFor="reg-email" className="mb-2 ml-1 block text-xs font-medium text-slate-600 dark:text-slate-400">
+            电子邮箱 <span className="font-normal text-red-500 dark:text-red-400">*</span>
           </label>
           <div className="relative">
-            <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
+            <Mail className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400 dark:text-slate-500" />
             <input
               id="reg-email"
               type="email"
@@ -73,17 +68,17 @@ export const RegisterPage = () => {
               autoComplete="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              className={fieldClass}
-              placeholder="you@company.com"
+              className={authFieldClass}
+              placeholder="name@example.com"
             />
           </div>
         </div>
         <div>
-          <label htmlFor="reg-password" className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-2 ml-1">
-            密码 <span className="text-red-500 dark:text-red-400 font-normal">*</span>
+          <label htmlFor="reg-password" className="mb-2 ml-1 block text-xs font-medium text-slate-600 dark:text-slate-400">
+            登录密码 <span className="font-normal text-red-500 dark:text-red-400">*</span>
           </label>
           <div className="relative">
-            <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
+            <Lock className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400 dark:text-slate-500" />
             <input
               id="reg-password"
               type="password"
@@ -92,53 +87,53 @@ export const RegisterPage = () => {
               autoComplete="new-password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className={fieldClass}
-              placeholder="至少 6 位"
+              className={authFieldClass}
+              placeholder="不少于 6 位"
             />
           </div>
-          <p className="mt-1.5 ml-1 text-[11px] text-slate-500 dark:text-slate-500">建议使用字母与数字组合</p>
+          <p className="mt-1.5 ml-1 text-[11px] text-slate-500 dark:text-slate-500">建议包含字母与数字，勿与其他网站共用同一密码</p>
         </div>
         <div>
-          <label htmlFor="reg-name" className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-2 ml-1">
-            昵称 <span className="text-slate-400 font-normal">（选填）</span>
+          <label htmlFor="reg-name" className="mb-2 ml-1 block text-xs font-medium text-slate-600 dark:text-slate-400">
+            显示名称 <span className="font-normal text-slate-400">（选填）</span>
           </label>
           <div className="relative">
-            <UserRound className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
+            <UserRound className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400 dark:text-slate-500" />
             <input
               id="reg-name"
               type="text"
               autoComplete="name"
               value={displayName}
               onChange={(e) => setDisplayName(e.target.value)}
-              className={fieldClass}
-              placeholder="在控制台中显示的名称"
+              className={authFieldClass}
+              placeholder="在控制台中展示，如姓名或团队名"
             />
           </div>
         </div>
         <button
           type="submit"
           disabled={submitting}
-          className="w-full mt-2 flex items-center justify-center gap-2 rounded-full py-3 bg-brand-600 hover:bg-brand-500 text-white text-sm font-semibold shadow-lg shadow-brand-600/25 disabled:opacity-50 disabled:pointer-events-none transition-colors"
+          className={`${authPrimaryButtonClass} mt-1 flex items-center justify-center gap-2`}
         >
           {submitting ? (
             <>
               <Loader2 className="w-4 h-4 animate-spin shrink-0" />
-              注册中…
+              正在提交…
             </>
           ) : (
-            "注册并进入控制台"
+            "完成注册"
           )}
         </button>
       </form>
 
       <p className="mt-8 text-center text-sm text-slate-600 dark:text-slate-400">
-        已有账号？{" "}
+        已有账户？{" "}
         <Link
           to="/login"
           state={location.state}
-          className="font-semibold text-brand-600 dark:text-brand-400 hover:text-brand-500 dark:hover:text-brand-300"
+          className="font-semibold text-brand-600 underline-offset-4 transition-colors hover:text-brand-500 hover:underline dark:text-brand-400 dark:hover:text-brand-300"
         >
-          去登录
+          返回登录
         </Link>
       </p>
     </AuthPageShell>

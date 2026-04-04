@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useI18n } from "../i18n";
 import { LocalStatus } from "./Common";
 import { MdEmail, MdLock, MdPerson, MdShield } from "react-icons/md";
 import { getAuthFormTheme, type AuthFormTheme } from "./authFormTheme";
@@ -12,6 +13,7 @@ export function RegisterPanel({
   onRegistered: (s: LocalStatus) => void;
   onGoLogin: () => void;
 }) {
+  const { t } = useI18n();
   const th = getAuthFormTheme(theme);
 
   const [email, setEmail] = useState("");
@@ -29,7 +31,7 @@ export function RegisterPanel({
     setMessage(null);
     setError(null);
     if (password.length < 6) {
-      setError("密码至少 6 位");
+      setError(t("authPage.register.errPasswordMin"));
       setLoading(false);
       return;
     }
@@ -50,23 +52,23 @@ export function RegisterPanel({
         const jsonStr = firstBrace >= 0 ? text.slice(firstBrace) : text;
         data = JSON.parse(jsonStr);
       } catch {
-        setError(text.substring(0, 120) || "注册响应不是合法 JSON");
+        setError(text.substring(0, 120) || t("authPage.register.errBadJson"));
         return;
       }
 
       if (!res.ok) {
-        setError(data?.error?.message || data?.message || "注册失败，该邮箱可能已被使用");
+        setError(data?.error?.message || data?.message || t("authPage.register.errEmailTaken"));
         return;
       }
 
       const shown = (data?.displayName && String(data.displayName).trim()) || data?.email || email;
-      setMessage(`注册成功：${shown}`);
+      setMessage(t("authPage.register.successWithName").replace("{name}", String(shown)));
       const statusRes = await fetch("http://127.0.0.1:19111/api/status");
       const statusData = await statusRes.json();
       onRegistered(statusData);
       setPassword("");
     } catch (e: any) {
-      setError(e?.message ?? "注册失败");
+      setError(e?.message ?? t("authPage.register.errFailed"));
     } finally {
       setLoading(false);
     }
@@ -99,8 +101,8 @@ export function RegisterPanel({
           >
             <MdShield style={{ fontSize: 34, color: "#ffffff" }} />
           </div>
-          <h1 style={th.title}>注册云端账户</h1>
-          <p style={th.subtitle}>与网页端使用同一套接口。注册成功后自动登录并同步规则。</p>
+          <h1 style={th.title}>{t("authPage.register.title")}</h1>
+          <p style={th.subtitle}>{t("authPage.register.subtitle")}</p>
         </div>
 
         <form
@@ -116,7 +118,7 @@ export function RegisterPanel({
               <input
                 type="email"
                 autoComplete="email"
-                placeholder="邮箱地址"
+                placeholder={t("authPage.register.emailPlaceholder")}
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 onFocus={() => setEmailFocus(true)}
@@ -134,7 +136,7 @@ export function RegisterPanel({
               <input
                 type="password"
                 autoComplete="new-password"
-                placeholder="密码（至少 6 位）"
+                placeholder={t("authPage.register.passwordPlaceholder")}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 onFocus={() => setPasswordFocus(true)}
@@ -153,7 +155,7 @@ export function RegisterPanel({
               <input
                 type="text"
                 autoComplete="nickname"
-                placeholder="昵称（选填）"
+                placeholder={t("authPage.register.nicknamePlaceholder")}
                 value={displayName}
                 onChange={(e) => setDisplayName(e.target.value)}
                 onFocus={() => setNameFocus(true)}
@@ -165,7 +167,7 @@ export function RegisterPanel({
           </div>
 
           <button type="submit" disabled={loading} style={th.submitButton(loading)}>
-            {loading ? "注册中…" : "注册并登录"}
+            {loading ? t("authPage.register.submitting") : t("authPage.register.submit")}
           </button>
         </form>
 
@@ -176,7 +178,7 @@ export function RegisterPanel({
             ...th.footerMuted,
           }}
         >
-          已有账号？{" "}
+          {t("authPage.register.hasAccount")}{" "}
           <button
             type="button"
             onClick={onGoLogin}
@@ -191,7 +193,7 @@ export function RegisterPanel({
               textUnderlineOffset: 3,
             }}
           >
-            去登录
+            {t("authPage.register.goLogin")}
           </button>
         </p>
 

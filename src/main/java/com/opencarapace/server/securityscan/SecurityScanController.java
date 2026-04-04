@@ -29,12 +29,13 @@ public class SecurityScanController {
     }
 
     @GetMapping("/items")
-    public ResponseEntity<?> listItems(@RequestHeader(value = "Authorization", required = false) String authHeader) {
+    public ResponseEntity<?> listItems(@RequestHeader(value = "Authorization", required = false) String authHeader,
+                                       @RequestParam(value = "clientOs", required = false) String clientOs) {
         User user = resolveUser(authHeader);
         if (user == null) {
             return ResponseEntity.status(401).body(Map.of("error", "未授权"));
         }
-        return ResponseEntity.ok(Map.of("items", securityScanService.listItemsForClient()));
+        return ResponseEntity.ok(Map.of("items", securityScanService.listItemsForClient(clientOs)));
     }
 
     @PostMapping("/ai-run")
@@ -47,8 +48,10 @@ public class SecurityScanController {
         @SuppressWarnings("unchecked")
         List<String> codes = (List<String>) body.get("itemCodes");
         String context = body.get("context") != null ? String.valueOf(body.get("context")) : "";
+        String clientOs = body.get("clientOs") != null ? String.valueOf(body.get("clientOs")) : null;
+        String locale = body.get("locale") != null ? String.valueOf(body.get("locale")) : "";
         try {
-            return ResponseEntity.ok(securityScanService.runScan(user, codes, context));
+            return ResponseEntity.ok(securityScanService.runScan(user, codes, context, clientOs, locale));
         } catch (org.springframework.web.server.ResponseStatusException e) {
             return ResponseEntity.status(e.getStatusCode())
                     .body(Map.of("error", Map.of("message", e.getReason() != null ? e.getReason() : "请求失败")));
@@ -68,8 +71,10 @@ public class SecurityScanController {
         @SuppressWarnings("unchecked")
         List<String> codes = (List<String>) body.get("itemCodes");
         String context = body.get("context") != null ? String.valueOf(body.get("context")) : "";
+        String clientOs = body.get("clientOs") != null ? String.valueOf(body.get("clientOs")) : null;
+        String locale = body.get("locale") != null ? String.valueOf(body.get("locale")) : "";
         try {
-            return ResponseEntity.ok(securityScanRunService.startAsync(user, codes, context));
+            return ResponseEntity.ok(securityScanRunService.startAsync(user, codes, context, clientOs, locale));
         } catch (org.springframework.web.server.ResponseStatusException e) {
             return ResponseEntity.status(e.getStatusCode())
                     .body(Map.of("error", Map.of("message", e.getReason() != null ? e.getReason() : "请求失败")));

@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useI18n } from "../i18n";
 import { LocalStatus } from "./Common";
 import { MdEmail, MdLock, MdShield } from "react-icons/md";
 import { getAuthFormTheme, type AuthFormTheme } from "./authFormTheme";
@@ -12,6 +13,7 @@ export function AuthPanel({
   onLoggedIn: (s: LocalStatus) => void;
   onGoRegister?: () => void;
 }) {
+  const { t } = useI18n();
   const th = getAuthFormTheme(theme);
 
   const [email, setEmail] = useState("");
@@ -39,23 +41,23 @@ export function AuthPanel({
         const jsonStr = firstBrace >= 0 ? text.slice(firstBrace) : text;
         data = JSON.parse(jsonStr);
       } catch {
-        setError(text.substring(0, 120) || "登录响应不是合法 JSON");
+        setError(text.substring(0, 120) || t("authPage.login.errBadJson"));
         return;
       }
 
       if (!res.ok) {
-        setError(data?.error?.message || "登录失败");
+        setError(data?.error?.message || t("authPage.login.errFailed"));
         return;
       }
 
       const shown = (data?.displayName && String(data.displayName).trim()) || data?.email || email;
-      setMessage(`登录成功：${shown}`);
+      setMessage(t("authPage.login.successWithName").replace("{name}", String(shown)));
       const statusRes = await fetch("http://127.0.0.1:19111/api/status");
       const statusData = await statusRes.json();
       onLoggedIn(statusData);
       setPassword("");
     } catch (e: any) {
-      setError(e?.message ?? "登录失败");
+      setError(e?.message ?? t("authPage.login.errFailed"));
     } finally {
       setLoading(false);
     }
@@ -88,10 +90,8 @@ export function AuthPanel({
           >
             <MdShield style={{ fontSize: 34, color: "#ffffff" }} />
           </div>
-          <h1 style={th.title}>登录云端账户</h1>
-          <p style={th.subtitle}>
-            使用与网页端相同的账号。Token 保存在本机，用于同步规则与偏好设置。
-          </p>
+          <h1 style={th.title}>{t("authPage.login.title")}</h1>
+          <p style={th.subtitle}>{t("authPage.login.subtitle")}</p>
         </div>
 
         <form
@@ -112,7 +112,7 @@ export function AuthPanel({
               <input
                 type="email"
                 autoComplete="email"
-                placeholder="邮箱地址"
+                placeholder={t("authPage.login.emailPlaceholder")}
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 onFocus={() => setEmailFocus(true)}
@@ -134,7 +134,7 @@ export function AuthPanel({
               <input
                 type="password"
                 autoComplete="current-password"
-                placeholder="密码"
+                placeholder={t("authPage.login.passwordPlaceholder")}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 onFocus={() => setPasswordFocus(true)}
@@ -146,7 +146,7 @@ export function AuthPanel({
           </div>
 
           <button type="submit" disabled={loading} style={th.submitButton(loading)}>
-            {loading ? "登录中…" : "登录"}
+            {loading ? t("authPage.login.submitting") : t("authPage.login.submit")}
           </button>
         </form>
 
@@ -158,7 +158,7 @@ export function AuthPanel({
               ...th.footerMuted,
             }}
           >
-            没有账号？{" "}
+            {t("authPage.login.noAccount")}{" "}
             <button
               type="button"
               onClick={onGoRegister}
@@ -173,7 +173,7 @@ export function AuthPanel({
                 textUnderlineOffset: 3,
               }}
             >
-              注册
+              {t("authPage.login.goRegister")}
             </button>
           </p>
         )}

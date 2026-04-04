@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useI18n } from "../i18n";
+import { localeToHtmlLang } from "../i18n/localeMeta";
 import { BudgetRuleModal } from "./BudgetRuleModal";
 
 type BudgetRow = {
@@ -76,6 +78,8 @@ const TrashIcon = () => (
   <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" /></svg>
 );
 export function BudgetMonitorPanel() {
+  const { t, locale } = useI18n();
+  const collatorLocale = localeToHtmlLang(locale);
   const [summary, setSummary] = useState<Summary | null>(null);
   const [settings, setSettings] = useState<BudgetRow[]>([]);
   const [loading, setLoading] = useState(false);
@@ -201,9 +205,9 @@ export function BudgetMonitorPanel() {
     ];
     const fromSettings = settings.map((s) => s.provider_key).filter(Boolean);
     const merged = Array.from(new Set([...common, ...fromSettings]));
-    merged.sort((a, b) => String(a).localeCompare(String(b), "zh-Hans-CN", { sensitivity: "base" }));
+    merged.sort((a, b) => String(a).localeCompare(String(b), collatorLocale, { sensitivity: "base" }));
     return merged;
-  }, [settings]);
+  }, [settings, collatorLocale]);
 
   const modelSuggestions = useMemo(() => {
     const providerKey = (form.provider_key || "").trim();
@@ -214,7 +218,7 @@ export function BudgetMonitorPanel() {
       const fromKnown = Object.values(providerModelSuggestions).flat();
       const unique = Array.from(new Set(["*", ...fromKnown, ...fromSettings]));
       const withoutStar = unique.filter((m) => m !== "*");
-      withoutStar.sort((a, b) => String(a).localeCompare(String(b), "zh-Hans-CN", { sensitivity: "base" }));
+      withoutStar.sort((a, b) => String(a).localeCompare(String(b), collatorLocale, { sensitivity: "base" }));
       return ["*", ...withoutStar];
     }
 
@@ -227,10 +231,10 @@ export function BudgetMonitorPanel() {
 
     // 保证 "*" 总是出现在首位，方便用户快速设置“该 Provider 通配规则”。
     const withoutStar = Array.from(new Set([...known, ...fromSettings])).filter((m) => m !== "*");
-    withoutStar.sort((a, b) => String(a).localeCompare(String(b), "zh-Hans-CN", { sensitivity: "base" }));
+    withoutStar.sort((a, b) => String(a).localeCompare(String(b), collatorLocale, { sensitivity: "base" }));
 
     return ["*", ...withoutStar];
-  }, [form.provider_key, providerModelSuggestions, settings]);
+  }, [form.provider_key, providerModelSuggestions, settings, collatorLocale]);
 
   const loadAll = useCallback(async () => {
     setLoading(true);
@@ -242,8 +246,8 @@ export function BudgetMonitorPanel() {
       ]);
       const sData = await sRes.json();
       const stData = await stRes.json();
-      if (!sRes.ok) throw new Error(sData?.error?.message || "加载汇总失败");
-      if (!stRes.ok) throw new Error(stData?.error?.message || "加载设置失败");
+      if (!sRes.ok) throw new Error(sData?.error?.message || t("interceptMonitorPage.budget.errLoadSummary"));
+      if (!stRes.ok) throw new Error(stData?.error?.message || t("interceptMonitorPage.budget.errLoadSettings"));
       setSummary({
         today: sData.today || { costUsd: 0, totalTokens: 0, requestCount: 0 },
         week: sData.week || { costUsd: 0, totalTokens: 0, requestCount: 0 },
@@ -253,11 +257,11 @@ export function BudgetMonitorPanel() {
       });
       setSettings(Array.isArray(stData.items) ? stData.items : []);
     } catch (e: any) {
-      setError(e?.message ?? "加载失败");
+      setError(e?.message ?? t("interceptMonitorPage.budget.errLoad"));
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [t]);
 
   useEffect(() => {
     void loadAll();
@@ -284,26 +288,26 @@ export function BudgetMonitorPanel() {
         body: JSON.stringify(body),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data?.error?.message || "保存失败");
-      setMessage("已保存。相同 Provider + Model 会合并为一条。");
+      if (!res.ok) throw new Error(data?.error?.message || t("interceptMonitorPage.budget.errSave"));
+      setMessage(t("interceptMonitorPage.budget.saveOk"));
       await loadAll();
       setModalOpen(false);
     } catch (e: any) {
-      setError(e?.message ?? "保存失败");
+      setError(e?.message ?? t("interceptMonitorPage.budget.errSave"));
     } finally {
       setSaving(false);
     }
   };
 
   const deleteRule = async (id: number) => {
-    if (!window.confirm("确定删除该条费率/预算规则？")) return;
+    if (!window.confirm(t("interceptMonitorPage.budget.confirmDelete"))) return;
     try {
       const res = await fetch(`http://127.0.0.1:19111/api/llm-budget/settings/${id}`, { method: "DELETE" });
       const data = await res.json();
-      if (!res.ok) throw new Error(data?.error?.message || "删除失败");
+      if (!res.ok) throw new Error(data?.error?.message || t("interceptMonitorPage.budget.errDelete"));
       await loadAll();
     } catch (e: any) {
-      setError(e?.message ?? "删除失败");
+      setError(e?.message ?? t("interceptMonitorPage.budget.errDelete"));
     }
   };
 
@@ -335,9 +339,13 @@ export function BudgetMonitorPanel() {
       {/* 头部与操作栏 */}
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20, flexWrap: "wrap", gap: 12 }}>
         <div>
-          <h2 style={{ margin: "0 0 4px 0", fontSize: 18, fontWeight: 600, color: "var(--fg)" }}>API 预算与消耗控制台</h2>
+          <h2 style={{ margin: "0 0 4px 0", fontSize: 18, fontWeight: 600, color: "var(--fg)" }}>{t("interceptMonitorPage.budget.title")}</h2>
           <div style={{ fontSize: 12, color: "var(--muted2)" }}>
-            按路径前缀识别 Provider（如 <code style={{ color: "var(--muted)", background: "var(--chip-bg)", padding: "2px 4px", borderRadius: 4 }}>/openai/v1/...</code> 为 openai）；无前缀记为 default。Model 填 <code style={{ color: "var(--muted)", background: "var(--chip-bg)", padding: "2px 4px", borderRadius: 4 }}>*</code> 表示通用规则。
+            {t("interceptMonitorPage.budget.subtitleBeforeOpenai")}
+            <code style={{ color: "var(--muted)", background: "var(--chip-bg)", padding: "2px 4px", borderRadius: 4 }}>/openai/v1/...</code>
+            {t("interceptMonitorPage.budget.subtitleAfterOpenai")}
+            <code style={{ color: "var(--muted)", background: "var(--chip-bg)", padding: "2px 4px", borderRadius: 4 }}>*</code>
+            {t("interceptMonitorPage.budget.subtitleAfterStar")}
           </div>
         </div>
         <button
@@ -348,7 +356,7 @@ export function BudgetMonitorPanel() {
           style={{ padding: "8px 16px", fontSize: 13, fontWeight: 500, borderRadius: 8, border: "1px solid var(--panel-border)", background: "var(--panel-bg)", color: "var(--fg)", cursor: loading ? "not-allowed" : "pointer" }}
         >
           <RefreshIcon />
-          {loading ? "刷新中…" : "刷新数据"}
+          {loading ? t("interceptMonitorPage.budget.refreshing") : t("interceptMonitorPage.budget.refresh")}
         </button>
       </div>
 
@@ -359,9 +367,9 @@ export function BudgetMonitorPanel() {
       {/* 数据大盘 */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: 16, marginBottom: 24 }}>
         {[
-          { label: "今日消耗", data: summary?.today },
-          { label: "本周消耗", data: summary?.week },
-          { label: "本月消耗", data: summary?.month },
+          { label: t("interceptMonitorPage.budget.statToday"), data: summary?.today },
+          { label: t("interceptMonitorPage.budget.statWeek"), data: summary?.week },
+          { label: t("interceptMonitorPage.budget.statMonth"), data: summary?.month },
         ].map((stat, idx) => (
           <div key={idx} style={{ background: "var(--panel-bg)", border: "1px solid var(--panel-border)", borderRadius: 12, padding: "16px 20px" }}>
             <div style={{ fontSize: 12, fontWeight: 600, color: "var(--muted2)", marginBottom: 8 }}>{stat.label}</div>
@@ -369,8 +377,12 @@ export function BudgetMonitorPanel() {
               {fmtUsd(stat.data?.costUsd)}
             </div>
             <div style={{ fontSize: 12, color: "var(--muted)", display: "flex", gap: 12 }}>
-              <span>Tokens: {fmtKTokens(stat.data?.totalTokens)}</span>
-              <span>请求: {stat.data?.requestCount ?? 0}</span>
+              <span>
+                {t("interceptMonitorPage.budget.tokensStat")}: {fmtKTokens(stat.data?.totalTokens)}
+              </span>
+              <span>
+                {t("interceptMonitorPage.budget.requestsStat")}: {stat.data?.requestCount ?? 0}
+              </span>
             </div>
           </div>
         ))}
@@ -379,28 +391,34 @@ export function BudgetMonitorPanel() {
       {/* 预算进度条 */}
       <div style={{ fontSize: 13, fontWeight: 600, color: "var(--fg)", marginBottom: 12, display: "flex", alignItems: "center", gap: 8 }}>
         <div style={{ width: 4, height: 14, background: "#3b82f6", borderRadius: 2 }}></div>
-        各模型预算进度
+        {t("interceptMonitorPage.budget.progressSection")}
       </div>
       <div style={{ borderRadius: 12, border: "1px solid var(--panel-border)", background: "var(--panel-bg)", padding: "16px", marginBottom: 24 }}>
         {progress.length === 0 ? (
-          <div style={{ fontSize: 13, color: "var(--muted2)", textAlign: "center", padding: "20px 0" }}>暂无已启用的预算规则，请在下方添加。</div>
+          <div style={{ fontSize: 13, color: "var(--muted2)", textAlign: "center", padding: "20px 0" }}>
+            {t("interceptMonitorPage.budget.progressEmpty")}
+          </div>
         ) : (
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(320px, 1fr))", gap: 16 }}>
             {progress.map((p) => (
               <div key={p.id} style={{ background: "var(--panel-bg2)", padding: 14, borderRadius: 10, border: "1px solid var(--panel-border)" }}>
                 <div style={{ fontSize: 13, fontWeight: 600, color: "var(--fg)", marginBottom: 12, display: "flex", justifyContent: "space-between" }}>
                   <span>{p.provider_key} / <span style={{ color: "var(--muted)", fontFamily: "monospace" }}>{p.model_id}</span></span>
-                  {p.enabled === 0 && <span style={{ fontSize: 10, background: "var(--chip-bg)", padding: "2px 6px", borderRadius: 4, color: "var(--chip-fg)" }}>已禁用</span>}
+                  {p.enabled === 0 && (
+                    <span style={{ fontSize: 10, background: "var(--chip-bg)", padding: "2px 6px", borderRadius: 4, color: "var(--chip-fg)" }}>
+                      {t("interceptMonitorPage.budget.disabledBadge")}
+                    </span>
+                  )}
                 </div>
                 {[
-                  { k: "日", spent: p.spentDay, lim: p.budget_day_usd, pct: p.pctDay },
-                  { k: "周", spent: p.spentWeek, lim: p.budget_week_usd, pct: p.pctWeek },
-                  { k: "月", spent: p.spentMonth, lim: p.budget_month_usd, pct: p.pctMonth },
+                  { label: t("interceptMonitorPage.budget.budgetDay"), spent: p.spentDay, lim: p.budget_day_usd, pct: p.pctDay },
+                  { label: t("interceptMonitorPage.budget.budgetWeek"), spent: p.spentWeek, lim: p.budget_week_usd, pct: p.pctWeek },
+                  { label: t("interceptMonitorPage.budget.budgetMonth"), spent: p.spentMonth, lim: p.budget_month_usd, pct: p.pctMonth },
                 ].map((row) =>
                   row.lim != null && row.lim > 0 ? (
-                    <div key={row.k} style={{ marginBottom: 8 }}>
+                    <div key={row.label} style={{ marginBottom: 8 }}>
                       <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, marginBottom: 4 }}>
-                        <span style={{ color: "var(--muted)" }}>{row.k}度预算</span>
+                        <span style={{ color: "var(--muted)" }}>{row.label}</span>
                         <span style={{ fontFamily: "monospace", color: "var(--fg)" }}>
                           {fmtUsd(row.spent)} / <span style={{ color: "var(--muted2)" }}>{fmtUsd(row.lim)}</span>
                         </span>
@@ -426,7 +444,7 @@ export function BudgetMonitorPanel() {
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
         <div style={{ fontSize: 13, fontWeight: 600, color: "#cbd5e1", display: "flex", alignItems: "center", gap: 8 }}>
           <div style={{ width: 4, height: 14, background: "#10b981", borderRadius: 2 }}></div>
-          费率与预算规则
+          {t("interceptMonitorPage.budget.rulesSection")}
         </div>
         <button
           className="llm-btn"
@@ -438,7 +456,7 @@ export function BudgetMonitorPanel() {
           }}
           style={{ padding: "6px 14px", borderRadius: 8, border: "1px solid rgba(16, 185, 129, 0.3)", background: "rgba(16, 185, 129, 0.1)", color: "#34d399", fontSize: 12, fontWeight: 600 }}
         >
-          <PlusIcon /> 新增规则
+          <PlusIcon /> {t("interceptMonitorPage.budget.addRule")}
         </button>
       </div>
       
@@ -446,17 +464,29 @@ export function BudgetMonitorPanel() {
         <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12, textAlign: "left", whiteSpace: "nowrap" }}>
           <thead>
             <tr style={{ background: "var(--panel-bg2)" }}>
-              <th style={{ padding: "12px 16px", color: "var(--muted2)", fontWeight: 500 }}>Provider</th>
-              <th style={{ padding: "12px 16px", color: "var(--muted2)", fontWeight: 500 }}>Model</th>
-              <th style={{ padding: "12px 16px", color: "var(--muted2)", fontWeight: 500, textAlign: "right" }}>单价 ($/1K) 入 / 出</th>
-              <th style={{ padding: "12px 16px", color: "var(--muted2)", fontWeight: 500, textAlign: "right" }}>预算上限 日 / 周 / 月</th>
-              <th style={{ padding: "12px 16px", color: "var(--muted2)", fontWeight: 500, textAlign: "center", width: 80 }}>状态</th>
-              <th style={{ padding: "12px 16px", color: "var(--muted2)", fontWeight: 500, textAlign: "right", width: 140 }}>操作</th>
+              <th style={{ padding: "12px 16px", color: "var(--muted2)", fontWeight: 500 }}>{t("interceptMonitorPage.budget.colProvider")}</th>
+              <th style={{ padding: "12px 16px", color: "var(--muted2)", fontWeight: 500 }}>{t("interceptMonitorPage.budget.colModel")}</th>
+              <th style={{ padding: "12px 16px", color: "var(--muted2)", fontWeight: 500, textAlign: "right" }}>
+                {t("interceptMonitorPage.budget.colPriceInOut")}
+              </th>
+              <th style={{ padding: "12px 16px", color: "var(--muted2)", fontWeight: 500, textAlign: "right" }}>
+                {t("interceptMonitorPage.budget.colBudgetCaps")}
+              </th>
+              <th style={{ padding: "12px 16px", color: "var(--muted2)", fontWeight: 500, textAlign: "center", width: 80 }}>
+                {t("interceptMonitorPage.budget.colState")}
+              </th>
+              <th style={{ padding: "12px 16px", color: "var(--muted2)", fontWeight: 500, textAlign: "right", width: 140 }}>
+                {t("interceptMonitorPage.budget.colActions")}
+              </th>
             </tr>
           </thead>
           <tbody>
             {settings.length === 0 ? (
-              <tr><td colSpan={6} style={{ padding: "24px", color: "var(--muted2)", textAlign: "center" }}>暂无配置规则</td></tr>
+              <tr>
+                <td colSpan={6} style={{ padding: "24px", color: "var(--muted2)", textAlign: "center" }}>
+                  {t("interceptMonitorPage.budget.emptyRules")}
+                </td>
+              </tr>
             ) : (
               settings.map((r) => (
                 <tr key={r.id} className="llm-table-row">
@@ -469,8 +499,17 @@ export function BudgetMonitorPanel() {
                     {r.budget_day_usd ?? "—"} <span style={{ color: "var(--muted2)" }}>/</span> {r.budget_week_usd ?? "—"} <span style={{ color: "var(--muted2)" }}>/</span> {r.budget_month_usd ?? "—"}
                   </td>
                   <td style={{ padding: "12px 16px", textAlign: "center" }}>
-                    {r.enabled ? <span style={{ display: "inline-block", width: 8, height: 8, borderRadius: "50%", background: "#10b981" }} title="已启用" /> 
-                               : <span style={{ display: "inline-block", width: 8, height: 8, borderRadius: "50%", background: "var(--muted2)" }} title="未启用" />}
+                    {r.enabled ? (
+                      <span
+                        style={{ display: "inline-block", width: 8, height: 8, borderRadius: "50%", background: "#10b981" }}
+                        title={t("interceptMonitorPage.budget.stateOn")}
+                      />
+                    ) : (
+                      <span
+                        style={{ display: "inline-block", width: 8, height: 8, borderRadius: "50%", background: "var(--muted2)" }}
+                        title={t("interceptMonitorPage.budget.stateOff")}
+                      />
+                    )}
                   </td>
                   <td style={{ padding: "12px 16px", textAlign: "right" }}>
                     <button
@@ -486,7 +525,7 @@ export function BudgetMonitorPanel() {
                       }}
                       style={{ padding: "4px 8px", borderRadius: 6, background: "rgba(59, 130, 246, 0.1)", color: "#60a5fa", border: "none", cursor: "pointer", marginRight: 8 }}
                     >
-                      <EditIcon /> 编辑
+                      <EditIcon /> {t("interceptMonitorPage.budget.edit")}
                     </button>
                     <button
                       className="llm-btn"
@@ -506,23 +545,33 @@ export function BudgetMonitorPanel() {
       {/* 最近费用流水 */}
       <div style={{ fontSize: 13, fontWeight: 600, color: "var(--fg)", marginBottom: 12, display: "flex", alignItems: "center", gap: 8 }}>
         <div style={{ width: 4, height: 14, background: "#8b5cf6", borderRadius: 2 }}></div>
-        最近调用流水 (Top 40)
+        {t("interceptMonitorPage.budget.recentCalls")}
       </div>
       <div className="llm-scroll" style={{ borderRadius: 12, border: "1px solid var(--panel-border)", background: "var(--panel-bg)", overflowX: "auto" }}>
         <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12, textAlign: "left", whiteSpace: "nowrap" }}>
           <thead>
             <tr style={{ background: "var(--panel-bg2)" }}>
-              <th style={{ padding: "12px 16px", color: "var(--muted2)", fontWeight: 500 }}>请求时间</th>
-              <th style={{ padding: "12px 16px", color: "var(--muted2)", fontWeight: 500 }}>Provider</th>
-              <th style={{ padding: "12px 16px", color: "var(--muted2)", fontWeight: 500 }}>Model</th>
-              <th style={{ padding: "12px 16px", color: "var(--muted2)", fontWeight: 500, textAlign: "right" }}>总 Tokens</th>
-              <th style={{ padding: "12px 16px", color: "var(--muted2)", fontWeight: 500, textAlign: "right" }}>预估费用</th>
-              <th style={{ padding: "12px 16px", color: "var(--muted2)", fontWeight: 500, textAlign: "right" }}>云端ID</th>
+              <th style={{ padding: "12px 16px", color: "var(--muted2)", fontWeight: 500 }}>{t("interceptMonitorPage.budget.colRequestTime")}</th>
+              <th style={{ padding: "12px 16px", color: "var(--muted2)", fontWeight: 500 }}>{t("interceptMonitorPage.budget.colProvider")}</th>
+              <th style={{ padding: "12px 16px", color: "var(--muted2)", fontWeight: 500 }}>{t("interceptMonitorPage.budget.colModel")}</th>
+              <th style={{ padding: "12px 16px", color: "var(--muted2)", fontWeight: 500, textAlign: "right" }}>
+                {t("interceptMonitorPage.budget.colTotalTokens")}
+              </th>
+              <th style={{ padding: "12px 16px", color: "var(--muted2)", fontWeight: 500, textAlign: "right" }}>
+                {t("interceptMonitorPage.budget.colEstimatedCost")}
+              </th>
+              <th style={{ padding: "12px 16px", color: "var(--muted2)", fontWeight: 500, textAlign: "right" }}>
+                {t("interceptMonitorPage.budget.colCloudId")}
+              </th>
             </tr>
           </thead>
           <tbody>
             {(summary?.recentEvents ?? []).length === 0 ? (
-              <tr><td colSpan={6} style={{ padding: "24px", color: "var(--muted2)", textAlign: "center" }}>暂无成功响应的本地流水记录</td></tr>
+              <tr>
+                <td colSpan={6} style={{ padding: "24px", color: "var(--muted2)", textAlign: "center" }}>
+                  {t("interceptMonitorPage.budget.emptyEvents")}
+                </td>
+              </tr>
             ) : (
               (summary?.recentEvents ?? []).map((ev) => (
                 <tr key={ev.id} className="llm-table-row">

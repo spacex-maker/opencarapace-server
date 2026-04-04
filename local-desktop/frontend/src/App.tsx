@@ -21,8 +21,11 @@ import {
   MdLightMode,
   MdDarkMode,
 } from "react-icons/md";
+import { useI18n } from "./i18n";
+import { LanguageSelect } from "./components/LanguageSelect";
 
 export function App() {
+  const { t } = useI18n();
   const [status, setStatus] = useState<LocalStatus | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -48,6 +51,7 @@ export function App() {
   const [logoutConfirmOpen, setLogoutConfirmOpen] = useState(false);
   const [logoutSubmitting, setLogoutSubmitting] = useState(false);
   const [authSubView, setAuthSubView] = useState<"login" | "register">("login");
+  const [securityScanEverOpened, setSecurityScanEverOpened] = useState(false);
   const [theme, setTheme] = useState<"dark" | "light">(() => {
     try {
       const v = localStorage.getItem("oc_theme");
@@ -67,6 +71,10 @@ export function App() {
 
   useEffect(() => {
     if (activeTab !== "auth") setAuthSubView("login");
+  }, [activeTab]);
+
+  useEffect(() => {
+    if (activeTab === "securityScan") setSecurityScanEverOpened(true);
   }, [activeTab]);
 
   useEffect(() => {
@@ -238,7 +246,11 @@ export function App() {
   };
 
   const isConnected = !loading && !error && !!status?.settings?.apiBase;
-  const connectionLabel = isConnected ? "已连接服务器" : loading ? "正在连接服务器…" : "服务器连接异常";
+  const connectionLabel = isConnected
+    ? t("header.connection.connected")
+    : loading
+      ? t("header.connection.connecting")
+      : t("header.connection.error");
   const connectionDotColor = isConnected ? "#22c55e" : loading ? "#fbbf24" : "#f97373";
 
   return (
@@ -326,7 +338,7 @@ export function App() {
                 whiteSpace: "nowrap",
               }}
             >
-              Desktop · Agent Security
+              {t("header.tagline")}
             </div>
           </div>
         </div>
@@ -368,12 +380,12 @@ export function App() {
             `}</style>
             {(
               [
-                { key: "overview", label: "总览", icon: <MdDashboard /> },
-                { key: "securityScan", label: "安全扫描", icon: <MdManageSearch /> },
-                { key: "interceptLogs", label: "拦截监控", icon: <MdBlock /> },
-                { key: "openclaw", label: "OpenClaw", icon: <MdApps /> },
-                { key: "skills", label: "安全市场", icon: <MdStorefront /> },
-                { key: "agentMgmt", label: "Agent 管理", icon: <MdAccountTree /> },
+                { key: "overview", labelKey: "menu.overview", icon: <MdDashboard /> },
+                { key: "securityScan", labelKey: "menu.securityScan", icon: <MdManageSearch /> },
+                { key: "interceptLogs", labelKey: "menu.interceptLogs", icon: <MdBlock /> },
+                { key: "openclaw", labelKey: "menu.openclaw", icon: <MdApps /> },
+                { key: "skills", labelKey: "menu.skills", icon: <MdStorefront /> },
+                { key: "agentMgmt", labelKey: "menu.agentMgmt", icon: <MdAccountTree /> },
               ] as const
             ).map((item) => {
               const isActive = activeTab === (item.key as any);
@@ -416,7 +428,7 @@ export function App() {
                   <span style={{ display: "flex", fontSize: 16, color: isActive ? activeFg : idleIcon }}>
                     {item.icon}
                   </span>
-                  <span style={{ whiteSpace: "nowrap" }}>{item.label}</span>
+                  <span style={{ whiteSpace: "nowrap" }}>{t(item.labelKey)}</span>
                   {isActive && (
                     <span
                       aria-hidden
@@ -474,7 +486,7 @@ export function App() {
                 flexShrink: 0,
                 boxShadow: "0 2px 10px rgba(34,197,94,0.20)",
               }}
-              title={status?.auth?.email || "未登录"}
+              title={status?.auth?.email || t("header.accountPlaceholderTitle")}
             >
               {(() => {
                 const nick = status?.auth?.displayName?.trim();
@@ -537,7 +549,7 @@ export function App() {
               ) : (
                 <>
                   <div style={{ fontSize: 12, fontWeight: 800, color: theme === "light" ? "#0f172a" : "#f1f5f9", whiteSpace: "nowrap" }}>
-                    未登录
+                    {t("header.notLoggedIn")}
                   </div>
                   <div style={{ fontSize: 10, color: "var(--muted2)", whiteSpace: "nowrap" }}>
                     {connectionLabel}
@@ -561,10 +573,11 @@ export function App() {
 
           {/* 操作区 */}
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <LanguageSelect theme={theme} />
             <button
               type="button"
-              title={theme === "light" ? "切换到暗黑主题" : "切换到明亮主题"}
-              aria-label="切换主题"
+              title={theme === "light" ? t("header.theme.switchToDark") : t("header.theme.switchToLight")}
+              aria-label={t("header.theme.ariaToggle")}
               onClick={() => setTheme((t) => (t === "light" ? "dark" : "light"))}
               style={{
                 width: 34,
@@ -587,8 +600,8 @@ export function App() {
 
             <button
               type="button"
-              title="设置"
-              aria-label="设置"
+              title={t("header.settings.title")}
+              aria-label={t("header.settings.aria")}
               onClick={() => setActiveTab("settings")}
               style={{
                 width: 34,
@@ -611,11 +624,11 @@ export function App() {
               <MdSettings style={{ fontSize: 18 }} />
             </button>
 
-            {!status?.auth?.email ? (
+            {!status?.auth?.email && (
               <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
                 <button
                   type="button"
-                  title="登录云端账户"
+                  title={t("header.login.title")}
                   onClick={() => {
                     setAuthSubView("login");
                     setActiveTab("auth");
@@ -633,11 +646,11 @@ export function App() {
                     boxShadow: "0 2px 10px rgba(34,197,94,0.22)",
                   }}
                 >
-                  登录
+                  {t("header.login.label")}
                 </button>
                 <button
                   type="button"
-                  title="注册云端账户"
+                  title={t("header.register.title")}
                   onClick={() => {
                     setAuthSubView("register");
                     setActiveTab("auth");
@@ -654,31 +667,9 @@ export function App() {
                     cursor: "pointer",
                   }}
                 >
-                  注册
+                  {t("header.register.label")}
                 </button>
               </div>
-            ) : (
-              <button
-                type="button"
-                title="退出登录"
-                onClick={() => setLogoutConfirmOpen(true)}
-                style={{
-                  height: 34,
-                  padding: "0 12px",
-                  borderRadius: 12,
-                  border: "1px solid var(--btn-border)",
-                  background: "var(--btn-bg)",
-                  color: "var(--fg)",
-                  fontSize: 12,
-                  fontWeight: 800,
-                  cursor: "pointer",
-                  transition: "transform 0.15s",
-                }}
-                onMouseEnter={(e) => (e.currentTarget.style.transform = "translateY(-1px)")}
-                onMouseLeave={(e) => (e.currentTarget.style.transform = "translateY(0px)")}
-              >
-                退出
-              </button>
             )}
           </div>
         </div>
@@ -701,11 +692,21 @@ export function App() {
           />
         )}
         {activeTab === "skills" && <SkillsPanel showAccountSwitchPlaceholder={accountSwitchSyncing} />}
-        {activeTab === "securityScan" && <SecurityScanPanel status={status} />}
+        {securityScanEverOpened && (
+          <div style={{ display: activeTab === "securityScan" ? "block" : "none" }}>
+            <SecurityScanPanel status={status} />
+          </div>
+        )}
         {activeTab === "interceptLogs" && <InterceptLogsPanel showAccountSwitchPlaceholder={accountSwitchSyncing} />}
         {activeTab === "openclaw" && <OpenClawPanel />}
         {activeTab === "agentMgmt" && <AgentMgmtPanel />}
-        {activeTab === "settings" && <SettingsPanel onApiBaseChanged={refreshStatus} status={status} />}
+        {activeTab === "settings" && (
+          <SettingsPanel
+            onApiBaseChanged={refreshStatus}
+            status={status}
+            onRequestLogout={() => setLogoutConfirmOpen(true)}
+          />
+        )}
         {activeTab === "auth" &&
           (authSubView === "register" ? (
             <RegisterPanel
@@ -807,10 +808,10 @@ export function App() {
               id="logout-confirm-title"
               style={{ fontSize: 16, fontWeight: 700, color: theme === "light" ? "#0f172a" : "#f1f5f9", marginBottom: 8 }}
             >
-              退出登录？
+              {t("logoutModal.title")}
             </div>
             <div style={{ fontSize: 13, color: "var(--muted)", lineHeight: 1.5, marginBottom: 20 }}>
-              确定要退出当前云端账号吗？本地设置不会清除。
+              {t("logoutModal.body")}
             </div>
             <div style={{ display: "flex", justifyContent: "flex-end", gap: 10 }}>
               <button
@@ -829,7 +830,7 @@ export function App() {
                   opacity: logoutSubmitting ? 0.6 : 1,
                 }}
               >
-                取消
+                {t("logoutModal.cancel")}
               </button>
               <button
                 type="button"
@@ -847,7 +848,7 @@ export function App() {
                   boxShadow: logoutSubmitting ? "none" : "0 2px 12px rgba(239,68,68,0.35)",
                 }}
               >
-                {logoutSubmitting ? "退出中…" : "确定退出"}
+                {logoutSubmitting ? t("logoutModal.confirming") : t("logoutModal.confirm")}
               </button>
             </div>
           </div>

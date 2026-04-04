@@ -1,6 +1,8 @@
 package com.opencarapace.server.user;
 
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
 import java.util.List;
 import java.util.Optional;
@@ -13,5 +15,6 @@ public interface UserSkillSafetyLabelRepository extends JpaRepository<UserSkillS
 
     Optional<UserSkillSafetyLabel> findByUserIdAndSkillSlug(Long userId, String skillSlug);
 
-    long countByUserIdAndLabel(Long userId, String label);
+    @Query("select count(l) from UserSkillSafetyLabel l where l.user.id = :userId and l.label = :label")
+    long countByUserIdAndLabel(@Param("userId") Long userId, @Param("label") String label);
 }

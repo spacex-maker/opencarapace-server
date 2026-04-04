@@ -41,8 +41,13 @@ function copyFileWithRetry(src, dest, label, retries = 8) {
 const argv = process.argv.slice(2);
 const noOpenclaw = argv.includes("no-openclaw");
 const buildType = argv.includes("dir") ? "dir" : "installer";
+/** Windows 32 位安装包（Electron ia32 + 官方 win-x86 Node 放入 resources/node.exe） */
+const winIa32 = argv.includes("ia32");
 
 console.log("=== ClawHeart Desktop 打包流程 ===\n");
+if (winIa32) {
+  console.log("变体：Windows 32 位（ia32）\n");
+}
 if (noOpenclaw) {
   console.log("变体：Core（不内置 OpenClaw：安装包不含 resources/openclaw，且排除 node_modules/openclaw）\n");
 }
@@ -95,7 +100,11 @@ if (!noOpenclaw) {
 // 4c. 原生模块（如 sqlite3）须与当前 Electron 版本 ABI 一致
 console.log("\n4c. 为 Electron 重新编译原生模块（sqlite3）...");
 try {
-  execSync("npx --yes electron-builder install-app-deps", { cwd: rootDir, stdio: "inherit" });
+  const ebNativeArch = process.platform === "win32" && winIa32 ? "ia32" : "x64";
+  execSync(`npx --yes electron-builder install-app-deps --arch ${ebNativeArch}`, {
+    cwd: rootDir,
+    stdio: "inherit",
+  });
   console.log("   ✓ install-app-deps 完成");
 } catch (e) {
   console.error("   ✗ install-app-deps 失败：请确保已安装 Python/VS Build Tools（Windows）或 Xcode CLI（macOS），然后重试。");
@@ -104,10 +113,16 @@ try {
 
 // 5b. 内置 Node（Gateway/脚本等仍可用，不依赖用户本机 Node）
 console.log("\n4b. 确保内置 Node runtime（resources/node.exe）...");
-execSync("node scripts/ensure-bundled-node.js", { cwd: rootDir, stdio: "inherit" });
-const bundledNode = path.join(rootDir, "bundled", "win-x64", "node.exe");
+execSync(winIa32 ? "node scripts/ensure-bundled-node.js ia32" : "node scripts/ensure-bundled-node.js", {
+  cwd: rootDir,
+  stdio: "inherit",
+});
+const bundledNode = path.join(rootDir, "bundled", winIa32 ? "win-ia32" : "win-x64", "node.exe");
 if (!fs.existsSync(bundledNode)) {
-  console.error("   ✗ 未找到 bundled/win-x64/node.exe，请检查网络或手动运行: node scripts/ensure-bundled-node.js");
+  console.error(
+    `   ✗ 未找到 ${winIa32 ? "bundled/win-ia32/node.exe" : "bundled/win-x64/node.exe"}，请检查网络或手动运行: node scripts/ensure-bundled-node.js` +
+      (winIa32 ? " ia32" : "")
+  );
   process.exit(1);
 }
 console.log("   ✓ 内置 node.exe 已就绪");
@@ -158,9 +173,9 @@ if (process.platform === "win32") {
 }
 
 // 6. 打包
-console.log("\n5. 开始打包 Electron 应用（Windows）...");
+console.log(`\n5. 开始打包 Electron 应用（Windows${winIa32 ? " 32 位 ia32" : " 64 位 x64"}）...`);
 const buildStamp = new Date().toISOString().replace(/[:.]/g, "-");
-const outputDirName = `build-output-${buildStamp}`;
+const outputDirName = winIa32 ? `build-output-${buildStamp}-win-ia32` : `build-output-${buildStamp}`;
 
 console.log(`   输出目录：${outputDirName}`);
 console.log(`   模式：${buildType === "dir" ? "免安装（dir）" : "NSIS 安装程序"}`);
@@ -186,6 +201,11 @@ function buildElectronConfig() {
       files.push(excl);
     }
     config.files = files;
+  }
+
+  if (process.platform === "win32" && winIa32) {
+    const baseName = noOpenclaw ? productNameCore : productNameFull;
+    config.productName = `${baseName} (32-bit)`;
   }
 
   if (process.platform === "win32") {
@@ -214,12 +234,16 @@ function buildElectronConfig() {
       JSON.stringify({ appUserModelId: config.appId || pkg.build.appId }, null, 2),
       "utf8"
     );
+    const winTargetName = buildType === "dir" ? "dir" : "nsis";
+    config.win.target = [{ target: winTargetName, arch: [winIa32 ? "ia32" : "x64"] }];
+
     config.nsis = {
       ...(config.nsis || {}),
       include: "scripts/nsis/refresh-shortcut-icons.nsh",
       installerIcon: brand.relIco,
       uninstallerIcon: brand.relIco,
       installerHeaderIcon: brand.relIco,
+      shortcutName: config.productName,
     };
     if (stagedBundledNodePath) {
       const keep = (config.win.extraResources || []).filter(
@@ -261,7 +285,7 @@ async function runPack() {
   }
   await build({
     projectDir: rootDir,
-    targets: Platform.WINDOWS.createTarget(winTarget, Arch.x64),
+    targets: Platform.WINDOWS.createTarget(winTarget, winIa32 ? Arch.ia32 : Arch.x64),
     config: configArg,
   });
 }

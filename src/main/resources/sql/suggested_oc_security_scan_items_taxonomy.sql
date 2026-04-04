@@ -1,0 +1,45 @@
+-- =============================================================================
+-- 安全扫描项「系统分类」参考（与 client_os_scope=ALL 的通用项为主）
+-- 顶级 scan_section：SANDBOX_POLICY | AI_RUNTIME | AI_VULNERABILITY | OTHER
+-- 二级 scan_group：见前端 securityScanCatalog.ts 的 SCAN_GROUP_LABELS
+-- category：库内自由标签，建议与业务域一致（SECRETS / MCP / NETWORK / HISTORY 等）
+-- =============================================================================
+--
+-- 【当前库已覆盖的矩阵 — 保持 ALL 即可，无需按 Win/Mac 拆分】
+--   SANDBOX_POLICY / SYSTEM_PROTECTION   secrets_api_key, mcp_privilege, logging_observability_leak
+--   SANDBOX_POLICY / NETWORK_ACCESS      routing_llm, network_egress_exposure
+--   AI_RUNTIME / PROMPT_SECURITY       history_secrets_exposure, history_prompt_injection_risk
+--   AI_RUNTIME / PRIVACY                 history_pii_sensitive_content  （建议从沙箱大区迁入，见 reclassify patch）
+--   AI_RUNTIME / SKILLS_SECURITY         skills_governance, agent_tools_scope
+--   AI_RUNTIME / SCRIPT_EXECUTION        history_danger_command_suggestion, history_external_link_trust
+--   AI_VULNERABILITY / FIREWALL_BASELINE baseline_tls_files
+--   AI_VULNERABILITY / VULNERABILITY_SCAN supply_chain_dependencies, baseline_updates_static
+--
+-- 【可选扩展项（按需自行 INSERT，以下为分类建议）】
+--
+-- 1) sandbox_shell_profile_abuse  | SANDBOX_POLICY | SCRIPT_EXECUTION | WARN
+--    标题示例：启动脚本与 Shell 配置篡改风险
+--    说明：检查 .bashrc/.zshrc、PowerShell profile 是否被引导写入持久化恶意命令（AI_PROMPT + 上下文含路径时）
+--
+-- 2) sandbox_env_secrets_injection | SANDBOX_POLICY | SYSTEM_PROTECTION | CRITICAL
+--    标题示例：环境变量与启动参数中的密钥注入
+--    说明：~/.profile、launchd、Windows 用户环境变量中的 API Key（偏配置面，可与 secrets_api_key 互补）
+--
+-- 3) runtime_model_output_exfil     | AI_RUNTIME | PROMPT_SECURITY | WARN
+--    标题示例：模型输出中的敏感外带
+--    说明：历史中是否引导将密钥/内网地址粘贴到外部工单、公开仓库（AI_PROMPT）
+--
+-- 4) runtime_plugin_extension_risk  | AI_RUNTIME | SKILLS_SECURITY | WARN
+--    标题示例：插件/扩展与外部命令入口
+--    说明：IDE 插件、浏览器扩展与 Agent 联动时的过度权限（AI_PROMPT）
+--
+-- 5) vuln_sbom_or_lockfile_static    | AI_VULNERABILITY | VULNERABILITY_SCAN | PASS
+--    标题示例：基线：锁文件与 SBOM（静态）
+--    说明：STATIC_INFO 提醒保留 package-lock / poetry.lock 等便于审计（与 supply_chain_dependencies 搭配）
+--
+-- 6) sandbox_policy_file_security     | SANDBOX_POLICY | FILE_SECURITY | WARN
+--    标题示例：敏感文件路径与共享目录暴露
+--    说明：配置或描述中是否将密钥、数据库放在网络盘、同步盘、全局可读路径（AI_PROMPT）
+--
+-- Win/Mac 专用项仅当静态文案或检查点强依赖某 OS 时再设 client_os_scope=WINDOWS|MACOS；上列建议默认 ALL。
+-- =============================================================================

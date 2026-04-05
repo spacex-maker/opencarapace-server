@@ -112,27 +112,43 @@ try {
   process.exit(1);
 }
 
-// 5b. 内置 Node（Gateway/脚本等仍可用，不依赖用户本机 Node）
-console.log("\n4b. 确保内置 Node runtime（resources/node.exe）...");
-execSync("node scripts/ensure-bundled-node.js", { cwd: rootDir, stdio: "inherit" });
-const bundledNode = path.join(rootDir, "bundled", "win-x64", "node.exe");
-if (!fs.existsSync(bundledNode)) {
-  console.error("   ✗ 未找到 bundled/win-x64/node.exe，请检查网络或手动运行: node scripts/ensure-bundled-node.js");
-  process.exit(1);
-}
-console.log("   ✓ 内置 node.exe 已就绪");
-
-if (process.platform === "win32") {
-  stagedBundledNodePath = path.join(
-    os.tmpdir(),
-    `clawheart-pack-node-${process.pid}-${Date.now()}.exe`
-  );
-  try {
-    copyFileWithRetry(bundledNode, stagedBundledNodePath, "stage bundled node.exe");
-    console.log("   ✓ 已复制 node.exe 到临时路径（降低打包时 EBUSY 概率）");
-  } catch (e) {
-    console.error("   ✗ 无法复制 node.exe 到临时目录:", e.message || e);
+// 5b. 内置 Node（Windows → resources/node.exe；macOS → after-pack 写入 .app/Contents/Resources/node）
+if (buildMac) {
+  console.log("\n4b. 确保内置 Node runtime（darwin-x64 / darwin-arm64）...");
+  execSync("node scripts/ensure-bundled-node.js", {
+    cwd: rootDir,
+    stdio: "inherit",
+    env: { ...process.env, BUNDLE_NODE_TARGET: "darwin" },
+  });
+  for (const arch of ["x64", "arm64"]) {
+    const bin = path.join(rootDir, "bundled", `darwin-${arch}`, "bin", "node");
+    if (!fs.existsSync(bin)) {
+      console.error(`   ✗ 未找到 ${bin}，请执行: BUNDLE_NODE_TARGET=darwin node scripts/ensure-bundled-node.js`);
+      process.exit(1);
+    }
+  }
+  console.log("   ✓ 内置 darwin node 已就绪");
+} else {
+  console.log("\n4b. 确保内置 Node runtime（resources/node.exe）...");
+  execSync("node scripts/ensure-bundled-node.js", { cwd: rootDir, stdio: "inherit" });
+  const bundledNodeWin = path.join(rootDir, "bundled", "win-x64", "node.exe");
+  if (!fs.existsSync(bundledNodeWin)) {
+    console.error("   ✗ 未找到 bundled/win-x64/node.exe，请检查网络或手动运行: node scripts/ensure-bundled-node.js");
     process.exit(1);
+  }
+  console.log("   ✓ 内置 node.exe 已就绪");
+  if (process.platform === "win32") {
+    stagedBundledNodePath = path.join(
+      os.tmpdir(),
+      `clawheart-pack-node-${process.pid}-${Date.now()}.exe`
+    );
+    try {
+      copyFileWithRetry(bundledNodeWin, stagedBundledNodePath, "stage bundled node.exe");
+      console.log("   ✓ 已复制 node.exe 到临时路径（降低打包时 EBUSY 概率）");
+    } catch (e) {
+      console.error("   ✗ 无法复制 node.exe 到临时目录:", e.message || e);
+      process.exit(1);
+    }
   }
 }
 
@@ -168,12 +184,22 @@ if (process.platform === "win32") {
 }
 
 // 6. 打包
-console.log("\n5. 开始打包 Electron 应用（Windows）...");
+console.log(`\n5. 开始打包 Electron 应用（${buildMac ? "macOS" : "Windows"}）...`);
 const buildStamp = new Date().toISOString().replace(/[:.]/g, "-");
 const outputDirName = `build-output-${buildStamp}`;
 
 console.log(`   输出目录：${outputDirName}`);
-console.log(`   模式：${buildType === "dir" ? "免安装（dir）" : "NSIS 安装程序"}`);
+console.log(
+  `   模式：${
+    buildMac
+      ? buildType === "dir"
+        ? "免安装（dir）"
+        : "DMG + ZIP"
+      : buildType === "dir"
+        ? "免安装（dir）"
+        : "NSIS 安装程序"
+  }`
+);
 
 const pkg = JSON.parse(fs.readFileSync(path.join(rootDir, "package.json"), "utf8"));
 const version = pkg.version || "0.1.0";
@@ -188,7 +214,9 @@ function buildElectronConfig() {
     config.extraResources = [];
     config.productName = productNameCore;
     config.appId = "com.clawheart.desktop.core";
-    config.nsis = { ...(config.nsis || {}), shortcutName: productNameCore };
+    if (!buildMac) {
+      config.nsis = { ...(config.nsis || {}), shortcutName: productNameCore };
+    }
     const files = [...(config.files || [])];
     const excl = "!node_modules/openclaw/**/*";
     const hasOpenclawExclude = files.some((f) => String(f).replace(/\\/g, "/") === excl);
@@ -242,12 +270,37 @@ function buildElectronConfig() {
     }
   }
 
+  if (buildMac) {
+    config.afterPack = "scripts/after-pack.js";
+  }
+
   return config;
 }
 
 async function runPack() {
   const { build, Platform, Arch } = require("electron-builder");
   const config = buildElectronConfig();
+
+  if (buildMac) {
+    generatedEbConfigPath = path.join(
+      os.tmpdir(),
+      `clawheart-electron-builder-mac-${process.pid}-${Date.now()}.json`
+    );
+    fs.writeFileSync(generatedEbConfigPath, JSON.stringify(config, null, 2), "utf8");
+    const macEbTargets =
+      buildType === "dir" ? Platform.MAC.createTarget("dir") : Platform.MAC.createTarget();
+    console.log(
+      `   [pack] mac 目标：${buildType === "dir" ? "dir" : "默认（见配置内 dmg + zip）"}`
+    );
+    console.log(`   [pack] 使用独立配置文件: ${generatedEbConfigPath}`);
+    await build({
+      projectDir: rootDir,
+      targets: macEbTargets,
+      config: generatedEbConfigPath,
+    });
+    return;
+  }
+
   if (process.platform === "win32") {
     const nodeEntry = (config.win?.extraResources || []).find(
       (r) => r && String(r.to) === "node.exe"
@@ -282,7 +335,9 @@ async function runPack() {
     const exeName = noOpenclaw ? productNameCore : productNameFull;
     console.log("\n=== 打包完成 ===");
     console.log(`输出目录：${outputDirName}/`);
-    if (buildType === "dir") {
+    if (buildMac) {
+      console.log(`macOS：请在该目录下查看 ${exeName}-*.dmg、${exeName}-*.zip 或 mac-* / mac-*/ 子目录中的 .app`);
+    } else if (buildType === "dir") {
       console.log(`可执行文件：${outputDirName}/win-unpacked/${exeName}.exe`);
     } else {
       console.log(`安装程序：${outputDirName}/${exeName} Setup ${version}.exe`);

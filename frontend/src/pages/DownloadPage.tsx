@@ -1,6 +1,6 @@
 import { Link } from "react-router-dom";
-import { Apple, ChevronDown, Download, ExternalLink, Monitor, Shield, Zap, Cpu } from "lucide-react";
-import React, { useMemo, useState } from "react";
+import { Apple, ChevronDown, Download, ExternalLink, Monitor, Shield, Zap, Cpu, X } from "lucide-react";
+import React, { useEffect, useMemo, useState } from "react";
 import { useTheme } from "../contexts/ThemeContext";
 import { useAuth } from "../contexts/AuthContext";
 
@@ -102,7 +102,7 @@ export function DownloadPage() {
         id: "windows",
         title: "Windows",
         subtitle: "Windows 10 / 11 (64位)",
-        badge: winVariants.length > 1 ? "双版本可选" : "推荐版本",
+        badge: "推荐版本",
         icon: Monitor,
         variants: winVariants.length > 0 ? winVariants : undefined,
         href: winVariants.length === 0 && isNonEmptyUrl(winUrl) ? winUrl.trim() : undefined,
@@ -120,6 +120,21 @@ export function DownloadPage() {
   );
 
   const [openFaq, setOpenFaq] = useState<null | "gate" | "openclaw" | "trust">("gate");
+  const [winDownloadModalOpen, setWinDownloadModalOpen] = useState(false);
+
+  useEffect(() => {
+    if (!winDownloadModalOpen) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setWinDownloadModalOpen(false);
+    };
+    window.addEventListener("keydown", onKey);
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      document.body.style.overflow = prevOverflow;
+    };
+  }, [winDownloadModalOpen]);
 
   return (
     <div className="min-h-screen bg-[#fafbfc] dark:bg-[#030712] flex flex-col text-slate-900 dark:text-slate-100 selection:bg-brand-500/30">
@@ -313,39 +328,50 @@ export function DownloadPage() {
                       <div className="mt-8 relative z-10">
                         {isAvailable ? (
                           t.variants && t.variants.length > 0 ? (
-                            <div className="space-y-2.5">
-                              {t.variants.map((v) => (
-                                <a
-                                  key={v.href}
-                                  href={v.href}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className="group/btn flex items-center justify-between p-3.5 rounded-xl border border-slate-200 dark:border-slate-700/60 bg-slate-50/50 hover:bg-white dark:bg-slate-800/40 dark:hover:bg-slate-800 transition-all hover:shadow-sm hover:border-brand-500/30 dark:hover:border-brand-500/30"
+                            t.id === "windows" && t.variants.length > 1 ? (
+                              <div className="flex flex-col">
+                                <button
+                                  type="button"
+                                  onClick={() => setWinDownloadModalOpen(true)}
+                                  className="w-full group/btn flex items-center justify-center gap-2 px-4 py-3.5 rounded-xl bg-gradient-to-r from-brand-600 to-brand-500 hover:from-brand-500 hover:to-brand-400 text-white text-[14px] font-bold shadow-lg shadow-brand-500/25 hover:shadow-brand-500/40 transition-all hover:-translate-y-0.5"
                                 >
-                                  <div className="flex items-center gap-3.5">
-                                    <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-white dark:bg-slate-900 shadow-sm border border-slate-200/60 dark:border-slate-700/60 text-slate-500 dark:text-slate-400 group-hover/btn:text-brand-500 dark:group-hover/btn:text-brand-400 transition-colors">
-                                      <Cpu className="w-4 h-4" />
-                                    </div>
-                                    <div className="text-left">
-                                      <div className="text-[13px] font-bold text-slate-900 dark:text-white leading-tight">
-                                        {v.label}
+                                  <Download className="w-4 h-4 transition-transform group-hover/btn:-translate-y-0.5" />
+                                  立即下载 Windows 版
+                                </button>
+                                <div className="mt-3 text-center text-[12px] font-medium text-slate-500 dark:text-slate-400">
+                                  点击后选择是否内置 OpenClaw（完整版 / Core）
+                                </div>
+                              </div>
+                            ) : (
+                              <div className="space-y-2.5">
+                                {t.variants.map((v) => (
+                                  <a
+                                    key={v.href}
+                                    href={v.href}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="group/btn flex items-center justify-between p-3.5 rounded-xl border border-slate-200 dark:border-slate-700/60 bg-slate-50/50 hover:bg-white dark:bg-slate-800/40 dark:hover:bg-slate-800 transition-all hover:shadow-sm hover:border-brand-500/30 dark:hover:border-brand-500/30"
+                                  >
+                                    <div className="flex items-center gap-3.5">
+                                      <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-white dark:bg-slate-900 shadow-sm border border-slate-200/60 dark:border-slate-700/60 text-slate-500 dark:text-slate-400 group-hover/btn:text-brand-500 dark:group-hover/btn:text-brand-400 transition-colors">
+                                        <Cpu className="w-4 h-4" />
                                       </div>
-                                      <div className="text-[11px] font-medium text-slate-500 dark:text-slate-400 mt-1">
-                                        {v.hint}
+                                      <div className="text-left">
+                                        <div className="text-[13px] font-bold text-slate-900 dark:text-white leading-tight">
+                                          {v.label}
+                                        </div>
+                                        <div className="text-[11px] font-medium text-slate-500 dark:text-slate-400 mt-1">
+                                          {v.hint}
+                                        </div>
                                       </div>
                                     </div>
-                                  </div>
-                                  <div className="flex h-7 w-7 items-center justify-center rounded-full bg-brand-50 dark:bg-brand-500/10 text-brand-600 dark:text-brand-400 opacity-0 -translate-x-2 group-hover/btn:opacity-100 group-hover/btn:translate-x-0 transition-all">
-                                    <Download className="w-3.5 h-3.5" />
-                                  </div>
-                                </a>
-                              ))}
-                              {t.id === "windows" && t.variants.length > 1 ? (
-                                <p className="text-center text-[11px] font-medium text-slate-500 dark:text-slate-400 pt-1">
-                                  完整版与 Core 版可同时安装（不同应用标识）
-                                </p>
-                              ) : null}
-                            </div>
+                                    <div className="flex h-7 w-7 items-center justify-center rounded-full bg-brand-50 dark:bg-brand-500/10 text-brand-600 dark:text-brand-400 opacity-0 -translate-x-2 group-hover/btn:opacity-100 group-hover/btn:translate-x-0 transition-all">
+                                      <Download className="w-3.5 h-3.5" />
+                                    </div>
+                                  </a>
+                                ))}
+                              </div>
+                            )
                           ) : t.href ? (
                             <div className="flex flex-col">
                               <a
@@ -380,6 +406,78 @@ export function DownloadPage() {
             </div>
           </div>
         </section>
+
+        {winDownloadModalOpen && winVariants.length > 1 ? (
+          <div
+            className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/55 dark:bg-black/65 backdrop-blur-sm"
+            role="presentation"
+            onClick={() => setWinDownloadModalOpen(false)}
+          >
+            <div
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="win-download-choice-title"
+              className="relative w-full max-w-md rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-2xl p-6 sm:p-7"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <button
+                type="button"
+                onClick={() => setWinDownloadModalOpen(false)}
+                className="absolute top-3.5 right-3.5 p-2 rounded-full text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                aria-label="关闭"
+              >
+                <X className="w-5 h-5" />
+              </button>
+              <h2
+                id="win-download-choice-title"
+                className="text-lg font-bold text-slate-900 dark:text-white pr-10"
+              >
+                选择 Windows 安装包
+              </h2>
+              <p className="text-sm text-slate-600 dark:text-slate-400 mt-2 mb-5 leading-relaxed">
+                请选择是否需要在安装包内<strong className="font-semibold text-slate-800 dark:text-slate-200">内置 OpenClaw</strong>
+                ；Core 版体积更小，适合已自行部署 OpenClaw 的环境。
+              </p>
+              <div className="space-y-2.5">
+                {winVariants.map((v) => (
+                  <a
+                    key={v.href}
+                    href={v.href}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    onClick={() => setWinDownloadModalOpen(false)}
+                    className="group/btn flex items-center justify-between p-3.5 rounded-xl border border-slate-200 dark:border-slate-700/60 bg-slate-50/80 hover:bg-white dark:bg-slate-800/50 dark:hover:bg-slate-800 transition-all hover:shadow-sm hover:border-brand-500/35 dark:hover:border-brand-500/35"
+                  >
+                    <div className="flex items-center gap-3.5 min-w-0">
+                      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-white dark:bg-slate-900 shadow-sm border border-slate-200/60 dark:border-slate-700/60 text-slate-500 dark:text-slate-400 group-hover/btn:text-brand-500 dark:group-hover/btn:text-brand-400 transition-colors">
+                        <Cpu className="w-4 h-4" />
+                      </div>
+                      <div className="text-left min-w-0">
+                        <div className="text-[13px] font-bold text-slate-900 dark:text-white leading-tight">
+                          {v.label}
+                        </div>
+                        <div className="text-[11px] font-medium text-slate-500 dark:text-slate-400 mt-1">
+                          {v.hint}
+                        </div>
+                      </div>
+                    </div>
+                    <Download className="w-4 h-4 shrink-0 text-brand-600 dark:text-brand-400 opacity-70 group-hover/btn:opacity-100" />
+                  </a>
+                ))}
+              </div>
+              <p className="text-center text-[11px] font-medium text-slate-500 dark:text-slate-400 mt-4">
+                完整版与 Core 版可同时安装（不同应用标识）
+              </p>
+              <button
+                type="button"
+                onClick={() => setWinDownloadModalOpen(false)}
+                className="mt-4 w-full py-3 rounded-xl border border-slate-200 dark:border-slate-700 text-sm font-semibold text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800/80 transition-colors"
+              >
+                取消
+              </button>
+            </div>
+          </div>
+        ) : null}
 
         {/* 底部功能区 (Quick Start & FAQ) */}
         <section className="max-w-7xl mx-auto px-4 sm:px-6 py-16 md:py-20 border-t border-slate-200/60 dark:border-slate-800/60">

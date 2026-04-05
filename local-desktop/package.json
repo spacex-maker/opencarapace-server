@@ -17,6 +17,8 @@
     "build:win-no-openclaw-dir": "node scripts/build.js no-openclaw dir",
     "build:dir": "node scripts/build.js dir",
     "build:mac": "node scripts/build.js mac",
+    "build:mac-no-openclaw": "node scripts/build.js mac no-openclaw",
+    "build:mac-no-openclaw-dir": "node scripts/build.js mac no-openclaw dir",
     "pack": "node scripts/build.js dir"
   },
   "description": "ClawHeart Desktop Client",

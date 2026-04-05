@@ -4,7 +4,7 @@ import React, { useMemo, useState } from "react";
 import { useTheme } from "../contexts/ThemeContext";
 import { useAuth } from "../contexts/AuthContext";
 
-type MacDownloadVariant = {
+type DesktopDownloadVariant = {
   label: string;
   hint: string;
   href: string;
@@ -16,10 +16,10 @@ type DownloadTarget = {
   subtitle: string;
   badge: string;
   icon: React.ElementType;
-  /** Windows 单包 */
+  /** 无多分包时的单一链接（保留兼容） */
   href?: string;
-  /** macOS：Intel / Apple Silicon 分包 */
-  macVariants?: MacDownloadVariant[];
+  /** Windows：完整版 / Core；macOS：Intel / Apple Silicon */
+  variants?: DesktopDownloadVariant[];
 };
 
 function isNonEmptyUrl(v: unknown): v is string {
@@ -35,6 +35,10 @@ function normalizeMaybeUrl(v: unknown): string | undefined {
 const DEFAULT_WIN_DOWNLOAD_URL =
   "https://public-1258150206.cos.ap-nanjing.myqcloud.com/ClawHeart%20Desktop%20Setup%200.1.0.exe";
 
+/** Windows Core：无内置 OpenClaw，体积更小（可被环境变量覆盖） */
+const DEFAULT_WIN_CORE_DOWNLOAD_URL =
+  "https://download.anxin.anakkix.cn/ClawHeart%20Desktop%20Core%20Setup%200.1.0.exe";
+
 const DEFAULT_MAC_INTEL_DMG =
   "https://download.anxin.anakkix.cn/ClawHeart%20Desktop-0.1.0.dmg";
 const DEFAULT_MAC_ARM64_DMG =
@@ -46,14 +50,16 @@ export function DownloadPage() {
 
   const winUrlFromEnv = normalizeMaybeUrl((import.meta as any).env?.VITE_DESKTOP_DOWNLOAD_WIN_URL);
   const winUrl = winUrlFromEnv || DEFAULT_WIN_DOWNLOAD_URL;
+  const winCoreUrlFromEnv = normalizeMaybeUrl((import.meta as any).env?.VITE_DESKTOP_DOWNLOAD_WIN_CORE_URL);
+  const winCoreUrl = winCoreUrlFromEnv || DEFAULT_WIN_CORE_DOWNLOAD_URL;
   const macIntelUrl =
     normalizeMaybeUrl((import.meta as any).env?.VITE_DESKTOP_DOWNLOAD_MAC_INTEL_URL) || DEFAULT_MAC_INTEL_DMG;
   const macArm64Url =
     normalizeMaybeUrl((import.meta as any).env?.VITE_DESKTOP_DOWNLOAD_MAC_ARM64_URL) || DEFAULT_MAC_ARM64_DMG;
   const releaseNotesUrl = normalizeMaybeUrl((import.meta as any).env?.VITE_DESKTOP_RELEASE_NOTES_URL);
 
-  const macVariants: MacDownloadVariant[] = useMemo(() => {
-    const out: MacDownloadVariant[] = [];
+  const macVariants: DesktopDownloadVariant[] = useMemo(() => {
+    const out: DesktopDownloadVariant[] = [];
     if (isNonEmptyUrl(macIntelUrl)) {
       out.push({
         label: "Intel 芯片",
@@ -71,15 +77,35 @@ export function DownloadPage() {
     return out;
   }, [macIntelUrl, macArm64Url]);
 
+  const winVariants: DesktopDownloadVariant[] = useMemo(() => {
+    const out: DesktopDownloadVariant[] = [];
+    if (isNonEmptyUrl(winUrl)) {
+      out.push({
+        label: "完整版（内置 OpenClaw）",
+        hint: "推荐：安装包内含 OpenClaw 引擎，开箱即用",
+        href: winUrl.trim(),
+      });
+    }
+    if (isNonEmptyUrl(winCoreUrl)) {
+      out.push({
+        label: "Core 版（无内置 OpenClaw）",
+        hint: "体积更小；需自行安装或配置 OpenClaw 运行环境",
+        href: winCoreUrl.trim(),
+      });
+    }
+    return out;
+  }, [winUrl, winCoreUrl]);
+
   const targets: DownloadTarget[] = useMemo(
     () => [
       {
         id: "windows",
         title: "Windows",
         subtitle: "Windows 10 / 11 (64位)",
-        badge: "推荐版本",
+        badge: winVariants.length > 1 ? "双版本可选" : "推荐版本",
         icon: Monitor,
-        href: winUrl,
+        variants: winVariants.length > 0 ? winVariants : undefined,
+        href: winVariants.length === 0 && isNonEmptyUrl(winUrl) ? winUrl.trim() : undefined,
       },
       {
         id: "mac",
@@ -87,10 +113,10 @@ export function DownloadPage() {
         subtitle: "macOS 12.0+ · 请根据本机芯片架构选择",
         badge: macVariants.length > 0 ? "双架构支持" : "敬请期待",
         icon: Apple,
-        macVariants: macVariants.length > 0 ? macVariants : undefined,
+        variants: macVariants.length > 0 ? macVariants : undefined,
       },
     ],
-    [winUrl, macVariants],
+    [winUrl, winVariants, macVariants],
   );
 
   const [openFaq, setOpenFaq] = useState<null | "gate" | "openclaw" | "trust">("gate");
@@ -231,7 +257,7 @@ export function DownloadPage() {
                 
                 {targets.map((t) => {
                   const Icon = t.icon;
-                  const isAvailable = !!(t.href || (t.macVariants && t.macVariants.length > 0));
+                  const isAvailable = !!(t.href || (t.variants && t.variants.length > 0));
                   
                   return (
                     <div
@@ -286,9 +312,9 @@ export function DownloadPage() {
 
                       <div className="mt-8 relative z-10">
                         {isAvailable ? (
-                          t.macVariants && t.macVariants.length > 0 ? (
+                          t.variants && t.variants.length > 0 ? (
                             <div className="space-y-2.5">
-                              {t.macVariants.map((v) => (
+                              {t.variants.map((v) => (
                                 <a
                                   key={v.href}
                                   href={v.href}
@@ -314,6 +340,11 @@ export function DownloadPage() {
                                   </div>
                                 </a>
                               ))}
+                              {t.id === "windows" && t.variants.length > 1 ? (
+                                <p className="text-center text-[11px] font-medium text-slate-500 dark:text-slate-400 pt-1">
+                                  完整版与 Core 版可同时安装（不同应用标识）
+                                </p>
+                              ) : null}
                             </div>
                           ) : t.href ? (
                             <div className="flex flex-col">

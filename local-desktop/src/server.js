@@ -21,6 +21,7 @@ const { registerProxyRequestLogsRoutes } = require("./server/proxy-request-logs-
 const { registerTokenUsageRoutes } = require("./server/token-usage-routes.js");
 const { registerAgentMgmtRoutes } = require("./server/agent-mgmt-routes.js");
 const { registerBudgetRoutes } = require("./server/budget-routes.js");
+const { registerTrackingRoutes } = require("./server/tracking-routes.js");
 const axios = require("axios");
 
 const PORT = 19111;
@@ -529,6 +530,7 @@ async function startServer() {
   registerInterceptLogsRoutes(app);
   registerProxyRequestLogsRoutes(app);
   registerTokenUsageRoutes(app);
+  registerTrackingRoutes(app);
   registerSecurityScanRoutes(app);
   registerAgentMgmtRoutes(app);
   registerBudgetRoutes(app);

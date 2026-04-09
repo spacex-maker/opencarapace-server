@@ -577,3 +577,81 @@ export function fetchGroupedSettings(): Promise<GroupedSettingsDto> {
 export function putGroupedSettings(body: GroupedSettingsDto): Promise<GroupedSettingsDto> {
   return api.put<GroupedSettingsDto>("/api/admin/settings/grouped", body).then((r) => r.data);
 }
+
+export interface AdminTrackingEventRow {
+  id: number;
+  userId: number | null;
+  userEmail: string | null;
+  eventName: string;
+  eventTime: string;
+  platform: string | null;
+  pageId: string | null;
+  module: string | null;
+  eventPropsSnippet: string | null;
+}
+
+export interface AdminTrackingEventsPageResponse {
+  page: number;
+  size: number;
+  total: number;
+  items: AdminTrackingEventRow[];
+}
+
+export interface AdminTrackingEventDetail {
+  id: number;
+  eventId: string;
+  userId: number | null;
+  userEmail: string | null;
+  anonymousId: string | null;
+  sessionId: string | null;
+  eventName: string;
+  eventTime: string;
+  platform: string | null;
+  pageId: string | null;
+  module: string | null;
+  appVersion: string | null;
+  ip: string | null;
+  userAgent: string | null;
+  eventPropsJson: string | null;
+  contextPropsJson: string | null;
+}
+
+export async function fetchAdminTrackingEvents(params: {
+  page?: number;
+  size?: number;
+  userId?: number;
+  anonymousId?: string;
+  sessionId?: string;
+  eventName?: string;
+  platform?: string;
+  pageId?: string;
+  module?: string;
+  from?: string;
+  to?: string;
+  keyword?: string;
+}): Promise<AdminTrackingEventsPageResponse> {
+  const sp = new URLSearchParams();
+  if (params.page != null) sp.set("page", String(params.page));
+  if (params.size != null) sp.set("size", String(params.size));
+  if (params.userId != null) sp.set("userId", String(params.userId));
+  if (params.anonymousId?.trim()) sp.set("anonymousId", params.anonymousId.trim());
+  if (params.sessionId?.trim()) sp.set("sessionId", params.sessionId.trim());
+  if (params.eventName?.trim()) sp.set("eventName", params.eventName.trim());
+  if (params.platform?.trim()) sp.set("platform", params.platform.trim());
+  if (params.pageId?.trim()) sp.set("pageId", params.pageId.trim());
+  if (params.module?.trim()) sp.set("module", params.module.trim());
+  if (params.from?.trim()) sp.set("from", params.from.trim());
+  if (params.to?.trim()) sp.set("to", params.to.trim());
+  if (params.keyword?.trim()) sp.set("keyword", params.keyword.trim());
+  const { data } = await api.get<AdminTrackingEventsPageResponse>(`/api/admin/tracking/events?${sp.toString()}`);
+  return data;
+}
+
+export async function fetchAdminTrackingEventDetail(id: number): Promise<AdminTrackingEventDetail | null> {
+  try {
+    const { data } = await api.get<AdminTrackingEventDetail>(`/api/admin/tracking/events/${id}`);
+    return data ?? null;
+  } catch {
+    return null;
+  }
+}

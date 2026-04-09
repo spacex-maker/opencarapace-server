@@ -3,6 +3,7 @@ import { useI18n } from "../i18n";
 import { LocalStatus } from "./Common";
 import { MdEmail, MdLock, MdShield } from "react-icons/md";
 import { getAuthFormTheme, type AuthFormTheme } from "./authFormTheme";
+import { trackEvent } from "../tracking/clientTracking";
 
 export function AuthPanel({
   theme,
@@ -55,6 +56,11 @@ export function AuthPanel({
       const statusRes = await fetch("http://127.0.0.1:19111/api/status");
       const statusData = await statusRes.json();
       onLoggedIn(statusData);
+      trackEvent("auth_login_success", {
+        pageId: "auth",
+        module: "auth",
+        eventProps: { source: "desktop_form" },
+      });
       setPassword("");
     } catch (e: any) {
       setError(e?.message ?? t("authPage.login.errFailed"));

@@ -8,6 +8,7 @@ import {
 } from "react";
 import { api, setAuthToken } from "../api/client";
 import type { AuthResponse, UserProfile } from "../api/client";
+import { trackEvent } from "../tracking/clientTracking";
 
 const TOKEN_KEY = "clawheart_jwt";
 
@@ -80,6 +81,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         createdAt: new Date().toISOString(),
       });
       await loadUser(data.token);
+      trackEvent("auth_login_success", {
+        pageId: "/login",
+        module: "auth",
+        eventProps: { method: "password" },
+      });
     },
     [setToken, loadUser]
   );
@@ -101,6 +107,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         createdAt: new Date().toISOString(),
       });
       await loadUser(data.token);
+      trackEvent("auth_register_success", {
+        pageId: "/register",
+        module: "auth",
+        eventProps: { method: "password" },
+      });
     },
     [setToken, loadUser]
   );
@@ -120,6 +131,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         createdAt: new Date().toISOString(),
       });
       await loadUser(data.token);
+      trackEvent("auth_login_success", {
+        pageId: "/login",
+        module: "auth",
+        eventProps: { method: "google" },
+      });
     },
     [setToken, loadUser]
   );
@@ -127,6 +143,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const logout = useCallback(() => {
     setToken(null);
     setUser(null);
+    trackEvent("auth_logout", {
+      module: "auth",
+    });
   }, [setToken]);
 
   const value: AuthContextValue = {

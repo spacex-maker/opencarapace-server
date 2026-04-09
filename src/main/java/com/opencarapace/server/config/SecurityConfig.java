@@ -41,6 +41,8 @@ public class SecurityConfig {
                         .requestMatchers("/error").permitAll()
                         .requestMatchers("/api/auth/google", "/api/auth/register", "/api/auth/login").permitAll()
                         .requestMatchers("/api/public/**").permitAll()
+                        // 全端埋点上报：支持匿名与登录态两种上报方式
+                        .requestMatchers("/api/track/**").permitAll()
                         // 本地客户端写入拦截日志：用 X-OC-API-KEY 校验（不要求登录）
                         .requestMatchers("/api/safety/log-block").permitAll()
                         // 大模型代理（登录状态认证）：由 LlmProxyController 内校验 X-User-Token

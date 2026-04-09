@@ -1,4 +1,5 @@
-import { Navigate, Route, Routes } from "react-router-dom";
+import { useEffect } from "react";
+import { Navigate, Route, Routes, useLocation } from "react-router-dom";
 import { AuthProvider } from "./contexts/AuthContext";
 import { ThemeProvider } from "./contexts/ThemeContext";
 import { Layout } from "./components/Layout";
@@ -13,6 +14,7 @@ import { AdminSkillsPage } from "./pages/AdminSkillsPage";
 import { SystemConfigPage } from "./pages/SystemConfigPage";
 import { MyInterceptLogsPage } from "./pages/MyInterceptLogsPage";
 import { AdminInterceptLogsPage } from "./pages/AdminInterceptLogsPage";
+import { AdminTrackingEventsPage } from "./pages/AdminTrackingEventsPage";
 import { SettingsPage } from "./pages/SettingsPage";
 import { ApiKeysPage } from "./pages/ApiKeysPage";
 import { OfficialIntroPage } from "./pages/OfficialIntroPage";
@@ -21,8 +23,21 @@ import { DownloadPage } from "./pages/DownloadPage";
 import { ProtectedRoute } from "./components/ProtectedRoute";
 import { AdminRoute } from "./components/AdminRoute";
 import { ConfirmProvider } from "./contexts/ConfirmContext";
+import { trackEvent } from "./tracking/clientTracking";
 
 function App() {
+  const location = useLocation();
+
+  useEffect(() => {
+    trackEvent("page_view", {
+      pageId: location.pathname,
+      module: "web",
+      eventProps: {
+        search: location.search || "",
+      },
+    });
+  }, [location.pathname, location.search]);
+
   return (
     <ThemeProvider>
       <AuthProvider>
@@ -124,6 +139,14 @@ function App() {
                   element={
                     <AdminRoute>
                       <AdminInterceptLogsPage />
+                    </AdminRoute>
+                  }
+                />
+                <Route
+                  path="/admin/tracking-events"
+                  element={
+                    <AdminRoute>
+                      <AdminTrackingEventsPage />
                     </AdminRoute>
                   }
                 />

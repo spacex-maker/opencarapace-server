@@ -3,6 +3,7 @@ import { Apple, ChevronDown, Download, ExternalLink, Monitor, Shield, Zap, Cpu, 
 import React, { useEffect, useMemo, useState } from "react";
 import { useTheme } from "../contexts/ThemeContext";
 import { useAuth } from "../contexts/AuthContext";
+import { trackEvent } from "../tracking/clientTracking";
 
 type DesktopDownloadVariant = {
   label: string;
@@ -121,6 +122,24 @@ export function DownloadPage() {
 
   const [openFaq, setOpenFaq] = useState<null | "gate" | "openclaw" | "trust">("gate");
   const [winDownloadModalOpen, setWinDownloadModalOpen] = useState(false);
+
+  const trackDownloadClick = (
+    target: DownloadTarget["id"],
+    variantLabel: string,
+    href: string,
+    fromModal: boolean,
+  ) => {
+    trackEvent("download_click", {
+      pageId: "/download",
+      module: "download",
+      eventProps: {
+        target,
+        variant: variantLabel,
+        url: href,
+        fromModal,
+      },
+    });
+  };
 
   useEffect(() => {
     if (!winDownloadModalOpen) return;
@@ -350,6 +369,7 @@ export function DownloadPage() {
                                     href={v.href}
                                     target="_blank"
                                     rel="noopener noreferrer"
+                                    onClick={() => trackDownloadClick(t.id, v.label, v.href, false)}
                                     className="group/btn flex items-center justify-between p-3.5 rounded-xl border border-slate-200 dark:border-slate-700/60 bg-slate-50/50 hover:bg-white dark:bg-slate-800/40 dark:hover:bg-slate-800 transition-all hover:shadow-sm hover:border-brand-500/30 dark:hover:border-brand-500/30"
                                   >
                                     <div className="flex items-center gap-3.5">
@@ -378,6 +398,7 @@ export function DownloadPage() {
                                 href={t.href}
                                 target="_blank"
                                 rel="noopener noreferrer"
+                                onClick={() => trackDownloadClick(t.id, "single", t.href!, false)}
                                 className="w-full group/btn flex items-center justify-center gap-2 px-4 py-3.5 rounded-xl bg-gradient-to-r from-brand-600 to-brand-500 hover:from-brand-500 hover:to-brand-400 text-white text-[14px] font-bold shadow-lg shadow-brand-500/25 hover:shadow-brand-500/40 transition-all hover:-translate-y-0.5"
                               >
                                 <Download className="w-4 h-4 transition-transform group-hover/btn:-translate-y-0.5" />
@@ -445,7 +466,10 @@ export function DownloadPage() {
                     href={v.href}
                     target="_blank"
                     rel="noopener noreferrer"
-                    onClick={() => setWinDownloadModalOpen(false)}
+                    onClick={() => {
+                      trackDownloadClick("windows", v.label, v.href, true);
+                      setWinDownloadModalOpen(false);
+                    }}
                     className="group/btn flex items-center justify-between p-3.5 rounded-xl border border-slate-200 dark:border-slate-700/60 bg-slate-50/80 hover:bg-white dark:bg-slate-800/50 dark:hover:bg-slate-800 transition-all hover:shadow-sm hover:border-brand-500/35 dark:hover:border-brand-500/35"
                   >
                     <div className="flex items-center gap-3.5 min-w-0">

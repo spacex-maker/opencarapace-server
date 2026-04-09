@@ -23,6 +23,7 @@ import {
 } from "react-icons/md";
 import { useI18n } from "./i18n";
 import { LanguageSelect } from "./components/LanguageSelect";
+import { trackEvent } from "./tracking/clientTracking";
 
 export function App() {
   const { t } = useI18n();
@@ -75,6 +76,13 @@ export function App() {
 
   useEffect(() => {
     if (activeTab === "securityScan") setSecurityScanEverOpened(true);
+  }, [activeTab]);
+
+  useEffect(() => {
+    trackEvent("page_view", {
+      pageId: activeTab,
+      module: "desktop_ui",
+    });
   }, [activeTab]);
 
   useEffect(() => {
@@ -206,6 +214,10 @@ export function App() {
         setError(data?.error?.message || "保存失败");
       } else {
         setMessage("保存成功，已在后台触发规则同步。");
+        trackEvent("settings_save_success", {
+          pageId: "settings",
+          module: "settings",
+        });
         // 刷新状态以更新连接状态显示
         await refreshStatus();
       }
@@ -220,6 +232,11 @@ export function App() {
     setStatus(s);
     setAuthSubView("login");
     setActiveTab("overview");
+    trackEvent("auth_login_success", {
+      pageId: "auth",
+      module: "auth",
+      eventProps: { source: "desktop_local" },
+    });
   };
 
   const performLogout = async () => {
@@ -230,6 +247,10 @@ export function App() {
       await refreshStatus();
       setActiveTab("overview");
       setMessage("已退出登录。");
+      trackEvent("auth_logout", {
+        pageId: "settings",
+        module: "auth",
+      });
     } catch (e: any) {
       setError(e?.message ?? "退出登录失败");
     }
@@ -399,6 +420,13 @@ export function App() {
                   key={item.key}
                   type="button"
                   onClick={() => setActiveTab(item.key as any)}
+                  onMouseDown={() => {
+                    trackEvent("tab_switch", {
+                      pageId: String(item.key),
+                      module: "desktop_ui",
+                      eventProps: { from: activeTab, to: item.key },
+                    });
+                  }}
                   className="oc-topmenu"
                   style={{
                     position: "relative",
@@ -603,6 +631,13 @@ export function App() {
               title={t("header.settings.title")}
               aria-label={t("header.settings.aria")}
               onClick={() => setActiveTab("settings")}
+              onMouseDown={() => {
+                trackEvent("tab_switch", {
+                  pageId: "settings",
+                  module: "desktop_ui",
+                  eventProps: { from: activeTab, to: "settings" },
+                });
+              }}
               style={{
                 width: 34,
                 height: 34,
@@ -632,6 +667,11 @@ export function App() {
                   onClick={() => {
                     setAuthSubView("login");
                     setActiveTab("auth");
+                    trackEvent("tab_switch", {
+                      pageId: "auth",
+                      module: "desktop_ui",
+                      eventProps: { from: activeTab, to: "auth_login" },
+                    });
                   }}
                   style={{
                     height: 34,
@@ -654,6 +694,11 @@ export function App() {
                   onClick={() => {
                     setAuthSubView("register");
                     setActiveTab("auth");
+                    trackEvent("tab_switch", {
+                      pageId: "auth",
+                      module: "desktop_ui",
+                      eventProps: { from: activeTab, to: "auth_register" },
+                    });
                   }}
                   style={{
                     height: 34,

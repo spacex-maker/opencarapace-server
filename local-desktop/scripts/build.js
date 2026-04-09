@@ -43,6 +43,8 @@ const noOpenclaw = argv.includes("no-openclaw");
 const buildType = argv.includes("dir") ? "dir" : "installer";
 /** 显式传 mac：在 macOS 上打 dmg/zip；与 Windows 默认流程互斥 */
 const buildMac = argv.includes("mac");
+/** mac 架构选择：默认 universal（x64+arm64），可传 arm64 或 x64 */
+const macArch = argv.includes("arm64") ? "arm64" : argv.includes("x64") ? "x64" : "universal";
 
 if (buildMac && process.platform !== "darwin") {
   console.error(`✗ macOS 客户端打包必须在 macOS 上执行（当前系统为 ${process.platform}）。`);
@@ -52,6 +54,7 @@ if (buildMac && process.platform !== "darwin") {
 console.log("=== ClawHeart Desktop 打包流程 ===\n");
 if (buildMac) {
   console.log("目标：macOS\n");
+  console.log(`架构：${macArch === "universal" ? "x64 + arm64" : macArch}\n`);
 }
 if (noOpenclaw) {
   console.log("变体：Core（不内置 OpenClaw：安装包不含 resources/openclaw，且排除 node_modules/openclaw）\n");
@@ -287,10 +290,20 @@ async function runPack() {
       `clawheart-electron-builder-mac-${process.pid}-${Date.now()}.json`
     );
     fs.writeFileSync(generatedEbConfigPath, JSON.stringify(config, null, 2), "utf8");
-    const macEbTargets =
-      buildType === "dir" ? Platform.MAC.createTarget("dir") : Platform.MAC.createTarget();
+    const macEbTargets = (() => {
+      if (buildType === "dir") {
+        return macArch === "universal"
+          ? Platform.MAC.createTarget("dir")
+          : Platform.MAC.createTarget("dir", macArch === "arm64" ? Arch.arm64 : Arch.x64);
+      }
+      if (macArch === "universal") {
+        return Platform.MAC.createTarget();
+      }
+      // installer: 仅产出指定架构（dmg + zip），避免同时打双架构
+      return Platform.MAC.createTarget(["dmg", "zip"], macArch === "arm64" ? Arch.arm64 : Arch.x64);
+    })();
     console.log(
-      `   [pack] mac 目标：${buildType === "dir" ? "dir" : "默认（见配置内 dmg + zip）"}`
+      `   [pack] mac 目标：${buildType === "dir" ? "dir" : "dmg + zip"}；架构：${macArch === "universal" ? "x64+arm64" : macArch}`
     );
     console.log(`   [pack] 使用独立配置文件: ${generatedEbConfigPath}`);
     await build({

@@ -67,6 +67,21 @@ npm run build:dir
 - **安装程序版本**：运行 `dist/ClawHeart Desktop Setup 0.1.0.exe`
 - **免安装版本**：运行 `dist/win-unpacked/ClawHeart Desktop.exe`
 
+### 5. macOS（Apple Silicon / M 系列）打包命令
+
+- **M 芯片 + Core（不内置 OpenClaw）推荐命令**：
+
+```bash
+npm run build:mac-arm64-no-openclaw
+```
+
+- 该命令只产出 `arm64` 架构（不会同时打 x64），并且不内置 OpenClaw。
+- 若需要同时产出 x64+arm64（universal 双架构），可用：
+
+```bash
+npm run build:mac-no-openclaw
+```
+
 ## 打包配置说明
 
 打包配置在 `package.json` 的 `build` 字段中：

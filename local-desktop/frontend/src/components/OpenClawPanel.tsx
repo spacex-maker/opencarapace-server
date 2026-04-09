@@ -4,6 +4,8 @@ export function OpenClawPanel() {
   const [loading, setLoading] = useState(true);
   const [hasEmbedded, setHasEmbedded] = useState(false);
   const [isRunning, setIsRunning] = useState(false);
+  const [localInstalled, setLocalInstalled] = useState<boolean | null>(null);
+  const [localBinaryPath, setLocalBinaryPath] = useState<string | null>(null);
   const [uiUrl, setUiUrl] = useState("http://localhost:18789");
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
@@ -29,6 +31,8 @@ export function OpenClawPanel() {
       const data = await res.json();
       setHasEmbedded(!!data?.hasEmbedded);
       setIsRunning(!!data?.isRunning);
+      setLocalInstalled(typeof data?.localInstall?.installed === "boolean" ? data.localInstall.installed : null);
+      setLocalBinaryPath(data?.localInstall?.binaryPath || data?.localInstall?.appPath || null);
       setUiUrl(data?.uiUrl || "http://localhost:18789");
       if (typeof data?.gatewayDiagnosticLog === "string") {
         setGatewayLog(data.gatewayDiagnosticLog);
@@ -284,8 +288,16 @@ export function OpenClawPanel() {
         <p style={{ margin: "4px 0 12px", fontSize: 13, color: "var(--muted)", lineHeight: 1.5 }}>
           OpenClaw 是一个强大的 AI Agent 框架。
           {hasEmbedded && <span style={{ color: "#4ade80" }}> 已检测到 OpenClaw。</span>}
+          {!hasEmbedded && localInstalled === true && (
+            <span style={{ color: "#4ade80" }}> 已检测到本机 OpenClaw，可使用 Core 版。</span>
+          )}
           {isRunning && <span style={{ color: "#fbbf24", fontWeight: 600 }}> 首次使用需要配置 LLM 提供商。</span>}
         </p>
+        {!hasEmbedded && localInstalled && localBinaryPath && (
+          <div style={{ marginTop: -4, marginBottom: 8, fontSize: 11, color: "#86efac" }}>
+            本机 OpenClaw 路径：<code style={{ fontSize: 10 }}>{localBinaryPath}</code>
+          </div>
+        )}
         
         {/* 标签页切换 */}
         <div style={{ display: "flex", gap: 8, borderBottom: "1px solid var(--panel-border)", paddingBottom: 8 }}>

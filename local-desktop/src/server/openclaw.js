@@ -1,5 +1,8 @@
 const { getOpenClawSettings, saveOpenClawSettings } = require("../db.js");
 const { detectPlatform, execWithOutput, hasCommand, checkUrlReachable } = require("./utils.js");
+const fs = require("fs");
+const path = require("path");
+const os = require("os");
 const { hasEmbeddedNode, downloadAndInstallNode, runEmbeddedNpm, NODE_VERSION } = require("./node-manager.js");
 const {
   getOpenClawStatus,
@@ -17,6 +20,53 @@ let nodeInstallState = {
   error: null,
   completed: false,
 };
+
+function detectMacLocalOpenClaw() {
+  if (process.platform !== "darwin") {
+    return {
+      installed: false,
+      method: "unsupported_platform",
+      binaryPath: null,
+      appPath: null,
+      searchedPaths: [],
+    };
+  }
+  const home = os.homedir();
+  const candidates = [
+    "/opt/homebrew/bin/openclaw",
+    "/usr/local/bin/openclaw",
+    path.join(home, ".npm-global", "bin", "openclaw"),
+    path.join(home, "Library", "Application Support", "OpenClaw", "bin", "openclaw"),
+  ];
+  const hit = candidates.find((p) => fs.existsSync(p));
+  const appPath = "/Applications/OpenClaw.app";
+  const appExists = fs.existsSync(appPath);
+  if (hit) {
+    return {
+      installed: true,
+      method: "binary_exists",
+      binaryPath: hit,
+      appPath: appExists ? appPath : null,
+      searchedPaths: candidates,
+    };
+  }
+  if (appExists) {
+    return {
+      installed: true,
+      method: "app_bundle_exists",
+      binaryPath: null,
+      appPath,
+      searchedPaths: candidates,
+    };
+  }
+  return {
+    installed: false,
+    method: "not_found",
+    binaryPath: null,
+    appPath: null,
+    searchedPaths: candidates,
+  };
+}
 
 async function runInstallCommand(rawCmd) {
   console.log("[runInstallCommand] 开始执行");
@@ -320,9 +370,19 @@ function registerOpenClawRoutes(app) {
   app.get("/api/openclaw/embedded-status", async (_req, res) => {
     try {
       const status = await getOpenClawStatus();
-      res.status(200).json(status);
+      const localInstall = detectMacLocalOpenClaw();
+      res.status(200).json({ ...status, localInstall });
     } catch (e) {
       res.status(500).json({ error: { message: e?.message ?? "获取 OpenClaw 状态失败" } });
+    }
+  });
+
+  app.get("/api/openclaw/local-installation", async (_req, res) => {
+    try {
+      const localInstall = detectMacLocalOpenClaw();
+      res.status(200).json(localInstall);
+    } catch (e) {
+      res.status(500).json({ error: { message: e?.message ?? "检测本地 OpenClaw 失败" } });
     }
   });
 

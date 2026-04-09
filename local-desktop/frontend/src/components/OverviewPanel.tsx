@@ -76,6 +76,12 @@ export function OverviewPanel(props: Props) {
   const [lastCacheTime, setLastCacheTime] = useState<string | null>(null);
   const [skillsLoadError, setSkillsLoadError] = useState<string | null>(null);
 
+  /** 未登录时不拉云端看板，加载位若仍为 true 也不应显示「同步中」 */
+  const cloudAuthed = !!status?.auth?.token;
+  const dashboardCloudSyncing =
+    cloudAuthed &&
+    (skillsLoading || dangerLoading || interceptLoading || tokenLoading || interceptTimelineLoading);
+
   useEffect(() => {
     if (status?.auth?.token) {
       loadSkillsStats();
@@ -555,7 +561,7 @@ export function OverviewPanel(props: Props) {
           )}
           <button
             onClick={refreshAllStats}
-            disabled={skillsLoading || dangerLoading || interceptLoading || tokenLoading || interceptTimelineLoading}
+            disabled={dashboardCloudSyncing}
             style={{
               padding: "10px 20px",
               fontSize: 14,
@@ -564,8 +570,8 @@ export function OverviewPanel(props: Props) {
               background: "rgba(255,255,255,0.05)",
               color: "var(--fg)",
               borderRadius: 10,
-              cursor: (skillsLoading || dangerLoading || interceptLoading || tokenLoading || interceptTimelineLoading) ? "not-allowed" : "pointer",
-              opacity: (skillsLoading || dangerLoading || interceptLoading || tokenLoading || interceptTimelineLoading) ? 0.6 : 1,
+              cursor: dashboardCloudSyncing ? "not-allowed" : "pointer",
+              opacity: dashboardCloudSyncing ? 0.6 : 1,
               transition: "all 0.2s cubic-bezier(0.4, 0, 0.2, 1)",
               display: "flex",
               alignItems: "center",
@@ -575,10 +581,10 @@ export function OverviewPanel(props: Props) {
             onMouseOver={(e) => !e.currentTarget.disabled && (e.currentTarget.style.background = "rgba(255,255,255,0.1)")}
             onMouseOut={(e) => !e.currentTarget.disabled && (e.currentTarget.style.background = "rgba(255,255,255,0.05)")}
           >
-            {(skillsLoading || dangerLoading || interceptLoading || tokenLoading || interceptTimelineLoading) ? (
+            {dashboardCloudSyncing ? (
               <>
                 <span style={{ display: "inline-block", width: 14, height: 14, border: "2px solid var(--muted)", borderTopColor: "transparent", borderRadius: "50%", animation: "spin 1s linear infinite" }} />
-                同步中...
+                同步中…
               </>
             ) : (
               <>
@@ -605,17 +611,17 @@ export function OverviewPanel(props: Props) {
         <StatCard
           noBorder
           label="用户禁用技能"
-          value={skillsLoading ? "…" : dashboardStats.skillsStats?.userDisabledCount ?? 0}
+          value={cloudAuthed && skillsLoading ? "…" : dashboardStats.skillsStats?.userDisabledCount ?? 0}
         />
         <StatCard
           noBorder
           label="我标记为安全"
-          value={skillsLoading ? "…" : dashboardStats.skillsStats?.userSafeLabelCount ?? 0}
+          value={cloudAuthed && skillsLoading ? "…" : dashboardStats.skillsStats?.userSafeLabelCount ?? 0}
         />
         <StatCard
           noBorder
           label="我标记为不安全"
-          value={skillsLoading ? "…" : dashboardStats.skillsStats?.userUnsafeLabelCount ?? 0}
+          value={cloudAuthed && skillsLoading ? "…" : dashboardStats.skillsStats?.userUnsafeLabelCount ?? 0}
         />
       </div>
 
@@ -639,16 +645,16 @@ export function OverviewPanel(props: Props) {
       {/* 中部图表：统一网格布局 */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(400px, 1fr))", gap: 24, marginBottom: 24 }}>
         <div style={cardBaseStyle}>
-          <ChartCard title="技能分类分布" option={getSkillsCategoryChartOption()} loading={skillsLoading} height={320} />
+          <ChartCard title="技能分类分布" option={getSkillsCategoryChartOption()} loading={cloudAuthed && skillsLoading} height={320} />
         </div>
         <div style={cardBaseStyle}>
-          <ChartCard title="危险指令风险等级" option={getDangerRiskLevelChartOption()} loading={dangerLoading} height={320} />
+          <ChartCard title="危险指令风险等级" option={getDangerRiskLevelChartOption()} loading={cloudAuthed && dangerLoading} height={320} />
         </div>
         <div style={cardBaseStyle}>
-          <ChartCard title="危险指令系统类型" option={getDangerSystemTypeChartOption()} loading={dangerLoading} height={320} />
+          <ChartCard title="危险指令系统类型" option={getDangerSystemTypeChartOption()} loading={cloudAuthed && dangerLoading} height={320} />
         </div>
         <div style={cardBaseStyle}>
-          <ChartCard title="拦截监控风险分布" option={getInterceptRiskChartOption()} loading={interceptLoading} height={320} />
+          <ChartCard title="拦截监控风险分布" option={getInterceptRiskChartOption()} loading={cloudAuthed && interceptLoading} height={320} />
         </div>
       </div>
 
@@ -683,7 +689,7 @@ export function OverviewPanel(props: Props) {
               )}
             </div>
           </div>
-          <ChartCard title="" option={getTokenTimelineChartOption()} loading={tokenLoading} height={320} />
+          <ChartCard title="" option={getTokenTimelineChartOption()} loading={cloudAuthed && tokenLoading} height={320} />
         </div>
 
         {/* 拦截监控时间轴 */}
@@ -714,7 +720,7 @@ export function OverviewPanel(props: Props) {
               )}
             </div>
           </div>
-          <ChartCard title="" option={getInterceptTimelineChartOption()} loading={interceptTimelineLoading} height={320} />
+          <ChartCard title="" option={getInterceptTimelineChartOption()} loading={cloudAuthed && interceptTimelineLoading} height={320} />
         </div>
       </div>
       

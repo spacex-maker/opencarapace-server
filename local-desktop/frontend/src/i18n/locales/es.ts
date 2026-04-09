@@ -5,7 +5,7 @@ export const es: Messages = {
     overview: "Resumen",
     securityScan: "Escaneo de seguridad",
     interceptLogs: "Monitor de interceptación",
-    openclaw: "OpenClaw",
+    openclaw: "Gestión Claw",
     skills: "Mercado de seguridad",
     agentMgmt: "Gestión de agentes",
   },

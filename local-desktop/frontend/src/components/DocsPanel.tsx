@@ -81,7 +81,7 @@ export function DocsPanel({ embedded = false }: DocsPanelProps) {
             含「拦截记录」（云端记录的拦截事件）与「拦截项目」（原危险指令库：规则同步、筛选与用户启用开关）。
           </li>
           <li><span style={bulletTitle}>Token 账单：</span>查看 Token 使用统计与时间趋势。</li>
-          <li><span style={bulletTitle}>OpenClaw：</span>管理与 OpenClaw 相关的接入与使用入口。</li>
+          <li><span style={bulletTitle}>Claw 管理：</span>扫描本机 Node/Claw 环境，管理各厂商 CLI、内置 OpenClaw Gateway 与配置。</li>
           <li>
             <span style={bulletTitle}>设置：</span>
             在顶部栏右侧「账户」区域与登录/退出并排。打开后可在「常规设置」与「文档与使用说明」之间切换：前者配置云端基地址、OC API Key、LLM 路由模式、网络映射与云端同步等；后者即本说明全文。

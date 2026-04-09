@@ -45,16 +45,32 @@ function getBundledNodeFromInstaller() {
  * 禁止使用本应用的 Electron exe（如 ClawHeart Desktop.exe）配合 --run-as-node 跑 openclaw：
  * 在多数打包形态下仍会启动桌面主进程，导致出现 19111 代理日志而非 OpenClaw。
  */
-function resolveRealNodeExecutable() {
+/**
+ * @param {{ gatewayOpenclawBinary?: string }} [opts] external 时优先使用外置专用已下载 Node
+ */
+function resolveRealNodeExecutable(opts) {
+  const mode = opts && String(opts.gatewayOpenclawBinary || "").toLowerCase() === "external" ? "external" : "bundled";
+  try {
+    const nodeManager = require("./node-manager.js");
+    if (mode === "external" && nodeManager.hasEmbeddedNode && nodeManager.getEmbeddedNodePath) {
+      if (nodeManager.hasEmbeddedNode("external")) {
+        const p = nodeManager.getEmbeddedNodePath("external").node;
+        if (p && fs.existsSync(p)) return p;
+      }
+    }
+  } catch {
+    // ignore
+  }
+
   const fromInstaller = getBundledNodeFromInstaller();
   if (fromInstaller) return fromInstaller;
 
-  /** 用户曾在客户端内下载的「内置 Node」 */
+  /** 用户曾在客户端内下载的「内置卡」运行时 Node */
   try {
     const nodeManager = require("./node-manager.js");
     if (nodeManager.hasEmbeddedNode && nodeManager.getEmbeddedNodePath) {
-      if (nodeManager.hasEmbeddedNode()) {
-        const p = nodeManager.getEmbeddedNodePath().node;
+      if (nodeManager.hasEmbeddedNode("bundled")) {
+        const p = nodeManager.getEmbeddedNodePath("bundled").node;
         if (p && fs.existsSync(p)) return p;
       }
     }
@@ -67,10 +83,13 @@ function resolveRealNodeExecutable() {
 
 /**
  * 为子进程准备 PATH / NODE_PATH，确保 openclaw.cmd 能找到 node，且能 require 到 hoisted 依赖。
+ * @param {string | null} appUnpackedRoot
+ * @param {{ gatewayOpenclawBinary?: "bundled" | "external" }} [opts]
  */
-function buildOpenClawChildEnv(appUnpackedRoot) {
-  const env = { ...process.env };
-  const nodeExe = resolveRealNodeExecutable();
+function buildOpenClawChildEnv(appUnpackedRoot, opts) {
+  const { applyGatewayWorkspaceOpenClawEnv } = require("./openclaw-workspace.js");
+  const env = applyGatewayWorkspaceOpenClawEnv(process.env);
+  const nodeExe = resolveRealNodeExecutable(opts);
   if (nodeExe) {
     const nodeDir = path.dirname(nodeExe);
     env.PATH = nodeDir + path.delimiter + (env.PATH || "");
@@ -136,6 +155,7 @@ module.exports = {
   getUnpackedAppRoot,
   getPackagedOpenClawBinFromUnpacked,
   getPackagedOpenClawMjsPath,
+  getBundledNodeFromInstaller,
   resolveRealNodeExecutable,
   buildOpenClawChildEnv,
 };

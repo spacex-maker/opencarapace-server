@@ -5,7 +5,7 @@ export const hi: Messages = {
     overview: "अवलोकन",
     securityScan: "सुरक्षा स्कैन",
     interceptLogs: "इंटरसेप्ट मॉनिटर",
-    openclaw: "OpenClaw",
+    openclaw: "Claw प्रबंधन",
     skills: "सुरक्षा बाज़ार",
     agentMgmt: "एजेंट प्रबंधन",
   },

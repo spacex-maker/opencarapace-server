@@ -5,7 +5,7 @@
   "main": "src/main.js",
   "scripts": {
     "dev:renderer": "npm run dev --prefix frontend -- --port 5199 --strictPort",
-    "dev:electron": "cross-env NODE_ENV=development ELECTRON_DEV=true electron src/main.js",
+    "dev:electron": "node node_modules/cross-env/src/bin/cross-env.js NODE_ENV=development ELECTRON_DEV=true electron src/main.js",
     "dev": "concurrently -k -n renderer,electron -c cyan,green \"npm run dev:renderer\" \"npm run dev:electron\"",
     "start": "electron src/main.js",
     "postinstall": "node scripts/setup-openclaw.js",
@@ -21,7 +21,8 @@
     "build:mac-no-openclaw": "node scripts/build.js mac no-openclaw",
     "build:mac-arm64-no-openclaw": "node scripts/build.js mac arm64 no-openclaw",
     "build:mac-no-openclaw-dir": "node scripts/build.js mac no-openclaw dir",
-    "pack": "node scripts/build.js dir"
+    "pack": "node scripts/build.js dir",
+    "notarize:mac-dmg": "bash scripts/sign-notarize-dmg.sh"
   },
   "description": "ClawHeart Desktop Client",
   "author": "ClawHeart Team",

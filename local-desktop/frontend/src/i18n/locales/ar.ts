@@ -5,7 +5,7 @@ export const ar: Messages = {
     overview: "نظرة عامة",
     securityScan: "فحص أمني",
     interceptLogs: "مراقبة الاعتراض",
-    openclaw: "OpenClaw",
+    openclaw: "إدارة Claw",
     skills: "سوق الأمان",
     agentMgmt: "إدارة الوكلاء",
   },

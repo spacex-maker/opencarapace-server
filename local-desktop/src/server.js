@@ -498,6 +498,18 @@ async function startServer() {
 
   getDb();
 
+  const { getOpenClawSettings } = require("./db.js");
+  getOpenClawSettings()
+    .then((cfg) => {
+      try {
+        const { syncGatewayWorkspaceFromSettings } = require("./server/openclaw-workspace.js");
+        syncGatewayWorkspaceFromSettings(cfg);
+      } catch {
+        /* ignore */
+      }
+    })
+    .catch(() => {});
+
   app.get("/api/status", async (_req, res) => {
     try {
       const { danger, disabled, deprecated, auth, llmRouteMode, platform, platformLabel } = await getLocalStatus();

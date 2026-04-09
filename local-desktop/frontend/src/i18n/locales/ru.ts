@@ -5,7 +5,7 @@ export const ru: Messages = {
     overview: "Обзор",
     securityScan: "Проверка безопасности",
     interceptLogs: "Мониторинг перехватов",
-    openclaw: "OpenClaw",
+    openclaw: "Управление Claw",
     skills: "Рынок безопасности",
     agentMgmt: "Управление агентами",
   },

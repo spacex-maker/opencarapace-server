@@ -5,7 +5,7 @@ export const ja: Messages = {
     overview: "概要",
     securityScan: "セキュリティスキャン",
     interceptLogs: "インターセプト監視",
-    openclaw: "OpenClaw",
+    openclaw: "Claw 管理",
     skills: "セキュリティマーケット",
     agentMgmt: "エージェント管理",
   },

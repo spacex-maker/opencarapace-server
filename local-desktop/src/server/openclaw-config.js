@@ -8,6 +8,8 @@ const {
   resolveRealNodeExecutable,
   buildOpenClawChildEnv,
 } = require("./openclaw-paths.js");
+const { getManagedOpenClawEnv, getActiveOpenClawEnv } = require("./openclaw-workspace.js");
+const { getUserProfileOpenClawPaths } = require("./openclaw-discovery.js");
 
 /**
  * 获取 OpenClaw 可执行文件路径
@@ -52,8 +54,8 @@ async function runOpenClawConfig(args) {
         stdout: "",
         stderr:
           process.platform === "darwin"
-            ? "未找到内置 node（应用 Contents/Resources/node 或客户端「内置 Node」）。请更新安装包或安装内置 Node。"
-            : "未找到 node.exe（安装包 resources 内置或客户端「内置 Node」）。请更新安装包或安装内置 Node。",
+            ? "未找到 node（应用 Contents/Resources/node 或 OpenClaw 面板「下载运行时 Node」）。请更新安装包或在面板下载。"
+            : "未找到 node.exe（安装包 resources 或面板「下载运行时 Node」）。请更新安装包或在面板下载。",
       };
     }
     const extraEnv = buildOpenClawChildEnv(unpackedRoot);
@@ -66,11 +68,11 @@ async function runOpenClawConfig(args) {
 
   const binPath = getOpenClawBinPath();
   
+  const env = buildOpenClawChildEnv(path.join(__dirname, "../.."));
   if (process.platform === "win32") {
-    return execWithOutput("cmd.exe", ["/c", binPath, "config", ...args], { shell: false });
-  } else {
-    return execWithOutput(binPath, ["config", ...args], { shell: false });
+    return execWithOutput("cmd.exe", ["/c", binPath, "config", ...args], { shell: false, env });
   }
+  return execWithOutput(binPath, ["config", ...args], { shell: false, env });
 }
 
 /**
@@ -131,8 +133,8 @@ async function runOpenClawModels(args) {
         stdout: "",
         stderr:
           process.platform === "darwin"
-            ? "未找到内置 node（应用 Contents/Resources/node 或客户端「内置 Node」）。请更新安装包或安装内置 Node。"
-            : "未找到 node.exe（安装包 resources 内置或客户端「内置 Node」）。请更新安装包或安装内置 Node。",
+            ? "未找到 node（应用 Contents/Resources/node 或 OpenClaw 面板「下载运行时 Node」）。请更新安装包或在面板下载。"
+            : "未找到 node.exe（安装包 resources 或面板「下载运行时 Node」）。请更新安装包或在面板下载。",
       };
     }
     const extraEnv = buildOpenClawChildEnv(unpackedRoot);
@@ -144,20 +146,34 @@ async function runOpenClawModels(args) {
   }
 
   const binPath = getOpenClawBinPath();
-  
+  const env = buildOpenClawChildEnv(path.join(__dirname, "../.."));
   if (process.platform === "win32") {
-    return execWithOutput("cmd.exe", ["/c", binPath, "models", ...args], { shell: false });
-  } else {
-    return execWithOutput(binPath, ["models", ...args], { shell: false });
+    return execWithOutput("cmd.exe", ["/c", binPath, "models", ...args], { shell: false, env });
   }
+  return execWithOutput(binPath, ["models", ...args], { shell: false, env });
 }
 
 /**
  * 读取 OpenClaw 配置文件
  */
+/** 与当前「Gateway 工作区」一致：便于 configureProvider / 安全扫描 / init 与正在启动的 Gateway 读写同一份 openclaw.json */
 function getOpenClawConfigPath() {
-  const homeDir = require("os").homedir();
-  return path.join(homeDir, ".openclaw", "openclaw.json");
+  return getActiveOpenClawEnv().OPENCLAW_CONFIG_PATH;
+}
+
+/** 解析「配置编辑」目标。仅允许 ClawHeart 托管路径与用户 ~/.openclaw，防止任意写文件 */
+function resolveConfigEditTarget(target) {
+  const t = String(target || "").trim() || "user-profile";
+  if (t === "clawheart-managed" || t === "managed") {
+    return getManagedOpenClawEnv().OPENCLAW_CONFIG_PATH;
+  }
+  if (t === "external-managed" || t === "external-runtime" || t === "opencarapace-external") {
+    return getUserProfileOpenClawPaths().configPath;
+  }
+  if (t === "user-profile" || t === "user-default") {
+    return getUserProfileOpenClawPaths().configPath;
+  }
+  throw new Error("无效的配置目标");
 }
 
 /**
@@ -169,25 +185,58 @@ function generateToken() {
 }
 
 /**
+ * OpenClaw 2026.3+：`gateway run` 要求 `gateway.mode=local` 或传 `--allow-unconfigured`。
+ * 旧版/手写的 openclaw.json 可能没有 mode，仅补全为 local，不覆盖已有非空 mode。
+ */
+function ensureGatewayModeLocal() {
+  const configPath = getOpenClawConfigPath();
+  if (!fs.existsSync(configPath)) {
+    return false;
+  }
+  let cfg;
+  try {
+    cfg = JSON.parse(fs.readFileSync(configPath, "utf-8"));
+  } catch (e) {
+    console.warn("[OpenClaw Config] ensureGatewayModeLocal 解析失败:", e?.message || e);
+    return false;
+  }
+  if (!cfg.gateway || typeof cfg.gateway !== "object") {
+    cfg.gateway = {};
+  }
+  const m = cfg.gateway.mode;
+  if (m != null && String(m).trim() !== "") {
+    return false;
+  }
+  cfg.gateway.mode = "local";
+  try {
+    fs.writeFileSync(configPath, JSON.stringify(cfg, null, 2), "utf-8");
+    console.log("[OpenClaw Config] 已补全 gateway.mode=local");
+    return true;
+  } catch (e) {
+    console.warn("[OpenClaw Config] ensureGatewayModeLocal 写入失败:", e?.message || e);
+    return false;
+  }
+}
+
+/**
  * 初始化 OpenClaw 配置文件（如果不存在）
  * 完全按照用户提供的配置结构，但不设置 API Key
  */
 function initOpenClawConfig() {
   const configPath = getOpenClawConfigPath();
-  
-  // 如果配置文件已存在，不覆盖
-  if (fs.existsSync(configPath)) {
-    console.log("[OpenClaw Config] 配置文件已存在，跳过初始化");
-    return;
-  }
-  
-  console.log("[OpenClaw Config] 初始化配置文件...");
-  
-  // 确保目录存在
   const configDir = path.dirname(configPath);
   if (!fs.existsSync(configDir)) {
     fs.mkdirSync(configDir, { recursive: true });
   }
+  
+  // 如果配置文件已存在，不覆盖
+  if (fs.existsSync(configPath)) {
+    console.log("[OpenClaw Config] 配置文件已存在，跳过初始化");
+    ensureGatewayModeLocal();
+    return;
+  }
+  
+  console.log("[OpenClaw Config] 初始化配置文件...");
   
   // 创建默认配置（完全按照用户的配置结构）
   const defaultConfig = {
@@ -502,12 +551,13 @@ const PROVIDER_PRESETS = {
  * 读取完整的 OpenClaw 配置
  */
 function readOpenClawConfig() {
-  const configPath = getOpenClawConfigPath();
-  
-  if (!fs.existsSync(configPath)) {
+  return readOpenClawConfigFromPath(getOpenClawConfigPath());
+}
+
+function readOpenClawConfigFromPath(configPath) {
+  if (!configPath || !fs.existsSync(configPath)) {
     return null;
   }
-  
   try {
     const content = fs.readFileSync(configPath, "utf-8");
     return JSON.parse(content);
@@ -521,16 +571,17 @@ function readOpenClawConfig() {
  * 保存完整的 OpenClaw 配置
  */
 function writeOpenClawConfig(config) {
-  const configPath = getOpenClawConfigPath();
+  return writeOpenClawConfigToPath(getOpenClawConfigPath(), config);
+}
+
+function writeOpenClawConfigToPath(configPath, config) {
   const configDir = path.dirname(configPath);
-  
   if (!fs.existsSync(configDir)) {
     fs.mkdirSync(configDir, { recursive: true });
   }
-  
   try {
     fs.writeFileSync(configPath, JSON.stringify(config, null, 2), "utf-8");
-    console.log("[OpenClaw Config] 配置文件已保存");
+    console.log("[OpenClaw Config] 配置文件已保存:", configPath);
     return true;
   } catch (err) {
     console.error("[OpenClaw Config] 保存配置文件失败:", err);
@@ -545,8 +596,12 @@ module.exports = {
   resetOpenClawConfig,
   restartGateway,
   readOpenClawConfig,
+  readOpenClawConfigFromPath,
   writeOpenClawConfig,
+  writeOpenClawConfigToPath,
   getOpenClawConfigPath,
+  resolveConfigEditTarget,
   initOpenClawConfig,
+  ensureGatewayModeLocal,
   PROVIDER_PRESETS,
 };

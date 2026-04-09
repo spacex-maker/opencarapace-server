@@ -126,6 +126,28 @@ function getDb() {
     db.run("ALTER TABLE local_openclaw_settings ADD COLUMN ui_url TEXT NOT NULL DEFAULT 'http://localhost:18789'", () => {});
     db.run("ALTER TABLE local_openclaw_settings ADD COLUMN install_cmd TEXT NOT NULL DEFAULT ''", () => {});
     db.run(
+      "ALTER TABLE local_openclaw_settings ADD COLUMN gateway_openclaw_target TEXT NOT NULL DEFAULT 'user-profile'",
+      () => {}
+    );
+    db.run(
+      "ALTER TABLE local_openclaw_settings ADD COLUMN gateway_openclaw_binary TEXT NOT NULL DEFAULT 'bundled'",
+      () => {}
+    );
+    db.run(
+      "ALTER TABLE local_openclaw_settings ADD COLUMN gateway_openclaw_target_external TEXT NOT NULL DEFAULT 'external-managed'",
+      () => {}
+    );
+    db.run("CREATE TABLE IF NOT EXISTS _clawheart_migrations (name TEXT PRIMARY KEY)", () => {});
+    db.run(
+      `INSERT INTO _clawheart_migrations (name) SELECT 'openclaw_workspace_v2' WHERE NOT EXISTS (SELECT 1 FROM _clawheart_migrations WHERE name = 'openclaw_workspace_v2')`,
+      function migrationOpenclawV2() {
+        if (this.changes > 0) {
+          db.run("UPDATE local_openclaw_settings SET gateway_openclaw_target = 'clawheart-managed' WHERE id = 1", () => {});
+          db.run("UPDATE local_openclaw_settings SET gateway_openclaw_target_external = 'user-profile' WHERE id = 1", () => {});
+        }
+      }
+    );
+    db.run(
       `CREATE TABLE IF NOT EXISTS skills (
         id INTEGER,
         slug TEXT PRIMARY KEY,
@@ -324,33 +346,68 @@ function seedLocalAgentCatalog(database) {
 
 function getOpenClawSettings() {
   const database = getDb();
+  const { normalizeGatewayWorkspaceTarget, normalizeExternalWorkspaceTarget } = require("./server/openclaw-workspace.js");
+  const { normalizeGatewayOpenclawBinary } = require("./server/openclaw-external.js");
   return new Promise((resolve) => {
-    database.get("SELECT ui_url, install_cmd FROM local_openclaw_settings WHERE id = 1", (err, row) => {
-      if (err || !row) {
-        resolve({
-          uiUrl: "http://localhost:3000",
-          installCmd: "",
-        });
-      } else {
-        resolve({
-          uiUrl: row.ui_url || "http://localhost:3000",
-          installCmd: row.install_cmd || "",
-        });
+    database.get(
+      "SELECT ui_url, install_cmd, gateway_openclaw_target, gateway_openclaw_binary, gateway_openclaw_target_external FROM local_openclaw_settings WHERE id = 1",
+      (err, row) => {
+        if (err || !row) {
+          resolve({
+            uiUrl: "http://localhost:18789",
+            installCmd: "",
+            gatewayOpenclawTarget: "clawheart-managed",
+            gatewayOpenclawBinary: "bundled",
+            gatewayOpenclawTargetExternal: "user-profile",
+          });
+        } else {
+          let builtinT = normalizeGatewayWorkspaceTarget(row.gateway_openclaw_target || "clawheart-managed");
+          if (builtinT === "user-profile") builtinT = "clawheart-managed";
+          resolve({
+            uiUrl: row.ui_url || "http://localhost:18789",
+            installCmd: row.install_cmd || "",
+            gatewayOpenclawTarget: builtinT,
+            gatewayOpenclawBinary: normalizeGatewayOpenclawBinary(row.gateway_openclaw_binary),
+            gatewayOpenclawTargetExternal: normalizeExternalWorkspaceTarget(
+              row.gateway_openclaw_target_external || "user-profile"
+            ),
+          });
+        }
       }
-    });
+    );
   });
 }
 
 function saveOpenClawSettings(settings) {
   const database = getDb();
-  const uiUrl = String(settings?.uiUrl || "http://localhost:3000");
+  const {
+    normalizeGatewayWorkspaceTarget,
+    normalizeExternalWorkspaceTarget,
+  } = require("./server/openclaw-workspace.js");
+  const { normalizeGatewayOpenclawBinary } = require("./server/openclaw-external.js");
+  const uiUrl = String(settings?.uiUrl || "http://localhost:18789");
   const installCmd = String(settings?.installCmd || "");
+  let gatewayOpenclawTarget = normalizeGatewayWorkspaceTarget(
+    settings?.gatewayOpenclawTarget != null ? settings.gatewayOpenclawTarget : "clawheart-managed"
+  );
+  if (gatewayOpenclawTarget === "user-profile") gatewayOpenclawTarget = "clawheart-managed";
+  const gatewayOpenclawBinary = normalizeGatewayOpenclawBinary(
+    settings?.gatewayOpenclawBinary != null ? settings.gatewayOpenclawBinary : "bundled"
+  );
+  const gatewayOpenclawTargetExternal = normalizeExternalWorkspaceTarget(
+    settings?.gatewayOpenclawTargetExternal != null ? settings.gatewayOpenclawTargetExternal : "user-profile"
+  );
   return new Promise((resolve, reject) => {
     database.run(
-      `INSERT INTO local_openclaw_settings (id, ui_url, install_cmd)
-       VALUES (1, ?, ?)
-       ON CONFLICT(id) DO UPDATE SET ui_url = excluded.ui_url, install_cmd = excluded.install_cmd`,
-      [uiUrl, installCmd],
+      `INSERT INTO local_openclaw_settings (id, ui_url, install_cmd, gateway_openclaw_target, gateway_openclaw_binary, gateway_openclaw_target_external)
+       VALUES (1, ?, ?, ?, ?, ?)
+       ON CONFLICT(id) DO UPDATE SET
+         ui_url = excluded.ui_url,
+         install_cmd = excluded.install_cmd,
+         gateway_openclaw_target = excluded.gateway_openclaw_target,
+         gateway_openclaw_binary = excluded.gateway_openclaw_binary,
+         gateway_openclaw_target_external = excluded.gateway_openclaw_target_external`,
+      [uiUrl, installCmd, gatewayOpenclawTarget, gatewayOpenclawBinary, gatewayOpenclawTargetExternal],
       (err) => {
         if (err) reject(err);
         else resolve();

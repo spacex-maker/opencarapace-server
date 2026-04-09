@@ -593,7 +593,7 @@ export const zh: Messages = {
     overview: "总览",
     securityScan: "安全扫描",
     interceptLogs: "拦截监控",
-    openclaw: "OpenClaw",
+    openclaw: "Claw 管理",
     skills: "安全市场",
     agentMgmt: "Agent 管理",
   },

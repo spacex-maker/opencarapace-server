@@ -1,20 +1,50 @@
 const fs = require("fs");
 const path = require("path");
+const os = require("os");
 const https = require("https");
 const { spawn } = require("child_process");
-const { detectPlatform, execWithOutput } = require("./utils.js");
+const { detectPlatform, execWithOutput, execWithOutputStream, sanitizeInstallEnv } = require("./utils.js");
+
+/** 仅当为真实磁盘目录且不在 app.asar 内时用作 spawn cwd，否则 npm/node 会报 spawn ENOTDIR */
+function resolveSpawnCwd(preferred) {
+  const fb = os.tmpdir();
+  if (!preferred || typeof preferred !== "string") return fb;
+  try {
+    const normalized = path.normalize(preferred);
+    if (/\.asar([/\\]|$)/i.test(normalized)) return fb;
+    if (!fs.existsSync(preferred)) return fb;
+    if (!fs.statSync(preferred).isDirectory()) return fb;
+    return preferred;
+  } catch {
+    return fb;
+  }
+}
 
 // Node.js 版本配置（须满足 openclaw 包要求：当前为 >=22.16.0）
 const NODE_VERSION = "22.16.0";
 const NODE_DOWNLOAD_BASE = "https://nodejs.org/dist";
 
-/**
- * 获取内置 Node.js 的存储路径
- */
-function getEmbeddedNodePath() {
-  const platform = detectPlatform();
+/** @typedef {"bundled" | "external"} NodeRuntimeProfile */
+/** 内置 Gateway：~/.opencarapace/embedded-node；外置专用：~/.opencarapace/external-gateway-node */
+
+function normalizeNodeRuntimeProfile(profile) {
+  return profile === "external" ? "external" : "bundled";
+}
+
+function getNodeRuntimeBaseDir(profile) {
   const userDataPath = process.env.APPDATA || process.env.HOME || process.cwd();
-  const baseDir = path.join(userDataPath, ".opencarapace", "embedded-node");
+  const sub = normalizeNodeRuntimeProfile(profile) === "external" ? "external-gateway-node" : "embedded-node";
+  return path.join(userDataPath, ".opencarapace", sub);
+}
+
+/**
+ * 获取按配置下载的 Node.js 目录（内置卡 bundled / 外置卡专用 external）
+ * @param {NodeRuntimeProfile} [profile]
+ */
+function getEmbeddedNodePath(profile) {
+  const p = normalizeNodeRuntimeProfile(profile);
+  const platform = detectPlatform();
+  const baseDir = getNodeRuntimeBaseDir(p);
   
   if (platform === "windows") {
     return {
@@ -23,10 +53,23 @@ function getEmbeddedNodePath() {
       node: path.join(baseDir, `node-v${NODE_VERSION}-win-x64`, "node.exe"),
     };
   } else if (platform === "macos") {
+    const variants = [
+      `node-v${NODE_VERSION}-darwin-arm64`,
+      `node-v${NODE_VERSION}-darwin-x64`,
+    ];
+    for (const name of variants) {
+      const dir = path.join(baseDir, name);
+      const node = path.join(dir, "bin", "node");
+      const npm = path.join(dir, "bin", "npm");
+      if (fs.existsSync(node) && fs.existsSync(npm)) {
+        return { dir, npm, node };
+      }
+    }
+    const name = `node-v${NODE_VERSION}-darwin-x64`;
     return {
-      dir: path.join(baseDir, `node-v${NODE_VERSION}-darwin-x64`),
-      npm: path.join(baseDir, `node-v${NODE_VERSION}-darwin-x64`, "bin", "npm"),
-      node: path.join(baseDir, `node-v${NODE_VERSION}-darwin-x64`, "bin", "node"),
+      dir: path.join(baseDir, name),
+      npm: path.join(baseDir, name, "bin", "npm"),
+      node: path.join(baseDir, name, "bin", "node"),
     };
   } else {
     return {
@@ -38,11 +81,20 @@ function getEmbeddedNodePath() {
 }
 
 /**
- * 检查内置 Node.js 是否已存在
+ * 检查指定 profile 的已下载 Node 是否存在（路径须为可执行文件，目录冒充会触发 spawn ENOTDIR）
+ * @param {NodeRuntimeProfile} [profile] 默认 bundled（兼容旧调用）
  */
-function hasEmbeddedNode() {
-  const paths = getEmbeddedNodePath();
-  return fs.existsSync(paths.npm) && fs.existsSync(paths.node);
+function hasEmbeddedNode(profile) {
+  const paths = getEmbeddedNodePath(profile);
+  try {
+    if (!fs.existsSync(paths.npm) || !fs.existsSync(paths.node)) return false;
+    const ns = fs.statSync(paths.node);
+    const ms = fs.statSync(paths.npm);
+    if (!ns.isFile() || !ms.isFile()) return false;
+  } catch {
+    return false;
+  }
+  return true;
 }
 
 /**
@@ -55,7 +107,8 @@ function getNodeDownloadUrl() {
   if (platform === "windows") {
     filename = `node-v${NODE_VERSION}-win-x64.zip`;
   } else if (platform === "macos") {
-    filename = `node-v${NODE_VERSION}-darwin-x64.tar.gz`;
+    const arch = process.arch === "arm64" ? "arm64" : "x64";
+    filename = `node-v${NODE_VERSION}-darwin-${arch}.tar.gz`;
   } else {
     filename = `node-v${NODE_VERSION}-linux-x64.tar.xz`;
   }
@@ -100,13 +153,18 @@ function downloadFile(url, destPath, onProgress) {
       
       const totalSize = parseInt(response.headers["content-length"], 10);
       let downloadedSize = 0;
+      /** 避免每个 chunk 都回调同一 floor 百分比（例如长时间停在 downloading: 99%） */
+      let lastReportedPercent = -1;
       console.log(`[node-manager] 文件大小: ${(totalSize / 1024 / 1024).toFixed(2)} MB`);
       
       response.on("data", (chunk) => {
         downloadedSize += chunk.length;
         if (onProgress && totalSize) {
           const percent = Math.floor((downloadedSize / totalSize) * 100);
-          onProgress({ downloaded: downloadedSize, total: totalSize, percent });
+          if (percent !== lastReportedPercent) {
+            lastReportedPercent = percent;
+            onProgress({ downloaded: downloadedSize, total: totalSize, percent });
+          }
         }
       });
       
@@ -187,12 +245,33 @@ async function extractArchive(archivePath, destDir) {
 }
 
 /**
- * 下载并安装内置 Node.js
+ * 删除指定 profile 下已下载的 Node 目录（整棵子树）
+ * @param {NodeRuntimeProfile} profile
  */
-async function downloadAndInstallNode(onProgress) {
-  console.log(`[node-manager] 开始安装内置 Node.js v${NODE_VERSION}`);
-  
-  const paths = getEmbeddedNodePath();
+function removeNodeRuntime(profile) {
+  const p = normalizeNodeRuntimeProfile(profile);
+  const root = getNodeRuntimeBaseDir(p);
+  try {
+    if (fs.existsSync(root)) {
+      fs.rmSync(root, { recursive: true, force: true });
+    }
+  } catch (e) {
+    console.error(`[node-manager] removeNodeRuntime(${p}) failed:`, e);
+    throw e;
+  }
+}
+
+/**
+ * 下载并安装 Node.js 到指定 profile 目录
+ * @param {(p: { stage?: string; percent?: number }) => void} [onProgress]
+ * @param {NodeRuntimeProfile} [profile]
+ */
+async function downloadAndInstallNode(onProgress, profile) {
+  const prof = normalizeNodeRuntimeProfile(profile);
+  const label = prof === "external" ? "外置 Gateway 专用 Node" : "内置运行时 Node";
+  console.log(`[node-manager] 开始安装 ${label} v${NODE_VERSION}`);
+
+  const paths = getEmbeddedNodePath(prof);
   const baseDir = path.dirname(paths.dir);
   const platform = detectPlatform();
   
@@ -238,10 +317,10 @@ async function downloadAndInstallNode(onProgress) {
     console.log(`[node-manager] 验证安装...`);
     
     // 验证
-    if (!hasEmbeddedNode()) {
+    if (!hasEmbeddedNode(prof)) {
       throw new Error("Node.js 安装验证失败");
     }
-    
+
     console.log(`[node-manager] 安装成功！`);
     
     if (onProgress) onProgress({ stage: "completed", percent: 100 });
@@ -261,27 +340,81 @@ async function downloadAndInstallNode(onProgress) {
 }
 
 /**
+ * macOS/Linux：只通过 login shell 调内置 bin/npm，不 spawn(node, npm-cli.js)。
+ * 在 Electron 下对 node 二进制 spawn 仍可能 ENOTDIR；交给 bash 启动 npm 脚本最稳。
+ */
+function unixEmbeddedNpmLine(paths, args) {
+  const esc = (s) => `'${String(s).replace(/'/g, `'\"'\"'`)}'`;
+  return `${esc(paths.npm)} ${args.map(esc).join(" ")}`;
+}
+
+/**
  * 使用内置 Node.js 执行 npm 命令
  */
 async function runEmbeddedNpm(args, opts = {}) {
-  const paths = getEmbeddedNodePath();
+  const profile = normalizeNodeRuntimeProfile(opts.profile);
+  const paths = getEmbeddedNodePath(profile);
   const platform = detectPlatform();
-  
-  if (!hasEmbeddedNode()) {
-    throw new Error("内置 Node.js 未安装");
+  if (!hasEmbeddedNode(profile)) {
+    throw new Error(profile === "external" ? "外置专用 Node 未安装" : "内置 Node.js 未安装");
   }
-  
+
+  const cwd = os.tmpdir();
+  const pathPrefix = `${path.dirname(paths.node)}${path.delimiter}${process.env.PATH || ""}`;
+  const env = sanitizeInstallEnv({ ...opts.env, PATH: pathPrefix });
+
   if (platform === "windows") {
-    return execWithOutput("cmd.exe", ["/c", paths.npm, ...args], { shell: false, ...opts });
-  } else {
-    return execWithOutput(paths.npm, args, { shell: false, ...opts });
+    return execWithOutput("cmd.exe", ["/c", paths.npm, ...args], { shell: false, cwd: resolveSpawnCwd(opts.cwd), env });
   }
+
+  const line = unixEmbeddedNpmLine(paths, args);
+  const bash = "/bin/bash";
+  if (fs.existsSync(bash)) {
+    return execWithOutput(bash, ["-lc", line], { shell: false, cwd, env });
+  }
+  return execWithOutput("/bin/sh", ["-c", line], { shell: false, cwd, env });
+}
+
+/**
+ * 内置 npm 流式输出（安装 OpenClaw 时写面板日志）
+ */
+async function runEmbeddedNpmStream(args, opts = {}, onChunk) {
+  const profile = normalizeNodeRuntimeProfile(opts.profile);
+  const paths = getEmbeddedNodePath(profile);
+  const platform = detectPlatform();
+
+  if (!hasEmbeddedNode(profile)) {
+    throw new Error(profile === "external" ? "外置专用 Node 未安装" : "内置 Node.js 未安装");
+  }
+
+  const cwd = os.tmpdir();
+  const pathPrefix = `${path.dirname(paths.node)}${path.delimiter}${process.env.PATH || ""}`;
+  const env = sanitizeInstallEnv({ ...opts.env, PATH: pathPrefix });
+
+  if (platform === "windows") {
+    return execWithOutputStream(
+      "cmd.exe",
+      ["/c", paths.npm, ...args],
+      { shell: false, cwd: resolveSpawnCwd(opts.cwd), env },
+      onChunk
+    );
+  }
+
+  const line = unixEmbeddedNpmLine(paths, args);
+  const bash = "/bin/bash";
+  if (fs.existsSync(bash)) {
+    return execWithOutputStream(bash, ["-lc", line], { shell: false, cwd, env }, onChunk);
+  }
+  return execWithOutputStream("/bin/sh", ["-c", line], { shell: false, cwd, env }, onChunk);
 }
 
 module.exports = {
   getEmbeddedNodePath,
   hasEmbeddedNode,
+  removeNodeRuntime,
   downloadAndInstallNode,
   runEmbeddedNpm,
+  runEmbeddedNpmStream,
   NODE_VERSION,
+  normalizeNodeRuntimeProfile,
 };

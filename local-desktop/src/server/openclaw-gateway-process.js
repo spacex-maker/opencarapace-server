@@ -92,7 +92,70 @@ async function detectOpenClawGatewayProcessRunning() {
   return false;
 }
 
+/** @param {string} text */
+function parsePowerShellProcessJson(text) {
+  const t = String(text || "").trim();
+  if (!t) return [];
+  try {
+    const j = JSON.parse(t);
+    if (Array.isArray(j)) return j;
+    if (j && typeof j === "object" && j.ProcessId != null) return [j];
+  } catch {
+    /* ignore */
+  }
+  return [];
+}
+
+/**
+ * Windows：`cmd /c openclaw.cmd … gateway run` 下 cmd 常先于 node 退出，`openclawProcess` 指向已死 PID，
+ * `openclaw gateway stop` 又只停「服务」(`Gateway service missing`)，无法结束子进程里的 `gateway run`。
+ * 这里按命令行中的路径标记（内置 unpacked / 外置 prefix 与 openclaw 二进制路径等）找出仍存活的 PID，供 taskkill /T。
+ * @param {string[]} pathMarkers 规范化后的绝对路径片段（小写比较在函数内完成）
+ * @returns {Promise<number[]>}
+ */
+async function findBundledGatewayRunPidsWindows(pathMarkers) {
+  if (process.platform !== "win32") return [];
+  const markers = [
+    ...new Set(
+      (pathMarkers || [])
+        .map((m) => path.normalize(String(m).trim()))
+        .filter((m) => m.length >= 4)
+    ),
+  ];
+  if (!markers.length) return [];
+
+  const script =
+    "Get-CimInstance Win32_Process | Where-Object { $null -ne $_.CommandLine -and $_.CommandLine -match 'gateway\\s+run' } | Select-Object ProcessId,CommandLine | ConvertTo-Json -Compress -Depth 3";
+  const r = await execWithOutput(
+    "powershell.exe",
+    ["-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", script],
+    { cwd: os.tmpdir() }
+  );
+  if (r.code !== 0) return [];
+
+  const pids = [];
+  for (const row of parsePowerShellProcessJson(r.stdout)) {
+    const line = String(row.CommandLine || "");
+    if (!commandLineLooksLikeOpenClawGatewayRun(line)) continue;
+    const lower = line.toLowerCase();
+    let hit = false;
+    for (const raw of markers) {
+      const a = raw.toLowerCase();
+      const b = raw.replace(/\\/g, "/").toLowerCase();
+      if (lower.includes(a) || lower.includes(b)) {
+        hit = true;
+        break;
+      }
+    }
+    if (!hit) continue;
+    const pid = Number(row.ProcessId);
+    if (Number.isFinite(pid) && pid > 0) pids.push(pid);
+  }
+  return [...new Set(pids)];
+}
+
 module.exports = {
   commandLineLooksLikeOpenClawGatewayRun,
   detectOpenClawGatewayProcessRunning,
+  findBundledGatewayRunPidsWindows,
 };

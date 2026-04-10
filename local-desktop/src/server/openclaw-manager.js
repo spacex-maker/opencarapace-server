@@ -2,8 +2,11 @@ const { spawn, execFileSync, execSync } = require("child_process");
 const path = require("path");
 const fs = require("fs");
 const os = require("os");
-const { execWithOutput } = require("./utils.js");
-const { detectOpenClawGatewayProcessRunning } = require("./openclaw-gateway-process.js");
+const { execWithOutput, getWindowsCmdPath, wherePathsSync } = require("./utils.js");
+const {
+  detectOpenClawGatewayProcessRunning,
+  findBundledGatewayRunPidsWindows,
+} = require("./openclaw-gateway-process.js");
 const {
   getUnpackedAppRoot,
   getPackagedOpenClawBinFromUnpacked,
@@ -31,6 +34,73 @@ function killWindowsProcessTree(pid) {
   }
 }
 
+/** 内置 Gateway 停止：命令行里应出现的本应用路径，用于 Windows 上匹配孤儿 node（见 findBundledGatewayRunPidsWindows） */
+function collectBundledGatewayStopPathMarkers() {
+  const markers = [];
+  const root = getUnpackedAppRoot();
+  if (root) markers.push(root);
+  const packagedBin = getPackagedOpenClawBinFromUnpacked();
+  if (packagedBin?.bin) markers.push(packagedBin.bin);
+  const mjs = getPackagedOpenClawMjsPath();
+  if (mjs) markers.push(mjs);
+  try {
+    const rp = process.resourcesPath || "";
+    if (rp) markers.push(rp);
+  } catch {
+    /* ignore */
+  }
+  try {
+    const nodeExe = resolveRealNodeExecutable();
+    if (nodeExe) markers.push(nodeExe);
+  } catch {
+    /* ignore */
+  }
+  const devCmd = path.join(__dirname, "../../node_modules/.bin/openclaw.cmd");
+  if (fs.existsSync(devCmd)) markers.push(devCmd);
+  const devSh = path.join(__dirname, "../../node_modules/.bin/openclaw");
+  if (fs.existsSync(devSh)) markers.push(devSh);
+  const devMjs = path.join(__dirname, "../../node_modules/openclaw/openclaw.mjs");
+  if (fs.existsSync(devMjs)) markers.push(devMjs);
+  return [...new Set(markers.map((m) => path.normalize(m)))].filter(Boolean);
+}
+
+/** 外置 Gateway：`gateway run` 命令行里应含 managed prefix / 实际解析到的 openclaw 路径（与内置孤儿问题相同，此前未 taskkill 导致停不干净） */
+async function collectExternalGatewayStopPathMarkers() {
+  const {
+    getExternalOpenClawNpmPrefix,
+    getExternalOpenClawRuntimeStateDir,
+    resolveExternalOpenClawBinPath,
+  } = require("./openclaw-external.js");
+  const markers = [];
+  const prefix = getExternalOpenClawNpmPrefix();
+  const rt = getExternalOpenClawRuntimeStateDir();
+  if (prefix) markers.push(prefix);
+  if (rt) markers.push(rt);
+  const managed = resolveExternalOpenClawBinPath();
+  if (managed) markers.push(managed);
+  try {
+    const { binPath } = await resolveEffectiveExternalOpenClawBin();
+    if (binPath) markers.push(binPath);
+  } catch {
+    /* ignore */
+  }
+  try {
+    const nodeExe = resolveRealNodeExecutable({ gatewayOpenclawBinary: "external" });
+    if (nodeExe) markers.push(nodeExe);
+  } catch {
+    /* ignore */
+  }
+  return [...new Set(markers.map((m) => path.normalize(String(m || "").trim())))].filter((m) => m.length >= 4);
+}
+
+function trackGatewayChild(child, binaryMode) {
+  attachChildProcessLogs(child, binaryMode);
+  child.on("exit", () => {
+    if (openclawProcess === child) openclawProcess = null;
+  });
+  openclawProcess = child;
+}
+
 async function refreshGatewayWorkspaceFromDb() {
   const { getOpenClawSettings } = require("../db.js");
   const { syncGatewayWorkspaceFromSettings } = require("./openclaw-workspace.js");
@@ -44,6 +114,12 @@ let lastGatewayStopEpochMs = 0;
 /** 仅作缺省/回退；实际探测用 DB `ui_url`（用户可改端口） */
 const OPENCLAW_UI_URL = "http://localhost:18789";
 let cachedDashboardUrl = null; // 缓存带 token 的 dashboard URL
+
+/**
+ * 停止 Gateway 后一段时间内不再跑 `openclaw dashboard --no-open`。
+ * Windows 上进程与端口释放略慢，此时 CLI 易失败，且会反复打印「无法获取 dashboard」及 where 等噪声。
+ */
+const DASHBOARD_CLI_AFTER_STOP_MS = 12000;
 
 function clearCachedDashboardUrl() {
   cachedDashboardUrl = null;
@@ -180,21 +256,8 @@ function getOpenClawBinPath() {
   
   // 2. 使用全局安装的 OpenClaw（假设在 PATH 中）
   if (process.platform === "win32") {
-    // 部分安装只提供 openclaw.exe，而不是 openclaw 命令别名
-    try {
-      const { execSync } = require("child_process");
-      execSync("where openclaw.exe", { stdio: "ignore", timeout: 3000, cwd: os.tmpdir() });
-      return "openclaw.exe";
-    } catch {
-      // ignore
-    }
-    try {
-      const { execSync } = require("child_process");
-      execSync("where openclaw.cmd", { stdio: "ignore", timeout: 3000, cwd: os.tmpdir() });
-      return "openclaw.cmd";
-    } catch {
-      // ignore
-    }
+    if (wherePathsSync("openclaw.exe").length) return "openclaw.exe";
+    if (wherePathsSync("openclaw.cmd").length) return "openclaw.cmd";
   }
 
   return "openclaw";
@@ -232,18 +295,8 @@ function hasEmbeddedOpenClaw() {
     return true;
   } catch (e) {
     // 兼容：有些安装只提供 openclaw.exe/openclaw.cmd，但不提供 openclaw 命令
-    try {
-      execSync("where openclaw.exe", { stdio: "ignore", timeout: 3000, cwd: os.tmpdir() });
-      return true;
-    } catch {
-      // ignore
-    }
-    try {
-      execSync("where openclaw.cmd", { stdio: "ignore", timeout: 3000, cwd: os.tmpdir() });
-      return true;
-    } catch {
-      // ignore
-    }
+    if (wherePathsSync("openclaw.exe").length) return true;
+    if (wherePathsSync("openclaw.cmd").length) return true;
     return false;
   }
 }
@@ -272,18 +325,8 @@ function getOpenClawCliSource() {
     /* ignore */
   }
   if (process.platform === "win32") {
-    try {
-      execSync("where openclaw.exe", { stdio: "ignore", timeout: 3000, cwd: os.tmpdir() });
-      return "global";
-    } catch {
-      /* ignore */
-    }
-    try {
-      execSync("where openclaw.cmd", { stdio: "ignore", timeout: 3000, cwd: os.tmpdir() });
-      return "global";
-    } catch {
-      /* ignore */
-    }
+    if (wherePathsSync("openclaw.exe").length) return "global";
+    if (wherePathsSync("openclaw.cmd").length) return "global";
   }
   return "none";
 }
@@ -457,7 +500,7 @@ async function startEmbeddedOpenClaw() {
       let child;
       if (process.platform === "win32") {
         appendGatewayDiag(`命令: cmd.exe /c "${extBin}" gateway run --allow-unconfigured`);
-        child = spawn("cmd.exe", ["/c", extBin, ...gatewayRunArgs], {
+        child = spawn(getWindowsCmdPath(), ["/c", extBin, ...gatewayRunArgs], {
           ...spawnOptions,
           env: devEnv,
         });
@@ -468,8 +511,7 @@ async function startEmbeddedOpenClaw() {
           env: devEnv,
         });
       }
-      attachChildProcessLogs(child, binaryMode);
-      openclawProcess = child;
+      trackGatewayChild(child, binaryMode);
       appendGatewayDiag("已 spawn 子进程，等待 Gateway UI 就绪（最多约 45 秒）...");
       for (let i = 0; i < 90; i++) {
         await new Promise((resolve) => setTimeout(resolve, 500));
@@ -531,7 +573,7 @@ async function startEmbeddedOpenClaw() {
       const childEnv = buildOpenClawChildEnv(packagedBin.cwd);
       if (process.platform === "win32") {
         appendGatewayDiag(`命令: cmd.exe /c "${packagedBin.bin}" gateway run --allow-unconfigured`);
-        child = spawn("cmd.exe", ["/c", packagedBin.bin, ...gatewayRunArgs], {
+        child = spawn(getWindowsCmdPath(), ["/c", packagedBin.bin, ...gatewayRunArgs], {
           ...spawnOptions,
           cwd: packagedBin.cwd,
           env: childEnv,
@@ -584,7 +626,7 @@ async function startEmbeddedOpenClaw() {
       if (process.platform === "win32") {
         appendGatewayDiag(`启动方式: 开发依赖（node_modules/.bin）`);
         appendGatewayDiag(`命令: cmd.exe /c "${binPath}" gateway run --allow-unconfigured`);
-        child = spawn("cmd.exe", ["/c", binPath, ...gatewayRunArgs], {
+        child = spawn(getWindowsCmdPath(), ["/c", binPath, ...gatewayRunArgs], {
           ...spawnOptions,
           env: devEnv,
         });
@@ -598,8 +640,7 @@ async function startEmbeddedOpenClaw() {
       }
     }
 
-    attachChildProcessLogs(child, binaryMode);
-    openclawProcess = child;
+    trackGatewayChild(child, binaryMode);
 
     appendGatewayDiag("已 spawn 子进程，等待 Gateway UI 就绪（最多约 45 秒）...");
     console.log("[OpenClaw] Gateway 进程已启动，等待服务就绪...");
@@ -768,6 +809,12 @@ async function stopEmbeddedOpenClaw() {
     await refreshGatewayWorkspaceFromDb();
     lastGatewayStopEpochMs = Date.now();
     appendGatewayDiag("======== 停止 Gateway ========");
+
+    const { getOpenClawSettings } = require("../db.js");
+    const { normalizeGatewayOpenclawBinary } = require("./openclaw-external.js");
+    const settings = await getOpenClawSettings();
+    const binaryMode = normalizeGatewayOpenclawBinary(settings.gatewayOpenclawBinary);
+
     if (openclawProcess) {
       const pid = openclawProcess.pid;
       try {
@@ -780,10 +827,23 @@ async function stopEmbeddedOpenClaw() {
       openclawProcess = null;
     }
 
-    const { getOpenClawSettings } = require("../db.js");
-    const { normalizeGatewayOpenclawBinary } = require("./openclaw-external.js");
-    const settings = await getOpenClawSettings();
-    const binaryMode = normalizeGatewayOpenclawBinary(settings.gatewayOpenclawBinary);
+    if (process.platform === "win32") {
+      const markers =
+        binaryMode === "external"
+          ? await collectExternalGatewayStopPathMarkers()
+          : collectBundledGatewayStopPathMarkers();
+      if (markers.length) {
+        const orphanPids = await findBundledGatewayRunPidsWindows(markers);
+        if (orphanPids.length) {
+          const label = binaryMode === "external" ? "Windows 外置" : "Windows 内置";
+          appendGatewayDiag(
+            `${label}: 发现仍在运行的 gateway run（与本应用/外置路径匹配）PID: ` +
+              `${orphanPids.join(", ")}；openclaw gateway stop 常无法结束此类子进程，将 taskkill /T`
+          );
+          for (const opid of orphanPids) killWindowsProcessTree(opid);
+        }
+      }
+    }
 
     const result = await execOpenClawGatewayStopCli(binaryMode);
 
@@ -826,6 +886,12 @@ async function getDashboardUrl() {
   }
 
   try {
+    if (Date.now() - lastGatewayStopEpochMs < DASHBOARD_CLI_AFTER_STOP_MS) {
+      const { getOpenClawSettings } = require("../db.js");
+      const settings = await getOpenClawSettings();
+      return normalizeOpenClawUiUrl(settings.uiUrl);
+    }
+
     await refreshGatewayWorkspaceFromDb();
     const { getOpenClawSettings } = require("../db.js");
     const { normalizeGatewayOpenclawBinary } = require("./openclaw-external.js");
@@ -933,10 +999,14 @@ async function getDashboardUrl() {
       }
     }
     
-    console.log("[OpenClaw] 无法获取 dashboard URL，使用默认 URL");
+    if (Date.now() - lastGatewayStopEpochMs >= DASHBOARD_CLI_AFTER_STOP_MS) {
+      console.log("[OpenClaw] 无法获取 dashboard URL，使用默认 URL");
+    }
     return OPENCLAW_UI_URL;
   } catch (err) {
-    console.error("[OpenClaw] 获取 dashboard URL 失败:", err);
+    if (Date.now() - lastGatewayStopEpochMs >= DASHBOARD_CLI_AFTER_STOP_MS) {
+      console.error("[OpenClaw] 获取 dashboard URL 失败:", err);
+    }
     return OPENCLAW_UI_URL;
   }
 }
@@ -952,7 +1022,7 @@ async function getOpenClawStatus() {
   const isRunning = await checkOpenClawRunning();
 
   let uiUrl = baseUi;
-  if (isRunning) {
+  if (isRunning && Date.now() - lastGatewayStopEpochMs >= DASHBOARD_CLI_AFTER_STOP_MS) {
     uiUrl = await getDashboardUrl();
   }
 

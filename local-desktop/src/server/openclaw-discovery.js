@@ -7,7 +7,7 @@ const {
   getElectronUserDataPath,
   getExternalOpenClawRuntimeEnv,
 } = require("./openclaw-workspace.js");
-const { execWithOutput } = require("./utils.js");
+const { execWithOutput, wherePathsSync } = require("./utils.js");
 
 function safeStatSync(p) {
   try {
@@ -88,23 +88,9 @@ function collectStaticBinaryCandidates() {
 
 function tryWhichOpenClaw() {
   if (process.platform === "win32") {
-    try {
-      const out = execSync("where openclaw", { encoding: "utf8", timeout: 5000, cwd: os.tmpdir() });
-      return out
-        .split(/\r?\n/)
-        .map((s) => s.trim())
-        .filter(Boolean);
-    } catch {
-      try {
-        const out = execSync("where openclaw.cmd", { encoding: "utf8", timeout: 5000, cwd: os.tmpdir() });
-        return out
-          .split(/\r?\n/)
-          .map((s) => s.trim())
-          .filter(Boolean);
-      } catch {
-        return [];
-      }
-    }
+    let paths = wherePathsSync("openclaw");
+    if (!paths.length) paths = wherePathsSync("openclaw.cmd");
+    return paths;
   }
   try {
     const out = execSync("command -v openclaw", {
@@ -134,15 +120,7 @@ function tryWhichCommand(cmd) {
   const c = String(cmd || "").trim();
   if (!c || /[\s;|&$`]/.test(c)) return [];
   if (process.platform === "win32") {
-    try {
-      const out = execSync(`where ${c}`, { encoding: "utf8", timeout: 5000, cwd: os.tmpdir() });
-      return out
-        .split(/\r?\n/)
-        .map((s) => s.trim())
-        .filter(Boolean);
-    } catch {
-      return [];
-    }
+    return wherePathsSync(c);
   }
   try {
     const out = execSync(`command -v ${c}`, {

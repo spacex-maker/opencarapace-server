@@ -3,6 +3,7 @@
 const { spawn } = require("child_process");
 const path = require("path");
 const fs = require("fs");
+const { getWindowsCmdPath } = require("../src/server/utils.js");
 
 console.log("=".repeat(60));
 console.log("正在初始化内置 OpenClaw...");
@@ -30,7 +31,7 @@ const spawnOptions = {
 };
 
 const child = process.platform === "win32"
-  ? spawn("cmd.exe", ["/c", openclawBin, "daemon", "install"], spawnOptions)
+  ? spawn(getWindowsCmdPath(), ["/c", openclawBin, "daemon", "install"], spawnOptions)
   : spawn(openclawBin, ["daemon", "install"], spawnOptions);
 
 // 设置超时（30秒）

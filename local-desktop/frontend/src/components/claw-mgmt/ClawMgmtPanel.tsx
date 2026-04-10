@@ -1,4 +1,5 @@
 import type { CSSProperties } from "react";
+import { useState } from "react";
 import { useClawMgmtCore } from "./useClawMgmtCore";
 import { ClawMgmtProvider } from "./context";
 import { ClawHeartBuiltInTab } from "./ClawHeartBuiltInTab";
@@ -24,6 +25,8 @@ const consoleTextareaStyle: CSSProperties = {
 /** Claw 管理：顶栏两大 Tab；Gateway 诊断仅在内置 ClawHeart 支持 Tab 展示 */
 export function ClawMgmtPanel() {
   const core = useClawMgmtCore();
+  /** 底部仅区分：OpenClaw Gateway 子进程诊断 vs 面板安装/卸载/Node 任务；内置/外置由上方卡片决定 */
+  const [clawBottomLogTab, setClawBottomLogTab] = useState<"gateway" | "tasks">("gateway");
 
   return (
     <ClawMgmtProvider value={core}>
@@ -179,10 +182,10 @@ export function ClawMgmtPanel() {
               borderTop: "1px solid var(--panel-border)",
             }}
           >
-            <div style={{ fontSize: 12, fontWeight: 700, color: "var(--fg)", marginBottom: 10 }}>Gateway 诊断</div>
+            <div style={{ fontSize: 12, fontWeight: 700, color: "var(--fg)", marginBottom: 8 }}>Gateway 诊断</div>
 
-            <div style={{ fontSize: 9, color: "var(--muted2)", marginBottom: 12, lineHeight: 1.45 }}>
-              与上方<strong>内置 / 外置</strong>卡片同一状态：点卡片或下方 Tab 均可切换；当前 Tab 对应该侧 Gateway 日志。安装 / 卸载 / Node 任务输出单独在再下方。
+            <div style={{ fontSize: 9, color: "var(--muted2)", marginBottom: 10, lineHeight: 1.4 }}>
+              卡片选内置/外置侧；Tab 在 Gateway 输出与安装·Node 任务之间切换。
             </div>
 
             <div
@@ -197,93 +200,96 @@ export function ClawMgmtPanel() {
             >
               <button
                 type="button"
-                onClick={() => core.setBuiltInBinaryTab("bundled")}
+                onClick={() => setClawBottomLogTab("gateway")}
                 style={{
                   padding: "7px 14px",
                   borderRadius: 8,
                   border:
-                    core.builtInBinaryTab === "bundled"
-                      ? "1px solid rgba(167,139,250,0.55)"
+                    clawBottomLogTab === "gateway"
+                      ? "1px solid rgba(129,140,248,0.55)"
                       : "1px solid var(--panel-border)",
-                  background:
-                    core.builtInBinaryTab === "bundled" ? "rgba(167,139,250,0.14)" : "transparent",
-                  color: core.builtInBinaryTab === "bundled" ? "#ddd6fe" : "var(--muted)",
+                  background: clawBottomLogTab === "gateway" ? "rgba(129,140,248,0.14)" : "transparent",
+                  color: clawBottomLogTab === "gateway" ? "#c4b5fd" : "var(--muted)",
                   fontSize: 11,
                   fontWeight: 700,
                   cursor: "pointer",
                 }}
               >
-                内置 Gateway
+                Gateway 输出
               </button>
               <button
                 type="button"
-                onClick={() => core.setBuiltInBinaryTab("external")}
+                onClick={() => setClawBottomLogTab("tasks")}
                 style={{
                   padding: "7px 14px",
                   borderRadius: 8,
                   border:
-                    core.builtInBinaryTab === "external"
-                      ? "1px solid rgba(56,189,248,0.5)"
+                    clawBottomLogTab === "tasks"
+                      ? "1px solid rgba(52,211,153,0.45)"
                       : "1px solid var(--panel-border)",
-                  background:
-                    core.builtInBinaryTab === "external" ? "rgba(56,189,248,0.12)" : "transparent",
-                  color: core.builtInBinaryTab === "external" ? "#bae6fd" : "var(--muted)",
+                  background: clawBottomLogTab === "tasks" ? "rgba(52,211,153,0.1)" : "transparent",
+                  color: clawBottomLogTab === "tasks" ? "#6ee7b7" : "var(--muted)",
                   fontSize: 11,
                   fontWeight: 700,
                   cursor: "pointer",
                 }}
               >
-                外置 Gateway
+                安装 · Node 任务
               </button>
             </div>
 
-            <div style={{ marginBottom: 4 }}>
-              <div
-                style={{
-                  fontSize: 10,
-                  fontWeight: 600,
-                  marginBottom: 4,
-                  color: core.builtInBinaryTab === "bundled" ? "#ddd6fe" : "#bae6fd",
-                }}
-              >
-                {core.builtInBinaryTab === "bundled" ? "内置 · bundled / ClawHeart 管理目录" : "外置 · prefix CLI / 用户目录"}
+            {clawBottomLogTab === "gateway" ? (
+              <div style={{ marginBottom: 4 }}>
+                <div
+                  style={{
+                    fontSize: 9,
+                    color: "var(--muted2)",
+                    marginBottom: 6,
+                    wordBreak: "break-all",
+                    lineHeight: 1.45,
+                  }}
+                >
+                  <span
+                    style={{
+                      fontWeight: 700,
+                      color: core.builtInBinaryTab === "bundled" ? "#ddd6fe" : "#bae6fd",
+                      marginRight: 6,
+                    }}
+                  >
+                    {core.builtInBinaryTab === "bundled" ? "内置" : "外置"}
+                  </span>
+                  {core.builtInBinaryTab === "bundled" && core.gatewayLogFileBundled ? (
+                    <span>{core.gatewayLogFileBundled}</span>
+                  ) : null}
+                  {core.builtInBinaryTab === "external" && core.gatewayLogFileExternal ? (
+                    <span>{core.gatewayLogFileExternal}</span>
+                  ) : null}
+                </div>
+                <textarea
+                  ref={core.gatewayDiagnosticConsoleRef}
+                  readOnly
+                  value={core.builtInBinaryTab === "bundled" ? core.gatewayBundledLog : core.gatewayExternalLog}
+                  placeholder={
+                    core.builtInBinaryTab === "bundled"
+                      ? "内置侧 Gateway 启动/停止与子进程输出。"
+                      : "外置 prefix 侧 Gateway 输出。"
+                  }
+                  spellCheck={false}
+                  style={{ ...consoleTextareaStyle, minHeight: 180 }}
+                />
               </div>
-              {core.builtInBinaryTab === "bundled" && core.gatewayLogFileBundled ? (
-                <div style={{ fontSize: 9, color: "var(--muted2)", marginBottom: 4, wordBreak: "break-all", lineHeight: 1.4 }}>
-                  文件：{core.gatewayLogFileBundled}
-                </div>
-              ) : null}
-              {core.builtInBinaryTab === "external" && core.gatewayLogFileExternal ? (
-                <div style={{ fontSize: 9, color: "var(--muted2)", marginBottom: 4, wordBreak: "break-all", lineHeight: 1.4 }}>
-                  文件：{core.gatewayLogFileExternal}
-                </div>
-              ) : null}
-              <textarea
-                ref={core.gatewayDiagnosticConsoleRef}
-                readOnly
-                value={core.builtInBinaryTab === "bundled" ? core.gatewayBundledLog : core.gatewayExternalLog}
-                placeholder={
-                  core.builtInBinaryTab === "bundled"
-                    ? "以内置模式启动 / 停止 Gateway 时的诊断与子进程输出。"
-                    : "以外置（prefix）模式启动 / 停止 Gateway 时的诊断与子进程输出。"
-                }
-                spellCheck={false}
-                style={{ ...consoleTextareaStyle, minHeight: 180 }}
-              />
-            </div>
-
-            {core.taskLog.trim() ? (
-              <div style={{ marginTop: 14, marginBottom: 4 }}>
-                <div style={{ fontSize: 11, fontWeight: 600, color: "var(--muted)", marginBottom: 6 }}>安装 / 卸载 / Node 任务</div>
+            ) : (
+              <div style={{ marginBottom: 4 }}>
                 <textarea
                   ref={core.taskLogConsoleRef}
                   readOnly
                   value={core.taskLog}
+                  placeholder="暂无；安装/卸载 OpenClaw 或下载 Node 后出现。"
                   spellCheck={false}
-                  style={{ ...consoleTextareaStyle, minHeight: 120 }}
+                  style={{ ...consoleTextareaStyle, minHeight: 180 }}
                 />
               </div>
-            ) : null}
+            )}
 
             <div style={{ display: "flex", gap: 8, marginTop: 8, flexWrap: "wrap", alignItems: "center" }}>
               <button
@@ -319,8 +325,7 @@ export function ClawMgmtPanel() {
                 刷新环境与清单
               </button>
               <span style={{ fontSize: 10, color: "var(--muted2)" }}>
-                复制含任务与内/外置两份 Gateway 日志 · 系统 npm：{core.hasSystemNpm ? "有" : "无"} · 客户端运行时 Node：
-                {core.hasEmbeddedNode ? "有" : "无"}
+                复制含任务与两侧 Gateway · 本机 npm {core.hasSystemNpm ? "有" : "无"} · 面板 Node {core.hasEmbeddedNode ? "有" : "无"}
               </span>
             </div>
           </div>

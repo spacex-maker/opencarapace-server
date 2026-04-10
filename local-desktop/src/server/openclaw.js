@@ -1,4 +1,4 @@
-const { getOpenClawSettings, saveOpenClawSettings } = require("../db.js");
+const { getOpenClawSettings, saveOpenClawSettings, patchExternalOpenClawInstallSource } = require("../db.js");
 const {
   detectPlatform,
   execWithOutput,
@@ -57,9 +57,15 @@ const { syncGatewayWorkspaceFromSettings } = require("./openclaw-workspace.js");
 const {
   hasExternalManagedOpenClaw,
   getExternalOpenClawNpmPrefix,
+  getExternalOpenClawRuntimeStateDir,
   resolveExternalOpenClawBinPath,
   getUserEnvironmentOpenClawFromInventory,
   normalizeGatewayOpenclawBinary,
+  hasExternalOpenClawClientMarker,
+  writeExternalOpenClawClientMarker,
+  removeExternalOpenClawClientMarker,
+  resolveExternalOpenClawInstallTag,
+  purgeClawHeartExternalOpenClawArtefacts,
 } = require("./openclaw-external.js");
 const { tryOpenClawVersion } = require("./openclaw-discovery.js");
 const {
@@ -191,6 +197,45 @@ function detectMacLocalOpenClaw() {
     binaryPath: null,
     appPath: null,
     searchedPaths: candidates,
+  };
+}
+
+/**
+ * 与 discoverOpenClawInstallations 结果对齐的「本机 OpenClaw」摘要（供 localInstall / 旧 API）。
+ * macOS 仍优先固定路径 + .app；Windows/Linux 用清单中的二进制（where / npm prefix / 静态候选）。
+ */
+function computeLocalInstallFromOpenClawDiscovery(discovery) {
+  const platformDarwin = process.platform === "darwin";
+  const binaries = discovery?.binaries || [];
+  if (platformDarwin) {
+    const mac = detectMacLocalOpenClaw();
+    if (mac.installed) return mac;
+  }
+  const first = binaries.find((b) => b && typeof b.path === "string" && b.path.trim());
+  if (first) {
+    return {
+      installed: true,
+      method: "discovery_path",
+      binaryPath: first.path,
+      appPath: platformDarwin && discovery?.openClawMacApp ? discovery.openClawMacApp : null,
+      searchedPaths: binaries.map((b) => b.path).filter(Boolean),
+    };
+  }
+  if (platformDarwin && discovery?.openClawMacApp) {
+    return {
+      installed: true,
+      method: "app_bundle_exists",
+      binaryPath: null,
+      appPath: discovery.openClawMacApp,
+      searchedPaths: [],
+    };
+  }
+  return {
+    installed: false,
+    method: "not_found",
+    binaryPath: null,
+    appPath: null,
+    searchedPaths: binaries.map((b) => b.path).filter(Boolean),
   };
 }
 
@@ -996,9 +1041,9 @@ function registerOpenClawRoutes(app) {
   app.get("/api/openclaw/embedded-status", async (_req, res) => {
     try {
       const status = await getOpenClawStatus();
-      const localInstall = detectMacLocalOpenClaw();
       const clawInventory = await discoverClawInventory();
       const openClawDiscovery = clawInventory.discovery;
+      const localInstall = computeLocalInstallFromOpenClawDiscovery(openClawDiscovery);
       const clawEnvironment = await collectClawEnvironment();
       const ocSettings = await getOpenClawSettings();
       const nodeRuntimeReady = hasEmbeddedNode("bundled");
@@ -1008,12 +1053,26 @@ function registerOpenClawRoutes(app) {
       const bundledOpenClawVersion =
         cliSource === "project-modules" || cliSource === "packaged" ? readBundledOpenClawCliVersion() : null;
       const hasExternalManaged = hasExternalManagedOpenClaw();
-      const extBinPath = resolveExternalOpenClawBinPath();
-      const externalOpenClawVersion = extBinPath ? tryOpenClawVersion(extBinPath) : null;
+      const managedExtBin = resolveExternalOpenClawBinPath();
       const userEnvironmentOpenClaw = getUserEnvironmentOpenClawFromInventory(
         clawInventory.installations,
         getExternalOpenClawNpmPrefix()
       );
+      const extBinPath = managedExtBin || userEnvironmentOpenClaw?.binPath || null;
+      const externalOpenClawBinSource = managedExtBin
+        ? "managed-prefix"
+        : userEnvironmentOpenClaw?.binPath
+          ? "user-environment"
+          : null;
+      const externalOpenClawVersion = extBinPath ? tryOpenClawVersion(extBinPath) : null;
+      const externalOpenClawInstallTag = resolveExternalOpenClawInstallTag(
+        hasExternalManaged,
+        ocSettings.externalOpenClawInstallSource || null,
+        hasExternalOpenClawClientMarker()
+      );
+      const hasUserEnvironmentOpenClawAside = !!userEnvironmentOpenClaw?.binPath;
+      const extPrefixPath = getExternalOpenClawNpmPrefix();
+      const extRuntimePath = getExternalOpenClawRuntimeStateDir();
       res.status(200).json({
         ...status,
         hasEmbeddedNode: nodeRuntimeReady,
@@ -1023,10 +1082,16 @@ function registerOpenClawRoutes(app) {
         hasBundledOpenClaw,
         bundledOpenClawVersion,
         hasExternalManagedOpenClaw: hasExternalManaged,
-        externalOpenClawNpmPrefix: getExternalOpenClawNpmPrefix(),
+        externalOpenClawNpmPrefix: extPrefixPath,
+        externalOpenClawPrefixDirExists: fs.existsSync(extPrefixPath),
+        externalOpenClawRuntimeDirExists: fs.existsSync(extRuntimePath),
+        externalManagedOpenClawBinPath: managedExtBin,
         externalOpenClawBinPath: extBinPath,
+        externalOpenClawBinSource,
         externalOpenClawVersion,
         userEnvironmentOpenClaw,
+        externalOpenClawInstallTag,
+        hasUserEnvironmentOpenClawAside,
         localInstall,
         openClawDiscovery,
         clawInventory,
@@ -1045,7 +1110,8 @@ function registerOpenClawRoutes(app) {
 
   app.get("/api/openclaw/local-installation", async (_req, res) => {
     try {
-      const localInstall = detectMacLocalOpenClaw();
+      const clawInventory = await discoverClawInventory();
+      const localInstall = computeLocalInstallFromOpenClawDiscovery(clawInventory.discovery);
       res.status(200).json(localInstall);
     } catch (e) {
       res.status(500).json({ error: { message: e?.message ?? "检测本地 OpenClaw 失败" } });
@@ -1207,6 +1273,7 @@ function registerOpenClawRoutes(app) {
           gatewayOpenclawTarget: cfg.gatewayOpenclawTarget || "clawheart-managed",
           gatewayOpenclawTargetExternal: cfg.gatewayOpenclawTargetExternal || "user-profile",
           gatewayOpenclawBinary: normalizeGatewayOpenclawBinary(cfg.gatewayOpenclawBinary),
+          externalOpenClawInstallSource: cfg.externalOpenClawInstallSource ?? null,
         },
         status: { installed, gatewayProcessRunning },
       });
@@ -1218,8 +1285,15 @@ function registerOpenClawRoutes(app) {
   app.post("/api/openclaw/config", async (req, res) => {
     try {
       const cur = await getOpenClawSettings();
-      const { uiUrl, installCmd, gatewayOpenclawTarget, gatewayOpenclawBinary, gatewayOpenclawTargetExternal } =
-        req.body || {};
+      const {
+        uiUrl,
+        installCmd,
+        gatewayOpenclawTarget,
+        gatewayOpenclawBinary,
+        gatewayOpenclawTargetExternal,
+        externalOpenClawInstallSource,
+      } = req.body || {};
+      const { normalizeExternalOpenClawInstallSource } = require("./openclaw-external.js");
       const next = {
         uiUrl: uiUrl != null ? String(uiUrl).trim() : cur.uiUrl || "http://localhost:18789",
         installCmd: installCmd != null ? String(installCmd) : cur.installCmd || "",
@@ -1233,6 +1307,10 @@ function registerOpenClawRoutes(app) {
           gatewayOpenclawTargetExternal != null
             ? String(gatewayOpenclawTargetExternal)
             : cur.gatewayOpenclawTargetExternal || "user-profile",
+        externalOpenClawInstallSource:
+          externalOpenClawInstallSource !== undefined
+            ? normalizeExternalOpenClawInstallSource(externalOpenClawInstallSource)
+            : cur.externalOpenClawInstallSource ?? null,
       };
       await saveOpenClawSettings(next);
       syncGatewayWorkspaceFromSettings(await getOpenClawSettings());
@@ -1304,6 +1382,14 @@ function registerOpenClawRoutes(app) {
                 configErr
               );
             }
+            if (installTarget === "clawheart-external" && installed) {
+              try {
+                await patchExternalOpenClawInstallSource("clawheart");
+                writeExternalOpenClawClientMarker();
+              } catch (markErr) {
+                console.warn("[OpenClaw] 记录外置客户端安装来源失败:", markErr?.message || markErr);
+              }
+            }
             appendOpenClawInstallLog("\n[完成] 退出码 0");
             if (!installed) {
               appendOpenClawInstallLog(
@@ -1373,7 +1459,7 @@ function registerOpenClawRoutes(app) {
       };
       appendOpenClawUninstallLog(
         uninstallTarget === "clawheart-external"
-          ? `[卸载任务启动] ClawHeart 外置 prefix：npm uninstall -g ${rawPkg}\n`
+          ? `[卸载任务启动] ClawHeart 外置：npm uninstall -g ${rawPkg}，随后删除 .opencarapace 下 external-openclaw 与 external-openclaw-runtime（不删 ~/.openclaw）\n`
           : `[卸载任务启动] npm uninstall -g ${rawPkg}\n`
       );
 
@@ -1393,13 +1479,50 @@ function registerOpenClawRoutes(app) {
           });
           openclawUninstallDiag.exitCode = result.code;
           if (result.code === 0) {
-            appendOpenClawUninstallLog(
-              "\n[完成] 已请求移除全局 npm 包。各厂商状态目录（若存在）不会自动删除。\n"
-            );
+            appendOpenClawUninstallLog("\n[npm] 卸载命令退出码 0。\n");
           } else {
             const errText = [result.stderr, result.stdout].filter(Boolean).join("\n").trim();
             openclawUninstallDiag.lastError = errText || `进程退出码 ${result.code}`;
-            appendOpenClawUninstallLog(`\n[失败] 退出码 ${result.code}\n${openclawUninstallDiag.lastError}\n`);
+            appendOpenClawUninstallLog(`\n[npm] 退出码 ${result.code}${errText ? `\n${errText}` : ""}\n`);
+          }
+
+          if (uninstallTarget === "clawheart-external") {
+            appendOpenClawUninstallLog("\n--- 清理 ClawHeart 外置目录（完整卸载）---\n");
+            try {
+              await patchExternalOpenClawInstallSource(null);
+            } catch (clearErr) {
+              console.warn("[OpenClaw] 清除外置安装来源失败:", clearErr?.message || clearErr);
+            }
+            removeExternalOpenClawClientMarker();
+            purgeClawHeartExternalOpenClawArtefacts(appendOpenClawUninstallLog);
+            openclawUninstallDiag.exitCode = !hasExternalManagedOpenClaw() ? 0 : result.code;
+            if (!hasExternalManagedOpenClaw()) {
+              appendOpenClawUninstallLog(
+                "\n[完成] 已移除 ClawHeart 管理的 npm 前缀与 external-openclaw-runtime。\n" +
+                  "说明: 标准用户配置 ~/.openclaw（OPENCLAW_CONFIG_PATH）按设计保留，不属于「外置卸载」清理范围。\n" +
+                  "若本机仍有其它 openclaw（PATH、工程 node_modules 等），面板「扫描」仍会显示，与是否装过前缀无关。\n"
+              );
+            } else {
+              appendOpenClawUninstallLog(
+                "\n[警告] 仍检测到 prefix 内 openclaw，可关闭占用进程后重试卸载或手动删除 ~/.opencarapace/external-openclaw。\n"
+              );
+            }
+            try {
+              const cur = await getOpenClawSettings();
+              if (normalizeGatewayOpenclawBinary(cur.gatewayOpenclawBinary) === "external") {
+                await saveOpenClawSettings({ ...cur, gatewayOpenclawBinary: "bundled" });
+                syncGatewayWorkspaceFromSettings(await getOpenClawSettings());
+                appendOpenClawUninstallLog(
+                  "[配置] 已将 Gateway 切为内置模式（外置 CLI 不可用）。\n"
+                );
+              }
+            } catch (gwErr) {
+              appendOpenClawUninstallLog(`[警告] 自动切回内置模式失败: ${gwErr?.message || gwErr}\n`);
+            }
+          } else if (result.code === 0) {
+            appendOpenClawUninstallLog(
+              "\n[完成] 已请求移除全局 npm 包。各厂商状态目录（若存在）不会自动删除。\n"
+            );
           }
         } catch (e) {
           console.error("[OpenClaw] 卸载失败:", e);

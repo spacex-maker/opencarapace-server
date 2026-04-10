@@ -44,6 +44,12 @@ export type ExternalWorkspaceTarget = "external-managed" | "user-profile";
 /** Gateway 使用的 OpenClaw 二进制：安装包/开发依赖 或 ClawHeart 外置 prefix */
 export type GatewayOpenclawBinary = "bundled" | "external";
 
+/** 外置 prefix 中 OpenClaw 的安装来源（embedded-status） */
+export type ExternalOpenClawInstallTag = "client" | "user" | "unknown" | null;
+
+/** 外置 Gateway 解析到的 openclaw 可执行文件来源 */
+export type ExternalOpenClawBinSource = "managed-prefix" | "user-environment" | null;
+
 /** 服务端从 Gateway stderr / lsof 汇总的端口占用（用于展示进程名与一键结束） */
 export type GatewayPortConflict = {
   port: number;

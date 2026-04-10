@@ -63,11 +63,21 @@ function collectStaticBinaryCandidates() {
     pushUniqueBin(c, path.join(home, "Library", "Application Support", "OpenClaw", "bin", "openclaw"));
   } else if (process.platform === "win32") {
     const local = process.env.LOCALAPPDATA || "";
+    const roaming = process.env.APPDATA || "";
     pushUniqueBin(c, path.join(local, "Programs", "OpenClaw", "openclaw.exe"));
     for (const seg of ["npm", "yarn"]) {
       pushUniqueBin(c, path.join(local, seg, "openclaw.cmd"));
       pushUniqueBin(c, path.join(local, seg, "openclaw.exe"));
     }
+    /** 全局 npm 默认常在 %APPDATA%\npm（与 LOCALAPPDATA 下 npm 并列存在） */
+    for (const seg of ["npm", "yarn"]) {
+      pushUniqueBin(c, path.join(roaming, seg, "openclaw.cmd"));
+      pushUniqueBin(c, path.join(roaming, seg, "openclaw.exe"));
+    }
+    const pf = process.env["ProgramFiles"] || "";
+    const pf86 = process.env["ProgramFiles(x86)"] || "";
+    if (pf) pushUniqueBin(c, path.join(pf, "OpenClaw", "openclaw.exe"));
+    if (pf86) pushUniqueBin(c, path.join(pf86, "OpenClaw", "openclaw.exe"));
   } else {
     pushUniqueBin(c, "/usr/local/bin/openclaw");
     pushUniqueBin(c, path.join(home, ".npm-global", "bin", "openclaw"));
@@ -332,9 +342,41 @@ async function discoverClawInventory() {
   };
 }
 
+/**
+ * 外置 Gateway 实际使用的 CLI：优先 ClawHeart npm prefix，否则本机扫描（PATH / npm 全局 / Homebrew 等）。
+ * @returns {{ binPath: string | null, source: "managed-prefix" | "user-environment" | null, version: string | null }}
+ */
+async function resolveEffectiveExternalOpenClawBin() {
+  const {
+    resolveExternalOpenClawBinPath,
+    getExternalOpenClawNpmPrefix,
+    getUserEnvironmentOpenClawFromInventory,
+  } = require("./openclaw-external.js");
+  const managed = resolveExternalOpenClawBinPath();
+  if (managed) {
+    return {
+      binPath: managed,
+      source: "managed-prefix",
+      version: tryOpenClawVersion(managed),
+    };
+  }
+  const inv = await discoverClawInventory();
+  const u = getUserEnvironmentOpenClawFromInventory(inv.installations, getExternalOpenClawNpmPrefix());
+  if (u?.binPath) {
+    const ver = u.version && String(u.version).trim() ? String(u.version).trim() : tryOpenClawVersion(u.binPath);
+    return {
+      binPath: u.binPath,
+      source: "user-environment",
+      version: ver,
+    };
+  }
+  return { binPath: null, source: null, version: null };
+}
+
 module.exports = {
   discoverOpenClawInstallations,
   discoverClawInventory,
+  resolveEffectiveExternalOpenClawBin,
   getUserProfileOpenClawPaths,
   isRunnableBinary,
   tryOpenClawVersion,

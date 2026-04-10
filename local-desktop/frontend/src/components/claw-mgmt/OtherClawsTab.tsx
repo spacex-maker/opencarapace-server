@@ -1,6 +1,21 @@
 import { clawTableCellStyle, clawTableHeadStyle } from "./tableStyles";
 import { useClawMgmt } from "./context";
 
+/** 将服务端 ISO 时间转为本地可读（如 2026/4/10 09:29:33） */
+function formatClawInventoryScanTime(iso: string): string {
+  const t = Date.parse(iso);
+  if (!Number.isFinite(t)) return iso;
+  return new Date(t).toLocaleString("zh-CN", {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: false,
+  });
+}
+
 /** 系统扫描到的其它 Claw CLI（不含 OpenClaw 官方 CLI 行，避免与内置 Tab 重复） */
 export function OtherClawsTab() {
   const c = useClawMgmt();
@@ -81,8 +96,11 @@ export function OtherClawsTab() {
       <div style={{ fontSize: 12, fontWeight: 700, color: "var(--fg)", marginBottom: 8 }}>
         已扫描到的其它 Claw CLI
         {c.clawScannedAt ? (
-          <span style={{ marginLeft: 8, fontSize: 10, fontWeight: 400, color: "var(--muted2)" }}>
-            最近扫描：{c.clawScannedAt}
+          <span
+            title={c.clawScannedAt}
+            style={{ marginLeft: 8, fontSize: 10, fontWeight: 400, color: "var(--muted2)" }}
+          >
+            最近扫描：{formatClawInventoryScanTime(c.clawScannedAt)}
           </span>
         ) : null}
       </div>

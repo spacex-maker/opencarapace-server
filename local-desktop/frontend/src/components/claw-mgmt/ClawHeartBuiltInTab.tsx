@@ -7,6 +7,14 @@ import {
   type OpenClawVersionCompare,
 } from "./openclawVersionCompare";
 
+/** 卡片内展示长路径：保留末尾若干字符，悬停可看完整 title */
+function shortenFsPath(p: string, maxLen = 54): string {
+  const s = String(p || "").trim();
+  if (!s) return "";
+  if (s.length <= maxLen) return s;
+  return `…${s.slice(-(maxLen - 1))}`;
+}
+
 /** 点击「详情」弹出说明（非原生下拉） */
 function DetailsButton({
   label,
@@ -91,38 +99,116 @@ function DetailsButton({
   );
 }
 
+/** 右下角 Web UI 说明：问号标签，向上弹出（非原生下拉） */
+function WebUiHelpTag({ accent }: { accent: "purple" | "cyan" }) {
+  const [open, setOpen] = useState(false);
+  const line =
+    accent === "purple" ? "rgba(167,139,250,0.45)" : "rgba(56,189,248,0.45)";
+  const fg = accent === "purple" ? "#ddd6fe" : "#bae6fd";
+
+  return (
+    <span style={{ position: "relative", display: "inline-flex", alignItems: "center", verticalAlign: "middle" }}>
+      <button
+        type="button"
+        aria-label="为什么 Web UI 在浏览器打开"
+        aria-expanded={open}
+        onClick={(e) => {
+          e.stopPropagation();
+          setOpen((v) => !v);
+        }}
+        style={{
+          width: 24,
+          height: 24,
+          borderRadius: 999,
+          border: `1px solid ${line}`,
+          background: open ? (accent === "purple" ? "rgba(167,139,250,0.12)" : "rgba(56,189,248,0.12)") : "var(--panel-bg2)",
+          color: fg,
+          fontSize: 13,
+          fontWeight: 800,
+          cursor: "pointer",
+          lineHeight: 1,
+          padding: 0,
+          flexShrink: 0,
+        }}
+      >
+        ?
+      </button>
+      {open ? (
+        <>
+          <button
+            type="button"
+            aria-label="关闭"
+            onClick={() => setOpen(false)}
+            style={{
+              position: "fixed",
+              inset: 0,
+              zIndex: 1040,
+              border: "none",
+              background: "rgba(0,0,0,0.25)",
+              cursor: "default",
+            }}
+          />
+          <div
+            role="dialog"
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              position: "absolute",
+              right: 0,
+              left: "auto",
+              bottom: "calc(100% + 6px)",
+              top: "auto",
+              zIndex: 1050,
+              width: "min(360px, 90vw)",
+              maxHeight: "min(70vh, 480px)",
+              overflowY: "auto",
+              padding: "12px 14px",
+              borderRadius: 10,
+              border: "1px solid var(--panel-border)",
+              background: "var(--panel-bg)",
+              color: "var(--fg)",
+              fontSize: 11,
+              lineHeight: 1.6,
+              boxShadow: "0 8px 28px rgba(0,0,0,0.35)",
+            }}
+          >
+            <UiOpenExplainer />
+          </div>
+        </>
+      ) : null}
+    </span>
+  );
+}
+
 function OpenClawModeDetails() {
   const c = useClawMgmt();
   return (
     <>
       <div style={{ fontWeight: 700, marginBottom: 8, fontSize: 12 }}>页签与记录</div>
       <div style={{ color: "var(--muted)", marginBottom: 14 }}>
-        在下方两张并排卡片中点击<strong>标题区</strong>选用 <strong>内置 OpenClaw</strong> 或 <strong>外置 OpenClaw</strong>；配置目录与{" "}
-        <code style={{ fontSize: 10 }}>OPENCLAW_*</code> 随所选卡片切换。
+        在下方两张并排卡片中点击<strong>标题区</strong>切换<strong>查看中</strong>的一侧；「配置」与底部诊断里看的{" "}
+        <code style={{ fontSize: 10 }}>openclaw.json</code> / Gateway 日志随查看侧切换。
         {c.isRunning ? (
           <span style={{ color: "#fbbf24", fontWeight: 600 }}> 首次请配 LLM。</span>
         ) : null}
       </div>
       <div style={{ fontWeight: 700, marginBottom: 8, fontSize: 12 }}>记录模式</div>
       <div style={{ color: "var(--muted)", marginBottom: 14 }}>
-        当前持久化：
+        服务端记录的「最近一次成功启动 Gateway」侧：
         <strong style={{ color: "#93c5fd" }}>
           {c.gatewayOpenclawBinary === "external" ? "外置 OpenClaw" : "内置 OpenClaw"}
         </strong>
-        · 启动 Gateway 时与当前所选卡片对齐
+        。仅切换查看卡片<strong>不会</strong>改此项；在某侧点「启动 Gateway」成功后才会写入。
       </div>
       <div style={{ fontWeight: 700, marginBottom: 8, fontSize: 12 }}>内置 OpenClaw（总览）</div>
       <div style={{ color: "var(--muted)", marginBottom: 14 }}>
-        OpenClaw 与 <code style={{ fontSize: 10 }}>openclaw.json</code> 在<strong>应用内隔离目录</strong>，与{" "}
-        <code style={{ fontSize: 10 }}>~/.openclaw</code> 分离；Node 由安装包或面板提供，不依赖 PATH 上的全局{" "}
-        <code style={{ fontSize: 10 }}>openclaw</code>。
+        OpenClaw 与 <code style={{ fontSize: 10 }}>openclaw.json</code> 在<strong>应用内隔离目录</strong>，与用户主目录下的标准配置分离；Node
+        由安装包或面板提供，不依赖 PATH 上的全局 <code style={{ fontSize: 10 }}>openclaw</code>。
       </div>
       <div style={{ fontWeight: 700, marginBottom: 8, fontSize: 12 }}>外置 OpenClaw（总览）</div>
       <div style={{ color: "var(--muted)", marginBottom: 14 }}>
-        在用户环境按惯例使用 <code style={{ fontSize: 10 }}>~/.openclaw</code>；需本机 Node/npm。CLI 安装在{" "}
-        <code style={{ fontSize: 10 }}>.opencarapace/external-openclaw</code>（仅二进制前缀，不是第二套配置根）。
-        点卡片「配置」弹窗编辑与 Gateway 的 <code style={{ fontSize: 10 }}>OPENCLAW_*</code> 随所选卡片在应用内目录与{" "}
-        <code style={{ fontSize: 10 }}>~/.openclaw</code> 之间切换。
+        外置 Gateway 使用本机解析到的 <code style={{ fontSize: 10 }}>OPENCLAW_STATE_DIR</code> /{" "}
+        <code style={{ fontSize: 10 }}>OPENCLAW_CONFIG_PATH</code>（见下方卡片与接口返回的绝对路径）。CLI 优先使用 ClawHeart npm
+        前缀内的 <code style={{ fontSize: 10 }}>openclaw</code>，若无则使用「扫描本机」在 PATH / npm 全局等位置发现的二进制。可选将 openclaw 安装到客户端管理的前缀目录。
       </div>
       <div style={{ fontWeight: 700, marginBottom: 8, fontSize: 12 }}>内置卡片 · Gateway</div>
       <div style={{ color: "var(--muted)", marginBottom: 12 }}>
@@ -132,30 +218,35 @@ function OpenClawModeDetails() {
       </div>
       <div style={{ fontWeight: 700, marginBottom: 8, fontSize: 12 }}>内置卡片 · openclaw.json</div>
       <div style={{ color: "var(--muted)", marginBottom: 14 }}>
-        应用内隔离目录，与 <code style={{ fontSize: 10 }}>~/.openclaw</code> 不混用；与 Gateway 注入的{" "}
+        应用内隔离目录，与用户主目录标准配置不混用；与 Gateway 注入的{" "}
         <code style={{ fontSize: 10 }}>OPENCLAW_CONFIG_PATH</code> 一致。
       </div>
       <div style={{ fontWeight: 700, marginBottom: 8, fontSize: 12 }}>外置卡片 · Gateway</div>
       <div style={{ color: "var(--muted)", marginBottom: 12 }}>
-        使用用户环境 Node/npm；CLI 在 prefix，<code style={{ fontSize: 10 }}>openclaw.json</code> 在{" "}
-        <code style={{ fontSize: 10 }}>~/.openclaw</code>。子进程日志见底部「Gateway 诊断」（内置 / 外置 Tab 与上方卡片同步）。
-        {c.userEnvironmentOpenClaw ? (
+        使用用户环境 Node/npm。卡片上展示的路径来自服务端扫描当前用户主目录与文件系统，非写死字符串。Gateway 子进程日志在底部「Gateway
+        诊断」；另有 Tab 查看安装/卸载/Node 任务输出。
+        {c.userEnvironmentOpenClaw && c.hasExternalManagedOpenClaw ? (
           <>
             <br />
             <br />
-            本机另有探测到的 <code style={{ fontSize: 10 }}>openclaw</code>：
+            本机另有探测到的 <code style={{ fontSize: 10 }}>openclaw</code>（与 ClawHeart 前缀并列）：
             <br />
             <code style={{ fontSize: 9, wordBreak: "break-all" }}>{c.userEnvironmentOpenClaw.binPath}</code>
             {c.userEnvironmentOpenClaw.version ? `（${c.userEnvironmentOpenClaw.version}）` : ""}
-            <br />
-            外置 Gateway 仍使用 prefix 下二进制；未装入 prefix 时需点「安装到 prefix」。
           </>
         ) : null}
       </div>
       <div style={{ fontWeight: 700, marginBottom: 8, fontSize: 12 }}>外置卡片 · openclaw.json</div>
       <div style={{ color: "var(--muted)" }}>
-        标准 <code style={{ fontSize: 10 }}>~/.openclaw</code>；{" "}
-        <code style={{ fontSize: 10 }}>.opencarapace/external-openclaw</code> 仅为 npm 安装前缀。
+        {c.openClawDiscovery ? (
+          <>
+            当前解析的配置文件：
+            <br />
+            <code style={{ fontSize: 9, wordBreak: "break-all" }}>{c.openClawDiscovery.userProfile.configPath}</code>
+          </>
+        ) : (
+          <>路径由服务端按当前用户解析后显示在卡片上。</>
+        )}
       </div>
     </>
   );
@@ -179,6 +270,8 @@ function NodeRuntimeModal({
   const hasDl = bundled ? c.hasEmbeddedNode : c.hasExternalGatewayNode;
   const sysNode = c.clawEnvironment?.systemNodeVersion;
   const sysNpmOk = c.clawEnvironment?.hasSystemNpm;
+  /** 外置 npm / 多数安装流程已可直接用 PATH，专用目录变为可选 */
+  const systemNodeReady = Boolean(sysNode && String(sysNode).trim()) && sysNpmOk;
 
   const [nodeSource, setNodeSource] = useState<"packaged" | "downloaded">("downloaded");
 
@@ -193,6 +286,10 @@ function NodeRuntimeModal({
   const dirHint = bundled
     ? "~/.opencarapace/embedded-node（与外置专用目录不同）"
     : "~/.opencarapace/external-gateway-node（仅外置 npm / Gateway PATH）";
+  const home = c.clawEnvironment?.homedir?.trim();
+  const externalGatewayDirAbs =
+    home && home.length > 0 ? `${home}/.opencarapace/external-gateway-node` : null;
+  const embeddedDirAbs = home && home.length > 0 ? `${home}/.opencarapace/embedded-node` : null;
 
   return (
     <>
@@ -219,34 +316,56 @@ function NodeRuntimeModal({
           top: "50%",
           transform: "translate(-50%, -50%)",
           zIndex: 2010,
-          width: "min(480px, 94vw)",
+          width: bundled ? "min(480px, 94vw)" : "min(520px, 94vw)",
           maxHeight: "88vh",
           overflowY: "auto",
           boxSizing: "border-box",
-          padding: "16px 18px",
-          borderRadius: 12,
-          border: "1px solid var(--panel-border)",
+          padding: "18px 20px 20px",
+          borderRadius: 14,
+          border: bundled ? "1px solid var(--panel-border)" : "1px solid rgba(56,189,248,0.28)",
           background: "var(--panel-bg)",
           color: "var(--fg)",
           fontSize: 12,
-          boxShadow: "0 12px 40px rgba(0,0,0,0.45)",
+          boxShadow: bundled
+            ? "0 12px 40px rgba(0,0,0,0.45)"
+            : "0 16px 48px rgba(0,0,0,0.5), 0 0 0 1px rgba(56,189,248,0.06) inset",
         }}
       >
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12, marginBottom: 12 }}>
-          <div>
-            <div style={{ fontWeight: 700, fontSize: 14, color: accent, marginBottom: 4 }}>
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "flex-start",
+            gap: 14,
+            marginBottom: 16,
+            paddingBottom: 14,
+            borderBottom: bundled ? "1px solid rgba(167,139,250,0.2)" : "1px solid rgba(56,189,248,0.22)",
+          }}
+        >
+          <div style={{ minWidth: 0 }}>
+            <div style={{ fontWeight: 700, fontSize: 15, color: accent, marginBottom: 6, letterSpacing: "-0.02em" }}>
               {bundled ? "内置 OpenClaw · Node" : "外置 OpenClaw · Node"}
             </div>
-            <div style={{ fontSize: 10, color: "var(--muted2)", lineHeight: 1.45 }}>
-              推荐版本系列 · Node v{targetVer}（与 OpenClaw 要求一致）
+            <div
+              style={{
+                fontSize: 10,
+                color: "var(--muted2)",
+                lineHeight: 1.5,
+                padding: "6px 10px",
+                borderRadius: 8,
+                background: bundled ? "rgba(167,139,250,0.08)" : "rgba(56,189,248,0.07)",
+                border: bundled ? "1px solid rgba(167,139,250,0.15)" : "1px solid rgba(56,189,248,0.12)",
+              }}
+            >
+              推荐 <strong style={{ color: "var(--muted)" }}>Node v{targetVer}</strong> 系列（与 OpenClaw 要求一致）
             </div>
           </div>
           <button
             type="button"
             onClick={onClose}
             style={{
-              padding: "4px 10px",
-              borderRadius: 8,
+              padding: "6px 12px",
+              borderRadius: 999,
               border: "1px solid var(--panel-border)",
               background: "var(--panel-bg2)",
               color: "var(--muted)",
@@ -319,8 +438,25 @@ function NodeRuntimeModal({
         {dirHint}
                 </div>
                 <div style={{ fontSize: 11, color: hasDl ? "#86efac" : "var(--muted)", marginBottom: 10 }}>
-                  状态：{hasDl ? `已安装（v${targetVer} 发行包）` : "未安装"}
+                  状态：{hasDl ? `已安装（v${targetVer} 发行包）` : systemNodeReady ? "专用目录为空（本机 Node 已可用）" : "未安装"}
                 </div>
+                {systemNodeReady && !hasDl ? (
+                  <div
+                    style={{
+                      fontSize: 10,
+                      color: "#86efac",
+                      lineHeight: 1.5,
+                      marginBottom: 10,
+                      padding: "8px 10px",
+                      borderRadius: 8,
+                      background: "rgba(34,197,94,0.08)",
+                      border: "1px solid rgba(34,197,94,0.2)",
+                    }}
+                  >
+                    本机已有 Node 与 npm 时，内置卡多数流程可直接使用，无需下载到{" "}
+                    <code style={{ fontSize: 9, color: "#93c5fd" }}>embedded-node</code>。
+                  </div>
+                ) : null}
                 <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
                   {!hasDl ? (
                     <button
@@ -328,17 +464,19 @@ function NodeRuntimeModal({
                       onClick={() => void c.installRuntimeNode("bundled")}
                       disabled={c.nodeInstalling}
                       style={{
-                        padding: "8px 14px",
+                        padding: systemNodeReady ? "6px 12px" : "8px 14px",
                         borderRadius: 999,
-                        border: "1px solid rgba(34,197,94,0.4)",
-                        background: "rgba(34,197,94,0.12)",
-                        color: "#bbf7d0",
-                        fontSize: 12,
-                        fontWeight: 700,
+                        border: systemNodeReady
+                          ? "1px solid var(--panel-border)"
+                          : "1px solid rgba(34,197,94,0.4)",
+                        background: systemNodeReady ? "transparent" : "rgba(34,197,94,0.12)",
+                        color: systemNodeReady ? "var(--muted)" : "#bbf7d0",
+                        fontSize: systemNodeReady ? 11 : 12,
+                        fontWeight: systemNodeReady ? 600 : 700,
                         cursor: c.nodeInstalling ? "not-allowed" : "pointer",
                       }}
                     >
-                      {c.nodeInstalling ? "安装中…" : "下载并安装"}
+                      {c.nodeInstalling ? "安装中…" : systemNodeReady ? "仍下载到用户目录（可选）" : "下载并安装"}
                     </button>
                   ) : (
                     <>
@@ -383,75 +521,218 @@ function NodeRuntimeModal({
           </>
         ) : (
           <>
-            <div style={{ fontSize: 11, color: "var(--muted)", lineHeight: 1.55, marginBottom: 12 }}>
-              <div style={{ fontWeight: 700, marginBottom: 6, color: accent }}>本机 PATH（系统）</div>
-              Node：{sysNode || "—"} · npm：{sysNpmOk ? "可用" : "不可用"}
+            <div
+              style={{
+                borderRadius: 11,
+                border: "1px solid rgba(56,189,248,0.2)",
+                background: "rgba(56,189,248,0.05)",
+                padding: "12px 14px",
+                marginBottom: 12,
+              }}
+            >
+              <div
+                style={{
+                  fontSize: 9,
+                  fontWeight: 700,
+                  letterSpacing: "0.06em",
+                  color: "rgba(186,230,253,0.85)",
+                  marginBottom: 10,
+                }}
+              >
+                本机环境
+              </div>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 20 }}>
+                <div>
+                  <div style={{ fontSize: 9, color: "var(--muted2)", marginBottom: 3 }}>PATH 中的 Node</div>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: "var(--fg)" }}>{sysNode || "—"}</div>
+                </div>
+                <div>
+                  <div style={{ fontSize: 9, color: "var(--muted2)", marginBottom: 3 }}>系统 npm</div>
+                  <div
+                    style={{
+                      fontSize: 13,
+                      fontWeight: 600,
+                      color: sysNpmOk ? "#86efac" : "#fca5a5",
+                    }}
+                  >
+                    {sysNpmOk ? "可用" : "不可用"}
+                  </div>
+                </div>
+              </div>
             </div>
-            <div style={{ fontSize: 10, fontWeight: 700, color: "var(--muted)", marginBottom: 6 }}>外置专用下载目录</div>
-            <div style={{ fontSize: 10, color: "var(--muted2)", marginBottom: 8, lineHeight: 1.5 }}>{dirHint}</div>
-            <div style={{ fontSize: 11, color: hasDl ? "#86efac" : "var(--muted)", marginBottom: 10 }}>
-              状态：{hasDl ? `已安装（v${targetVer} 发行包）` : "未安装"}
-            </div>
-            <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-              {!hasDl ? (
-                <button
-                  type="button"
-                  onClick={() => void c.installRuntimeNode("external")}
-                  disabled={c.nodeInstalling}
+
+            <div
+              style={{
+                borderRadius: 11,
+                border: "1px solid rgba(56,189,248,0.35)",
+                background: "linear-gradient(165deg, rgba(56,189,248,0.1) 0%, rgba(56,189,248,0.04) 100%)",
+                padding: "14px 14px 12px",
+                marginBottom: 12,
+              }}
+            >
+              <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", justifyContent: "space-between", gap: 10, marginBottom: 10 }}>
+                <div
                   style={{
-                    padding: "8px 14px",
-                    borderRadius: 999,
-                    border: "1px solid rgba(34,197,94,0.4)",
-                    background: "rgba(34,197,94,0.12)",
-                    color: "#bbf7d0",
-                    fontSize: 12,
+                    fontSize: 9,
                     fontWeight: 700,
-                    cursor: c.nodeInstalling ? "not-allowed" : "pointer",
+                    letterSpacing: "0.06em",
+                    color: "rgba(186,230,253,0.9)",
                   }}
                 >
-                  {c.nodeInstalling ? "安装中…" : "下载并安装"}
-                </button>
+                  外置专用 Node
+                </div>
+                <span
+                  style={{
+                    fontSize: 9,
+                    fontWeight: 700,
+                    padding: "3px 10px",
+                    borderRadius: 999,
+                    border: hasDl ? "1px solid rgba(34,197,94,0.35)" : "1px solid rgba(148,163,184,0.35)",
+                    background: hasDl ? "rgba(34,197,94,0.12)" : "rgba(148,163,184,0.1)",
+                    color: hasDl ? "#86efac" : "var(--muted2)",
+                  }}
+                >
+                  {hasDl ? `已安装 · v${targetVer}` : systemNodeReady ? "专用目录未使用" : "未安装"}
+                </span>
+              </div>
+              <p style={{ fontSize: 10, color: "var(--muted2)", margin: "0 0 10px", lineHeight: 1.5 }}>
+                仅此目录供<strong style={{ color: "var(--muted)" }}>外置卡</strong>的 npm 安装与 Gateway 子进程优先使用；与内置卡目录{" "}
+                <code style={{ fontSize: 9, color: "#93c5fd" }}>embedded-node</code> 互不共用。
+                {systemNodeReady && !hasDl ? (
+                  <>
+                    {" "}
+                    本机已有 Node/npm 时，<strong style={{ color: "var(--muted)" }}>可不下载</strong>此副本。
+                  </>
+                ) : null}
+              </p>
+              <div
+                style={{
+                  fontSize: 9,
+                  color: "var(--muted2)",
+                  marginBottom: 6,
+                }}
+              >
+                安装目录
+              </div>
+              <code
+                style={{
+                  display: "block",
+                  fontSize: 10,
+                  color: "#93c5fd",
+                  wordBreak: "break-all",
+                  lineHeight: 1.45,
+                  padding: "8px 10px",
+                  borderRadius: 8,
+                  background: "rgba(0,0,0,0.22)",
+                  border: "1px solid rgba(56,189,248,0.15)",
+                  marginBottom: 4,
+                }}
+              >
+                {externalGatewayDirAbs || "~/.opencarapace/external-gateway-node"}
+              </code>
+              {externalGatewayDirAbs ? (
+                <div style={{ fontSize: 9, color: "var(--muted2)", marginBottom: 12 }}>等价路径：{dirHint}</div>
               ) : (
-                <>
-                  <button
-                    type="button"
-                    onClick={() => void c.installRuntimeNode("external", { force: true })}
-                    disabled={c.nodeInstalling || c.isRunning}
-                    style={{
-                      padding: "8px 14px",
-                      borderRadius: 999,
-                      border: "1px solid rgba(56,189,248,0.45)",
-                      background: "rgba(56,189,248,0.1)",
-                      color: "#bae6fd",
-                      fontSize: 12,
-                      fontWeight: 600,
-                      cursor: c.nodeInstalling || c.isRunning ? "not-allowed" : "pointer",
-                    }}
-                  >
-                    升级（重装）
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => void c.uninstallRuntimeNode("external")}
-                    disabled={c.nodeInstalling || c.isRunning}
-                    style={{
-                      padding: "8px 14px",
-                      borderRadius: 999,
-                      border: "1px solid rgba(239,68,68,0.4)",
-                      background: "rgba(239,68,68,0.08)",
-                      color: "#fca5a5",
-                      fontSize: 12,
-                      fontWeight: 600,
-                      cursor: c.nodeInstalling || c.isRunning ? "not-allowed" : "pointer",
-                    }}
-                  >
-                    卸载
-                  </button>
-                </>
+                <div style={{ fontSize: 9, color: "var(--muted2)", marginBottom: 12 }}>{dirHint}</div>
               )}
+              {systemNodeReady && !hasDl ? (
+                <div
+                  style={{
+                    fontSize: 10,
+                    color: "#86efac",
+                    lineHeight: 1.5,
+                    marginBottom: 10,
+                    padding: "8px 10px",
+                    borderRadius: 8,
+                    background: "rgba(34,197,94,0.08)",
+                    border: "1px solid rgba(34,197,94,0.22)",
+                  }}
+                >
+                  本机 PATH 已提供 Node 与 npm，外置「安装到 prefix」与 Gateway 会优先用它们，<strong>不必</strong>再下载专用目录。
+                </div>
+              ) : null}
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+                {!hasDl ? (
+                  <button
+                    type="button"
+                    onClick={() => void c.installRuntimeNode("external")}
+                    disabled={c.nodeInstalling}
+                    style={{
+                      padding: systemNodeReady ? "6px 12px" : "9px 16px",
+                      borderRadius: 999,
+                      border: systemNodeReady
+                        ? "1px solid rgba(56,189,248,0.35)"
+                        : "1px solid rgba(34,197,94,0.45)",
+                      background: systemNodeReady ? "transparent" : "rgba(34,197,94,0.16)",
+                      color: systemNodeReady ? "#bae6fd" : "#bbf7d0",
+                      fontSize: systemNodeReady ? 11 : 12,
+                      fontWeight: systemNodeReady ? 600 : 700,
+                      cursor: c.nodeInstalling ? "not-allowed" : "pointer",
+                    }}
+                  >
+                    {c.nodeInstalling ? "安装中…" : systemNodeReady ? "仍下载 Node 到专用目录（可选）" : "下载并安装到此目录"}
+                  </button>
+                ) : (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => void c.installRuntimeNode("external", { force: true })}
+                      disabled={c.nodeInstalling || c.isRunning}
+                      style={{
+                        padding: "8px 14px",
+                        borderRadius: 999,
+                        border: "1px solid rgba(56,189,248,0.45)",
+                        background: "rgba(56,189,248,0.12)",
+                        color: "#bae6fd",
+                        fontSize: 12,
+                        fontWeight: 600,
+                        cursor: c.nodeInstalling || c.isRunning ? "not-allowed" : "pointer",
+                      }}
+                    >
+                      升级（重装）
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => void c.uninstallRuntimeNode("external")}
+                      disabled={c.nodeInstalling || c.isRunning}
+                      style={{
+                        padding: "8px 14px",
+                        borderRadius: 999,
+                        border: "1px solid rgba(239,68,68,0.4)",
+                        background: "rgba(239,68,68,0.08)",
+                        color: "#fca5a5",
+                        fontSize: 12,
+                        fontWeight: 600,
+                        cursor: c.nodeInstalling || c.isRunning ? "not-allowed" : "pointer",
+                      }}
+                    >
+                      卸载
+                    </button>
+                  </>
+                )}
+              </div>
             </div>
-            <div style={{ fontSize: 10, color: "var(--muted2)", marginTop: 12, lineHeight: 1.5 }}>
-              外置 npm / Gateway 会优先使用此目录下的 Node；否则依次尝试内置卡已下载 Node、系统 npm。
+
+            <div
+              style={{
+                fontSize: 10,
+                color: "var(--muted2)",
+                lineHeight: 1.55,
+                padding: "10px 12px",
+                borderRadius: 10,
+                background: "rgba(148,163,184,0.06)",
+                border: "1px solid var(--panel-border)",
+              }}
+            >
+              <span style={{ fontWeight: 700, color: "var(--muted)" }}>使用顺序</span>
+              ：若已下载专用副本则优先用该目录；否则依次尝试本机 PATH、内置卡已下载 Node（
+              <code
+                title={embeddedDirAbs || undefined}
+                style={{ fontSize: 9, color: "#93c5fd" }}
+              >
+                {embeddedDirAbs ? shortenFsPath(embeddedDirAbs, 40) : "~/.opencarapace/embedded-node"}
+              </code>
+              ）、系统 npm。
             </div>
           </>
         )}
@@ -471,22 +752,279 @@ function UiOpenExplainer() {
   );
 }
 
-/** 卡片右下角：Web UI 在浏览器打开；仅当本卡 Gateway 在跑时可点 */
+/** 外置卡：prefix 安装来源 + 是否另有 PATH 下的 openclaw */
+function ExternalOpenClawInstallPills() {
+  const c = useClawMgmt();
+  const pills: ReactNode[] = [];
+  const pill = (key: string, label: string, s: CSSProperties) => (
+    <span
+      key={key}
+      style={{
+        fontSize: 9,
+        fontWeight: 700,
+        padding: "3px 8px",
+        borderRadius: 999,
+        whiteSpace: "nowrap",
+        ...s,
+      }}
+    >
+      {label}
+    </span>
+  );
+  if (c.hasExternalManagedOpenClaw) {
+    if (c.externalOpenClawInstallTag === "client") {
+      pills.push(
+        pill("client", "客户端安装", {
+          background: "rgba(34,197,94,0.18)",
+          color: "#86efac",
+          border: "1px solid rgba(34,197,94,0.35)",
+        })
+      );
+    } else if (c.externalOpenClawInstallTag === "user") {
+      pills.push(
+        pill("user", "用户安装", {
+          background: "rgba(251,191,36,0.12)",
+          color: "#fcd34d",
+          border: "1px solid rgba(251,191,36,0.35)",
+        })
+      );
+    } else if (c.externalOpenClawInstallTag === "unknown") {
+      pills.push(
+        pill("unk", "来源未记录", {
+          background: "rgba(148,163,184,0.12)",
+          color: "var(--muted2)",
+          border: "1px solid var(--panel-border)",
+        })
+      );
+    }
+  }
+  if (c.hasUserEnvironmentOpenClawAside) {
+    if (c.hasExternalManagedOpenClaw) {
+      pills.push(
+        pill("env", "另有用户环境", {
+          background: "rgba(56,189,248,0.12)",
+          color: "#bae6fd",
+          border: "1px solid rgba(56,189,248,0.35)",
+        })
+      );
+    } else {
+      pills.push(
+        pill("env-only", "用户安装", {
+          background: "rgba(251,191,36,0.12)",
+          color: "#fcd34d",
+          border: "1px solid rgba(251,191,36,0.35)",
+        })
+      );
+    }
+  }
+  if (pills.length === 0) return null;
+  return (
+    <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 0, alignItems: "center" }}>{pills}</div>
+  );
+}
+
+/** 外置卡：完整路径与 CLI 说明（主卡片仅保留摘要） */
+function ExternalOpenClawPathsDetail() {
+  const c = useClawMgmt();
+  if (!c.openClawDiscovery) {
+    return <div style={{ fontSize: 11, color: "var(--muted2)" }}>载入中…</div>;
+  }
+  const up = c.openClawDiscovery.userProfile;
+  const row = (label: string, path: string, hint?: string) => (
+    <div style={{ marginBottom: 10 }}>
+      <div style={{ fontSize: 10, fontWeight: 600, color: "var(--muted2)", marginBottom: 4 }}>
+        {label}
+        {hint ? (
+          <span style={{ fontWeight: 400, color: "var(--muted)", marginLeft: 6 }}>{hint}</span>
+        ) : null}
+      </div>
+      <code style={{ fontSize: 10, color: "#93c5fd", wordBreak: "break-all", lineHeight: 1.5 }}>{path}</code>
+    </div>
+  );
+  const diskHint = (exists: boolean | null) =>
+    exists === true ? "（磁盘存在）" : exists === false ? "（磁盘上已无此目录）" : "";
+  return (
+    <div style={{ fontSize: 11, color: "var(--muted)", maxWidth: 420, lineHeight: 1.55 }}>
+      <div
+        style={{
+          fontSize: 10,
+          color: "var(--muted2)",
+          marginBottom: 12,
+          padding: "8px 10px",
+          borderRadius: 8,
+          background: "rgba(56,189,248,0.08)",
+          border: "1px solid rgba(56,189,248,0.22)",
+        }}
+      >
+        <strong style={{ color: "#bae6fd" }}>与「卸载 ClawHeart 外置」的关系：</strong>
+        卸载只会删掉 <code style={{ fontSize: 9 }}>.opencarapace/external-openclaw</code> 与{" "}
+        <code style={{ fontSize: 9 }}>external-openclaw-runtime</code>。
+        下方的 <code style={{ fontSize: 9 }}>~/.openclaw</code> 是 OpenClaw 的<strong>标准用户数据</strong>，按设计<strong>不会</strong>
+        随卸载删除。若仍看到 CLI，多为<strong>本机扫描</strong>到的其它安装（例如当前仓库的{" "}
+        <code style={{ fontSize: 9 }}>node_modules/.bin/openclaw</code>），与是否装过前缀无关。
+      </div>
+      <div style={{ fontWeight: 700, marginBottom: 8, color: "#bae6fd" }}>标准用户环境（外置 Gateway 注入）</div>
+      {row("OPENCLAW_STATE_DIR", up.stateDir, "· 非 ClawHeart 专有")}
+      {row("OPENCLAW_CONFIG_PATH", up.configPath, "· 卸载外置不删此文件")}
+      <div style={{ fontWeight: 700, marginBottom: 8, marginTop: 4, color: "#bae6fd" }}>ClawHeart 管理的 npm 前缀</div>
+      {row("prefix 目录", c.externalOpenClawNpmPrefix || "—", diskHint(c.externalOpenClawPrefixDirExists))}
+      {c.openClawDiscovery.externalManaged ? (
+        row(
+          "external-openclaw-runtime",
+          c.openClawDiscovery.externalManaged.stateDir,
+          diskHint(c.externalOpenClawRuntimeDirExists)
+        )
+      ) : null}
+      {c.externalManagedOpenClawBinPath
+        ? row("前缀内 openclaw", c.externalManagedOpenClawBinPath)
+        : null}
+      <div style={{ fontWeight: 700, marginBottom: 8, marginTop: 4, color: "#bae6fd" }}>实际启动的 CLI</div>
+      {c.externalOpenClawBinPath ? (
+        row(
+          c.externalOpenClawBinSource === "managed-prefix"
+            ? "来源：ClawHeart 前缀"
+            : c.externalOpenClawBinSource === "user-environment"
+              ? "来源：本机扫描"
+              : "来源：已解析",
+          c.externalOpenClawBinPath
+        )
+      ) : (
+        <div style={{ fontSize: 10, color: "var(--muted2)" }}>当前未解析到可执行文件。</div>
+      )}
+    </div>
+  );
+}
+
+type AdvancedMenuChildren = ReactNode | ((close: () => void) => ReactNode);
+
+/** 卡片左下角：高级功能菜单（向上展开，非原生下拉） */
+function CardAdvancedMenu({ accent, children }: { accent: "purple" | "cyan"; children: AdvancedMenuChildren }) {
+  const [open, setOpen] = useState(false);
+  const close = () => setOpen(false);
+  const line =
+    accent === "purple" ? "rgba(167,139,250,0.45)" : "rgba(56,189,248,0.45)";
+  const bgOpen =
+    accent === "purple" ? "rgba(167,139,250,0.14)" : "rgba(56,189,248,0.12)";
+  const fg = accent === "purple" ? "#ddd6fe" : "#bae6fd";
+
+  return (
+    <span style={{ position: "relative", display: "inline-flex", alignItems: "center" }}>
+      <button
+        type="button"
+        aria-expanded={open}
+        aria-haspopup="dialog"
+        onClick={(e) => {
+          e.stopPropagation();
+          setOpen((v) => !v);
+        }}
+        style={{
+          padding: "5px 11px",
+          borderRadius: 999,
+          border: `1px solid ${line}`,
+          background: open ? bgOpen : "transparent",
+          color: fg,
+          fontSize: 10,
+          fontWeight: 700,
+          cursor: "pointer",
+          lineHeight: 1.35,
+        }}
+      >
+        高级功能{open ? " ▴" : " ▾"}
+      </button>
+      {open ? (
+        <>
+          <button
+            type="button"
+            aria-label="关闭菜单"
+            onClick={() => setOpen(false)}
+            style={{
+              position: "fixed",
+              inset: 0,
+              zIndex: 1040,
+              border: "none",
+              background: "rgba(0,0,0,0.2)",
+              cursor: "default",
+            }}
+          />
+          <div
+            role="dialog"
+            aria-label="高级功能"
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              position: "absolute",
+              bottom: "calc(100% + 8px)",
+              left: 0,
+              zIndex: 1050,
+              width: "min(300px, 86vw)",
+              maxHeight: "min(70vh, 420px)",
+              overflowY: "auto",
+              padding: "10px 10px 12px",
+              borderRadius: 10,
+              border: "1px solid var(--panel-border)",
+              background: "var(--panel-bg)",
+              color: "var(--fg)",
+              fontSize: 11,
+              lineHeight: 1.5,
+              boxShadow: "0 8px 28px rgba(0,0,0,0.4)",
+            }}
+          >
+            <div style={{ fontSize: 9, fontWeight: 700, color: "var(--muted2)", marginBottom: 8, letterSpacing: "0.04em" }}>
+              高级功能
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+              {typeof children === "function" ? children(close) : children}
+            </div>
+          </div>
+        </>
+      ) : null}
+    </span>
+  );
+}
+
+/** 卡片底栏：左下角高级功能 + 右下 Gateway / Web UI / 帮助 */
 function CardWebUiCorner({
   accent,
   engineReady,
   gatewayRunning,
+  advancedPanel,
+  gatewayShowStart,
+  gatewayShowStop,
+  onGatewayStart,
+  onGatewayStop,
+  gatewayStartPending,
+  gatewayStopPending,
+  gatewayActionHint,
 }: {
   accent: "purple" | "cyan";
   engineReady: boolean;
   gatewayRunning: boolean;
+  advancedPanel: AdvancedMenuChildren;
+  gatewayShowStart: boolean;
+  gatewayShowStop: boolean;
+  onGatewayStart: () => void;
+  onGatewayStop: () => void;
+  gatewayStartPending: boolean;
+  gatewayStopPending: boolean;
+  /** 启动/停止 Gateway 等本卡操作反馈，贴在卡片底栏下方 */
+  gatewayActionHint?: string | null;
 }) {
   const c = useClawMgmt();
-  const topBorder =
-    accent === "purple" ? "1px solid rgba(167,139,250,0.35)" : "1px solid rgba(56,189,248,0.35)";
+
+  const webUiDisabledStyle: CSSProperties = {
+    padding: "7px 14px",
+    borderRadius: 999,
+    border: "1px solid var(--panel-border)",
+    background: "var(--panel-bg2)",
+    color: "var(--muted2)",
+    fontSize: 11,
+    fontWeight: 700,
+    cursor: "not-allowed",
+    whiteSpace: "nowrap",
+    opacity: 0.65,
+  };
 
   return (
-    <div style={{ marginTop: "auto", paddingTop: 12, borderTop: topBorder }}>
+    <div style={{ marginTop: "auto", paddingTop: 10 }}>
       {engineReady && gatewayRunning ? (
         <div
           style={{
@@ -499,38 +1037,99 @@ function CardWebUiCorner({
         >
           <div style={{ fontSize: 10, fontWeight: 700, color: "#fbbf24", marginBottom: 2 }}>需配置 LLM</div>
           <div style={{ fontSize: 10, color: "#fde68a", lineHeight: 1.5 }}>
-            点本卡「配置」填写提供商，否则 Web UI 聊天可能 401。
+            点左下「高级功能」→「配置」填写提供商，否则 Web UI 聊天可能 401。
           </div>
         </div>
       ) : null}
-      <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
-        {gatewayRunning ? (
-          <a
-            href={c.uiUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            style={{
-              padding: "6px 12px",
-              borderRadius: 999,
-              border: "none",
-              background: "#3b82f6",
-              color: "#fff",
-              fontSize: 11,
-              fontWeight: 700,
-              textDecoration: "none",
-              whiteSpace: "nowrap",
-            }}
-          >
-            浏览器打开 Web UI
-          </a>
-        ) : (
-          <span style={{ fontSize: 10, color: "var(--muted2)" }}>
-            {engineReady ? "先启动本卡 Gateway" : "引擎未就绪"}
-          </span>
-        )}
-        <DetailsButton label="为什么在浏览器打开" popoverAlign="end" buttonMarginLeft={0}>
-          <UiOpenExplainer />
-        </DetailsButton>
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "flex-end",
+          gap: 10,
+          flexWrap: "wrap",
+        }}
+      >
+        <div style={{ flex: "0 0 auto" }}>
+          <CardAdvancedMenu accent={accent}>{advancedPanel}</CardAdvancedMenu>
+        </div>
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "flex-end",
+            alignItems: "center",
+            gap: 8,
+            flexWrap: "wrap",
+            marginLeft: "auto",
+          }}
+        >
+          {gatewayShowStart ? (
+            <button
+              type="button"
+              onClick={onGatewayStart}
+              disabled={gatewayStartPending}
+              style={{
+                padding: "7px 14px",
+                borderRadius: 999,
+                border: "1px solid rgba(34,197,94,0.45)",
+                background: "rgba(34,197,94,0.14)",
+                color: "#bbf7d0",
+                fontSize: 11,
+                fontWeight: 700,
+                cursor: gatewayStartPending ? "not-allowed" : "pointer",
+                whiteSpace: "nowrap",
+              }}
+            >
+              {gatewayStartPending ? "启动中…" : "启动 Gateway"}
+            </button>
+          ) : null}
+          {gatewayShowStop ? (
+            <button
+              type="button"
+              onClick={onGatewayStop}
+              disabled={gatewayStopPending}
+              style={{
+                padding: "7px 14px",
+                borderRadius: 999,
+                border: "1px solid rgba(239,68,68,0.4)",
+                background: "rgba(239,68,68,0.1)",
+                color: "#fca5a5",
+                fontSize: 11,
+                fontWeight: 700,
+                cursor: gatewayStopPending ? "not-allowed" : "pointer",
+                whiteSpace: "nowrap",
+              }}
+            >
+              {gatewayStopPending ? "停止中…" : "停止 Gateway"}
+            </button>
+          ) : null}
+          {gatewayRunning ? (
+            <a
+              href={c.uiUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{
+                padding: "7px 14px",
+                borderRadius: 999,
+                border: "none",
+                background: "#3b82f6",
+                color: "#fff",
+                fontSize: 11,
+                fontWeight: 700,
+                textDecoration: "none",
+                whiteSpace: "nowrap",
+                display: "inline-block",
+              }}
+            >
+              启动 Web UI
+            </a>
+          ) : (
+            <button type="button" disabled style={webUiDisabledStyle}>
+              启动 Web UI
+            </button>
+          )}
+          <WebUiHelpTag accent={accent} />
+        </div>
       </div>
       {gatewayRunning ? (
         <div
@@ -547,6 +1146,19 @@ function CardWebUiCorner({
           {c.uiUrl.includes("token=") ? (
             <span style={{ marginLeft: 6, color: "#4ade80", fontWeight: 600 }}>token ✓</span>
           ) : null}
+        </div>
+      ) : null}
+      {gatewayActionHint ? (
+        <div
+          style={{
+            marginTop: 8,
+            fontSize: 11,
+            color: "#4ade80",
+            lineHeight: 1.5,
+            textAlign: "right",
+          }}
+        >
+          {gatewayActionHint}
         </div>
       ) : null}
     </div>
@@ -840,6 +1452,7 @@ export function ClawHeartBuiltInTab() {
   const [npmUpgradeModalKind, setNpmUpgradeModalKind] = useState<NpmOpenClawUpgradeKind | null>(null);
   const [bundledNpmHint, setBundledNpmHint] = useState<{ latest: string; cmp: OpenClawVersionCompare } | null>(null);
   const [extNpmHint, setExtNpmHint] = useState<{ latest: string; cmp: OpenClawVersionCompare } | null>(null);
+  const [externalScanBusy, setExternalScanBusy] = useState(false);
   const bundledNpmHintLive = useMemo(() => {
     if (!bundledNpmHint) return null;
     return {
@@ -854,11 +1467,12 @@ export function ClawHeartBuiltInTab() {
       cmp: compareOpenClawLocalToNpmLatest(c.externalOpenClawVersion, extNpmHint.latest),
     };
   }, [extNpmHint, c.externalOpenClawVersion]);
-  /** 同一 Gateway 实例；就绪以进程命令行（openclaw + gateway run）为准；与「记录模式」对齐后才视为该侧在跑 */
+  /** 进程级 isRunning 与 DB 记录的启动侧一致时，才视为该卡在跑（切换「查看中」卡片不会改 gatewayOpenclawBinary） */
   const gwBundled = c.gatewayOpenclawBinary === "bundled";
   const gwExternal = c.gatewayOpenclawBinary === "external";
   const bundledGatewayRunning = c.isRunning && gwBundled;
   const externalGatewayRunning = c.isRunning && gwExternal;
+  const externalGatewayCliReady = Boolean(c.externalOpenClawBinPath);
 
   const cardShell = (active: boolean, accent: "purple" | "cyan"): CSSProperties => ({
     borderRadius: 12,
@@ -877,7 +1491,13 @@ export function ClawHeartBuiltInTab() {
     flexDirection: "column",
   });
 
-  const headerBar = (accent: "purple" | "cyan", active: boolean, title: string, statusLine: string) => (
+  const headerBar = (
+    accent: "purple" | "cyan",
+    active: boolean,
+    title: string,
+    statusLine: string,
+    headerRight?: ReactNode
+  ) => (
     <div
       role="button"
       tabIndex={0}
@@ -891,11 +1511,9 @@ export function ClawHeartBuiltInTab() {
       style={{
         display: "flex",
         alignItems: "flex-start",
-        gap: 8,
+        gap: 10,
         padding: "10px 12px",
         cursor: "pointer",
-        borderBottom:
-          accent === "purple" ? "1px solid rgba(167,139,250,0.35)" : "1px solid rgba(56,189,248,0.35)",
         outline: "none",
       }}
     >
@@ -929,14 +1547,33 @@ export function ClawHeartBuiltInTab() {
                 color: "#86efac",
               }}
             >
-              当前
+              查看中
             </span>
           ) : (
-            <span style={{ fontSize: 9, color: "var(--muted2)" }}>点击标题区选用</span>
+            <span style={{ fontSize: 9, color: "var(--muted2)" }}>点击标题区查看此侧</span>
           )}
         </div>
         <div style={{ fontSize: 10, color: "#86efac" }}>{statusLine}</div>
       </div>
+      {headerRight != null ? (
+        <div
+          role="presentation"
+          onClick={(e) => e.stopPropagation()}
+          onKeyDown={(e) => e.stopPropagation()}
+          style={{
+            flexShrink: 0,
+            display: "flex",
+            flexWrap: "wrap",
+            alignItems: "center",
+            justifyContent: "flex-end",
+            gap: 6,
+            maxWidth: "58%",
+            cursor: "default",
+          }}
+        >
+          {headerRight}
+        </div>
+      ) : null}
     </div>
   );
 
@@ -981,191 +1618,147 @@ export function ClawHeartBuiltInTab() {
           )}
           <div
             style={{
-              padding: "10px 12px 12px",
+              padding: "8px 12px 12px",
               flex: 1,
               minHeight: 0,
               display: "flex",
               flexDirection: "column",
             }}
           >
-            <div style={{ marginBottom: 12 }}>
-              <div style={{ fontSize: 11, fontWeight: 600, color: "var(--muted)", marginBottom: 6 }}>openclaw.json</div>
-              {c.openClawDiscovery ? (
-                <code style={{ fontSize: 9, color: "#93c5fd", wordBreak: "break-all", lineHeight: 1.5 }}>
-                  {c.openClawDiscovery.managed.configPath}
-                </code>
-              ) : (
-                <span style={{ fontSize: 10, color: "var(--muted2)" }}>载入中…</span>
-              )}
-            </div>
-            <div
-              style={{
-                borderTop: "1px solid rgba(167,139,250,0.35)",
-                paddingTop: 12,
-              }}
-            >
-              <div style={{ fontSize: 10, fontWeight: 600, color: "#ddd6fe", marginBottom: 8 }}>Gateway</div>
-              <div style={{ fontSize: 10, color: "var(--muted)", marginBottom: 8 }}>
-                CLI：{c.hasBundledOpenClaw ? "可用" : "不可用"} · {c.cliSourceLabel}
-                {c.openClawDiscovery?.openClawMacApp ? (
-                  <span style={{ color: "var(--muted2)" }}> · App: {c.openClawDiscovery.openClawMacApp}</span>
-                ) : null}
-              </div>
-              <div
-                style={{
-                  fontSize: 10,
-                  marginBottom: 10,
-                  lineHeight: 1.5,
-                  color: bundledGatewayRunning ? "#86efac" : c.isRunning ? "#fbbf24" : "var(--muted2)",
-                }}
-              >
-                {bundledGatewayRunning
-                  ? "本卡：Gateway 运行中（已检测到 gateway run 进程）"
-                  : c.isRunning
-                    ? "本卡：未由本侧启动（当前为外置模式；请在外置卡停止后再用内置启动）"
-                    : "本卡：Gateway 未运行"}
-              </div>
-            </div>
-            <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-              <button
-                type="button"
-                onClick={() => setNodeModalProfile("bundled")}
-                style={{
-                  padding: "6px 12px",
-                  borderRadius: 999,
-                  border: "1px solid rgba(167,139,250,0.45)",
-                  background: "rgba(167,139,250,0.10)",
-                  color: "#ddd6fe",
-                  fontSize: 11,
-                  fontWeight: 600,
-                  cursor: "pointer",
-                }}
-              >
-                Node
-              </button>
-              {c.hasBundledOpenClaw || c.hasEmbeddedNode || c.hasSystemNpm ? (
-                <button
-                  type="button"
-                  onClick={() => setNpmUpgradeModalKind("bundled")}
-                  disabled={c.installing || c.uninstalling || c.nodeInstalling}
-                  style={{
-                    padding: "6px 12px",
-                    borderRadius: 999,
-                    border: "1px solid rgba(167,139,250,0.45)",
-                    background: "rgba(167,139,250,0.12)",
-                    color: "#ddd6fe",
-                    fontSize: 11,
-                    fontWeight: 600,
-                    cursor: c.installing || c.uninstalling || c.nodeInstalling ? "not-allowed" : "pointer",
-                  }}
-                >
-                  版本与升级
-                </button>
-              ) : null}
-              {c.hasBundledOpenClaw && !c.isRunning ? (
-                <button
-                  type="button"
-                  onClick={() => void c.startGateway("bundled")}
-                  disabled={c.startingGatewayMode != null}
-                  style={{
-                    padding: "6px 12px",
-                    borderRadius: 999,
-                    border: "1px solid rgba(34,197,94,0.35)",
-                    background: "rgba(34,197,94,0.10)",
-                    color: "#bbf7d0",
-                    fontSize: 11,
-                    fontWeight: 600,
-                    cursor: c.startingGatewayMode != null ? "not-allowed" : "pointer",
-                  }}
-                >
-                  {c.startingGatewayMode === "bundled" ? "启动中…" : "启动 Gateway"}
-                </button>
-              ) : null}
-              {c.hasBundledOpenClaw && bundledGatewayRunning ? (
-                <button
-                  type="button"
-                  onClick={() => void c.stopGateway("bundled")}
-                  disabled={c.stoppingGatewayMode != null}
-                  style={{
-                    padding: "6px 12px",
-                    borderRadius: 999,
-                    border: "1px solid rgba(239,68,68,0.35)",
-                    background: "rgba(239,68,68,0.08)",
-                    color: "#fca5a5",
-                    fontSize: 11,
-                    fontWeight: 600,
-                    cursor: c.stoppingGatewayMode != null ? "not-allowed" : "pointer",
-                  }}
-                >
-                  {c.stoppingGatewayMode === "bundled" ? "停止中…" : "停止"}
-                </button>
-              ) : null}
-              {c.cliSource === "global" ? (
-                <button
-                  type="button"
-                  onClick={() => void c.uninstallNpmClaw("openclaw", "OpenClaw")}
-                  disabled={c.uninstalling || c.installing || c.isRunning}
-                  style={{
-                    padding: "6px 12px",
-                    borderRadius: 999,
-                    border: "1px solid rgba(251,146,60,0.4)",
-                    background: "rgba(251,146,60,0.08)",
-                    color: "#fdba74",
-                    fontSize: 11,
-                    fontWeight: 600,
-                    cursor: c.uninstalling || c.installing || c.isRunning ? "not-allowed" : "pointer",
-                  }}
-                >
-                  清理全局 openclaw
-                </button>
-              ) : null}
-              <button
-                type="button"
-                onClick={() => {
-                  c.openBuiltInConfigTab("bundled");
-                  setConfigModalOpen(true);
-                }}
-                style={{
-                  padding: "6px 12px",
-                  borderRadius: 999,
-                  border: "1px solid var(--btn-border)",
-                  background: "rgba(59,130,246,0.12)",
-                  color: "#93c5fd",
-                  fontSize: 11,
-                  fontWeight: 600,
-                  cursor: "pointer",
-                }}
-              >
-                配置
-              </button>
-            </div>
-            {(c.hasBundledOpenClaw || c.hasEmbeddedNode || c.hasSystemNpm) && bundledNpmHintLive ? (
-              <div
-                style={{
-                  fontSize: 9,
-                  color:
-                    bundledNpmHintLive.cmp === "upgradeAvailable"
-                      ? "#fcd34d"
-                      : bundledNpmHintLive.cmp === "same"
-                        ? "#86efac"
-                        : "var(--muted2)",
-                  marginTop: 6,
-                  lineHeight: 1.45,
-                }}
-              >
-                {bundledNpmHintLive.cmp === "same"
-                  ? `npm latest ${bundledNpmHintLive.latest} · 与当前解析版本一致（可在弹窗内重新查询）`
-                  : bundledNpmHintLive.cmp === "upgradeAvailable"
-                    ? `npm latest ${bundledNpmHintLive.latest} · 可升级，请打开「版本与升级」确认`
-                    : bundledNpmHintLive.cmp === "localNewer"
-                      ? `npm latest ${bundledNpmHintLive.latest} · 本地版本号不低于 registry`
-                      : `npm latest ${bundledNpmHintLive.latest} · 版本号对比不确定，请以弹窗内原文为准`}
-              </div>
-            ) : null}
             <CardWebUiCorner
               accent="purple"
               engineReady={c.hasBundledOpenClaw}
               gatewayRunning={bundledGatewayRunning}
+              gatewayShowStart={c.hasBundledOpenClaw && !c.isRunning}
+              gatewayShowStop={c.hasBundledOpenClaw && bundledGatewayRunning}
+              onGatewayStart={() => void c.startGateway("bundled")}
+              onGatewayStop={() => void c.stopGateway("bundled")}
+              gatewayStartPending={c.startingGatewayMode === "bundled"}
+              gatewayStopPending={c.stoppingGatewayMode === "bundled"}
+              gatewayActionHint={
+                c.gatewayCardMessage?.mode === "bundled" ? c.gatewayCardMessage.text : null
+              }
+              advancedPanel={(close) => (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      close();
+                      setNodeModalProfile("bundled");
+                    }}
+                    style={{
+                      width: "100%",
+                      padding: "8px 12px",
+                      borderRadius: 8,
+                      border: "1px solid rgba(167,139,250,0.4)",
+                      background: "rgba(167,139,250,0.08)",
+                      color: "#ddd6fe",
+                      fontSize: 11,
+                      fontWeight: 600,
+                      cursor: "pointer",
+                      textAlign: "left",
+                    }}
+                  >
+                    Node 运行时…
+                  </button>
+                  {c.hasBundledOpenClaw || c.hasEmbeddedNode || c.hasSystemNpm ? (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        close();
+                        setNpmUpgradeModalKind("bundled");
+                      }}
+                      disabled={c.installing || c.uninstalling || c.nodeInstalling}
+                      style={{
+                        width: "100%",
+                        padding: "8px 12px",
+                        borderRadius: 8,
+                        border: "1px solid rgba(167,139,250,0.4)",
+                        background: "rgba(167,139,250,0.06)",
+                        color: "#ddd6fe",
+                        fontSize: 11,
+                        fontWeight: 600,
+                        cursor: c.installing || c.uninstalling || c.nodeInstalling ? "not-allowed" : "pointer",
+                        textAlign: "left",
+                      }}
+                    >
+                      版本与升级…
+                    </button>
+                  ) : null}
+                  {c.cliSource === "global" ? (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        close();
+                        void c.uninstallNpmClaw("openclaw", "OpenClaw");
+                      }}
+                      disabled={c.uninstalling || c.installing || c.isRunning}
+                      style={{
+                        width: "100%",
+                        padding: "8px 12px",
+                        borderRadius: 8,
+                        border: "1px solid rgba(251,146,60,0.45)",
+                        background: "rgba(251,146,60,0.06)",
+                        color: "#fdba74",
+                        fontSize: 11,
+                        fontWeight: 600,
+                        cursor: c.uninstalling || c.installing || c.isRunning ? "not-allowed" : "pointer",
+                        textAlign: "left",
+                      }}
+                    >
+                      清理全局 openclaw
+                    </button>
+                  ) : null}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      close();
+                      c.openBuiltInConfigTab("bundled");
+                      setConfigModalOpen(true);
+                    }}
+                    style={{
+                      width: "100%",
+                      padding: "8px 12px",
+                      borderRadius: 8,
+                      border: "1px solid var(--btn-border)",
+                      background: "rgba(59,130,246,0.1)",
+                      color: "#93c5fd",
+                      fontSize: 11,
+                      fontWeight: 600,
+                      cursor: "pointer",
+                      textAlign: "left",
+                    }}
+                  >
+                    配置 openclaw.json…
+                  </button>
+                  {(c.hasBundledOpenClaw || c.hasEmbeddedNode || c.hasSystemNpm) && bundledNpmHintLive ? (
+                    <div
+                      style={{
+                        fontSize: 9,
+                        color:
+                          bundledNpmHintLive.cmp === "upgradeAvailable"
+                            ? "#fcd34d"
+                            : bundledNpmHintLive.cmp === "same"
+                              ? "#86efac"
+                              : "var(--muted2)",
+                        marginTop: 4,
+                        lineHeight: 1.45,
+                        padding: "6px 8px",
+                        borderRadius: 8,
+                        background: "rgba(0,0,0,0.15)",
+                      }}
+                    >
+                      {bundledNpmHintLive.cmp === "same"
+                        ? `npm ${bundledNpmHintLive.latest} · 与当前一致`
+                        : bundledNpmHintLive.cmp === "upgradeAvailable"
+                          ? `npm ${bundledNpmHintLive.latest} · 可升级（见「版本与升级」）`
+                          : bundledNpmHintLive.cmp === "localNewer"
+                            ? `npm ${bundledNpmHintLive.latest} · 本地不低于 registry`
+                            : `npm ${bundledNpmHintLive.latest} · 版本对比见弹窗`}
+                    </div>
+                  ) : null}
+                </>
+              )}
             />
           </div>
         </div>
@@ -1175,245 +1768,222 @@ export function ClawHeartBuiltInTab() {
             "cyan",
             externalActive,
             "外置 OpenClaw",
-            c.hasExternalManagedOpenClaw
-              ? `prefix${c.externalOpenClawVersion ? ` · ${c.externalOpenClawVersion}` : ""}`
-              : c.userEnvironmentOpenClaw
-                ? "本机已有 · 未进 prefix"
-                : "未安装"
+            !externalGatewayCliReady
+              ? "未检测到 CLI"
+              : c.hasExternalManagedOpenClaw
+                ? `ClawHeart 前缀${c.externalOpenClawVersion ? ` · ${c.externalOpenClawVersion}` : ""}`
+                : `本机 OpenClaw${c.externalOpenClawVersion ? ` · ${c.externalOpenClawVersion}` : ""}`,
+            <>
+              <ExternalOpenClawInstallPills />
+              <DetailsButton label="完整路径与 CLI" popoverAlign="end" buttonMarginLeft={0}>
+                <ExternalOpenClawPathsDetail />
+              </DetailsButton>
+            </>
           )}
           <div
             style={{
-              padding: "10px 12px 12px",
+              padding: "8px 12px 12px",
               flex: 1,
               minHeight: 0,
               display: "flex",
               flexDirection: "column",
             }}
           >
-            <div style={{ marginBottom: 12 }}>
-              <div style={{ fontSize: 11, fontWeight: 600, color: "var(--muted)", marginBottom: 6 }}>openclaw.json</div>
-              {c.openClawDiscovery ? (
-                <code style={{ fontSize: 9, color: "#93c5fd", wordBreak: "break-all", lineHeight: 1.5 }}>
-                  {c.openClawDiscovery.userProfile.configPath}
-                </code>
-              ) : (
-                <span style={{ fontSize: 10, color: "var(--muted2)" }}>载入中…</span>
-              )}
-            </div>
-            <div
-              style={{
-                borderTop: "1px solid rgba(56,189,248,0.35)",
-                paddingTop: 12,
-              }}
-            >
-              <div style={{ fontSize: 10, fontWeight: 600, color: "#bae6fd", marginBottom: 8 }}>CLI 与 Gateway</div>
-              <div style={{ fontSize: 10, color: "var(--muted2)", lineHeight: 1.55, marginBottom: 8 }}>
-                prefix:{" "}
-                <code style={{ fontSize: 9, color: "#93c5fd", wordBreak: "break-all" }}>
-                  {c.externalOpenClawNpmPrefix || "…"}
-                </code>
-                {c.externalOpenClawBinPath ? (
-                  <>
-                    <br />
-                    bin: <code style={{ fontSize: 9, color: "#93c5fd", wordBreak: "break-all" }}>{c.externalOpenClawBinPath}</code>
-                  </>
-                ) : null}
-                {c.userEnvironmentOpenClaw && !c.hasExternalManagedOpenClaw ? (
-                  <div style={{ marginTop: 6, color: "var(--muted)" }}>
-                    探测到其它安装{c.userEnvironmentOpenClaw.version ? ` · ${c.userEnvironmentOpenClaw.version}` : ""}
-                    （见「详情」）
-                  </div>
-                ) : null}
-              </div>
-              <div
-                style={{
-                  fontSize: 10,
-                  marginBottom: 10,
-                  lineHeight: 1.5,
-                  color: externalGatewayRunning ? "#86efac" : c.isRunning ? "#fbbf24" : "var(--muted2)",
-                }}
-              >
-                {externalGatewayRunning
-                  ? "本卡：Gateway 运行中（已检测到 gateway run 进程）"
-                  : c.isRunning
-                    ? "本卡：未由本侧启动（当前为内置模式；请在内置卡停止后再用外置启动）"
-                    : "本卡：Gateway 未运行"}
-              </div>
-            </div>
-            <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-              <button
-                type="button"
-                onClick={() => setNodeModalProfile("external")}
-                style={{
-                  padding: "6px 12px",
-                  borderRadius: 999,
-                  border: "1px solid rgba(56,189,248,0.45)",
-                  background: "rgba(56,189,248,0.10)",
-                  color: "#bae6fd",
-                  fontSize: 11,
-                  fontWeight: 600,
-                  cursor: "pointer",
-                }}
-              >
-                Node
-              </button>
-              {!c.hasExternalManagedOpenClaw ? (
+            <CardWebUiCorner
+              accent="cyan"
+              engineReady={externalGatewayCliReady}
+              gatewayRunning={externalGatewayRunning}
+              gatewayShowStart={externalGatewayCliReady && !c.isRunning}
+              gatewayShowStop={externalGatewayCliReady && externalGatewayRunning}
+              onGatewayStart={() => void c.startGateway("external")}
+              onGatewayStop={() => void c.stopGateway("external")}
+              gatewayStartPending={c.startingGatewayMode === "external"}
+              gatewayStopPending={c.stoppingGatewayMode === "external"}
+              gatewayActionHint={
+                c.gatewayCardMessage?.mode === "external" ? c.gatewayCardMessage.text : null
+              }
+              advancedPanel={(close) => (
                 <>
                   <button
                     type="button"
-                    onClick={() => void c.installOpenClawExternal()}
-                    disabled={
-                      c.installing ||
-                      c.uninstalling ||
-                      c.nodeInstalling ||
-                      (!c.hasEmbeddedNode && !c.hasExternalGatewayNode && !c.hasSystemNpm)
-                    }
+                    onClick={() => {
+                      close();
+                      setNodeModalProfile("external");
+                    }}
                     style={{
-                      padding: "6px 12px",
-                      borderRadius: 999,
-                      border: "1px solid rgba(34,197,94,0.35)",
-                      background: "rgba(34,197,94,0.12)",
-                      color: "#bbf7d0",
+                      width: "100%",
+                      padding: "8px 12px",
+                      borderRadius: 8,
+                      border: "1px solid rgba(56,189,248,0.4)",
+                      background: "rgba(56,189,248,0.08)",
+                      color: "#bae6fd",
+                      fontSize: 11,
+                      fontWeight: 600,
+                      cursor: "pointer",
+                      textAlign: "left",
+                    }}
+                  >
+                    Node 运行时…
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      close();
+                      setExternalScanBusy(true);
+                      void c.refresh().finally(() => setExternalScanBusy(false));
+                    }}
+                    disabled={externalScanBusy || c.installing || c.uninstalling || c.nodeInstalling}
+                    title="重新扫描 PATH、npm 全局等"
+                    style={{
+                      width: "100%",
+                      padding: "8px 12px",
+                      borderRadius: 8,
+                      border: "1px solid rgba(56,189,248,0.35)",
+                      background: "rgba(56,189,248,0.05)",
+                      color: "#bae6fd",
                       fontSize: 11,
                       fontWeight: 600,
                       cursor:
+                        externalScanBusy || c.installing || c.uninstalling || c.nodeInstalling ? "not-allowed" : "pointer",
+                      textAlign: "left",
+                      opacity: externalScanBusy || c.installing || c.uninstalling || c.nodeInstalling ? 0.55 : 1,
+                    }}
+                  >
+                    {externalScanBusy ? "扫描中…" : "扫描本机 OpenClaw"}
+                  </button>
+                  {!c.hasExternalManagedOpenClaw ? (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        close();
+                        void c.installOpenClawExternal();
+                      }}
+                      disabled={
                         c.installing ||
                         c.uninstalling ||
                         c.nodeInstalling ||
                         (!c.hasEmbeddedNode && !c.hasExternalGatewayNode && !c.hasSystemNpm)
-                          ? "not-allowed"
-                          : "pointer",
+                      }
+                      style={{
+                        width: "100%",
+                        padding: "8px 12px",
+                        borderRadius: 8,
+                        border: "1px solid rgba(34,197,94,0.4)",
+                        background: "rgba(34,197,94,0.08)",
+                        color: "#bbf7d0",
+                        fontSize: 11,
+                        fontWeight: 600,
+                        cursor:
+                          c.installing ||
+                          c.uninstalling ||
+                          c.nodeInstalling ||
+                          (!c.hasEmbeddedNode && !c.hasExternalGatewayNode && !c.hasSystemNpm)
+                            ? "not-allowed"
+                            : "pointer",
+                        textAlign: "left",
+                      }}
+                    >
+                      {c.installing ? "安装中…" : "安装到 ClawHeart 前缀…"}
+                    </button>
+                  ) : null}
+                  {c.hasExternalManagedOpenClaw ? (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        close();
+                        setNpmUpgradeModalKind("external");
+                      }}
+                      disabled={c.installing || c.uninstalling || c.nodeInstalling}
+                      style={{
+                        width: "100%",
+                        padding: "8px 12px",
+                        borderRadius: 8,
+                        border: "1px solid rgba(56,189,248,0.4)",
+                        background: "rgba(56,189,248,0.06)",
+                        color: "#bae6fd",
+                        fontSize: 11,
+                        fontWeight: 600,
+                        cursor: c.installing || c.uninstalling || c.nodeInstalling ? "not-allowed" : "pointer",
+                        textAlign: "left",
+                      }}
+                    >
+                      版本与升级…
+                    </button>
+                  ) : null}
+                  {c.hasExternalManagedOpenClaw ? (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        close();
+                        void c.uninstallNpmClaw("openclaw", "OpenClaw 外置", { uninstallTarget: "clawheart-external" });
+                      }}
+                      disabled={c.uninstalling || c.installing || c.isRunning}
+                      style={{
+                        width: "100%",
+                        padding: "8px 12px",
+                        borderRadius: 8,
+                        border: "1px solid rgba(251,146,60,0.45)",
+                        background: "rgba(251,146,60,0.06)",
+                        color: "#fdba74",
+                        fontSize: 11,
+                        fontWeight: 600,
+                        cursor: c.uninstalling || c.installing || c.isRunning ? "not-allowed" : "pointer",
+                        textAlign: "left",
+                      }}
+                    >
+                      卸载 ClawHeart 外置…
+                    </button>
+                  ) : null}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      close();
+                      c.openBuiltInConfigTab("external");
+                      setConfigModalOpen(true);
+                    }}
+                    style={{
+                      width: "100%",
+                      padding: "8px 12px",
+                      borderRadius: 8,
+                      border: "1px solid var(--btn-border)",
+                      background: "rgba(59,130,246,0.1)",
+                      color: "#93c5fd",
+                      fontSize: 11,
+                      fontWeight: 600,
+                      cursor: "pointer",
+                      textAlign: "left",
                     }}
                   >
-                    {c.installing ? "安装中…" : "安装到 prefix"}
+                    配置 openclaw.json…
                   </button>
+                  {c.hasExternalManagedOpenClaw && extNpmHintLive ? (
+                    <div
+                      style={{
+                        fontSize: 9,
+                        color:
+                          extNpmHintLive.cmp === "upgradeAvailable"
+                            ? "#fcd34d"
+                            : extNpmHintLive.cmp === "same"
+                              ? "#86efac"
+                              : "var(--muted2)",
+                        marginTop: 4,
+                        lineHeight: 1.45,
+                        padding: "6px 8px",
+                        borderRadius: 8,
+                        background: "rgba(0,0,0,0.15)",
+                      }}
+                    >
+                      {extNpmHintLive.cmp === "same"
+                        ? `npm ${extNpmHintLive.latest} · 与当前一致`
+                        : extNpmHintLive.cmp === "upgradeAvailable"
+                          ? `npm ${extNpmHintLive.latest} · 可升级（见「版本与升级」）`
+                          : extNpmHintLive.cmp === "localNewer"
+                            ? `npm ${extNpmHintLive.latest} · 本地不低于 registry`
+                            : `npm ${extNpmHintLive.latest} · 版本对比见弹窗`}
+                    </div>
+                  ) : null}
                 </>
-              ) : null}
-              {c.hasExternalManagedOpenClaw ? (
-                <button
-                  type="button"
-                  onClick={() => setNpmUpgradeModalKind("external")}
-                  disabled={c.installing || c.uninstalling || c.nodeInstalling}
-                  style={{
-                    padding: "6px 12px",
-                    borderRadius: 999,
-                    border: "1px solid rgba(56,189,248,0.45)",
-                    background: "rgba(56,189,248,0.12)",
-                    color: "#bae6fd",
-                    fontSize: 11,
-                    fontWeight: 600,
-                    cursor: c.installing || c.uninstalling || c.nodeInstalling ? "not-allowed" : "pointer",
-                  }}
-                >
-                  版本与升级
-                </button>
-              ) : null}
-              {c.hasExternalManagedOpenClaw && !c.isRunning ? (
-                <button
-                  type="button"
-                  onClick={() => void c.startGateway("external")}
-                  disabled={c.startingGatewayMode != null}
-                  style={{
-                    padding: "6px 12px",
-                    borderRadius: 999,
-                    border: "1px solid rgba(34,197,94,0.35)",
-                    background: "rgba(34,197,94,0.10)",
-                    color: "#bbf7d0",
-                    fontSize: 11,
-                    fontWeight: 600,
-                    cursor: c.startingGatewayMode != null ? "not-allowed" : "pointer",
-                  }}
-                >
-                  {c.startingGatewayMode === "external" ? "启动中…" : "启动 Gateway"}
-                </button>
-              ) : null}
-              {c.hasExternalManagedOpenClaw && externalGatewayRunning ? (
-                <button
-                  type="button"
-                  onClick={() => void c.stopGateway("external")}
-                  disabled={c.stoppingGatewayMode != null}
-                  style={{
-                    padding: "6px 12px",
-                    borderRadius: 999,
-                    border: "1px solid rgba(239,68,68,0.35)",
-                    background: "rgba(239,68,68,0.08)",
-                    color: "#fca5a5",
-                    fontSize: 11,
-                    fontWeight: 600,
-                    cursor: c.stoppingGatewayMode != null ? "not-allowed" : "pointer",
-                  }}
-                >
-                  {c.stoppingGatewayMode === "external" ? "停止中…" : "停止"}
-                </button>
-              ) : null}
-              {c.hasExternalManagedOpenClaw ? (
-                <button
-                  type="button"
-                  onClick={() =>
-                    void c.uninstallNpmClaw("openclaw", "OpenClaw 外置", { uninstallTarget: "clawheart-external" })
-                  }
-                  disabled={c.uninstalling || c.installing || c.isRunning}
-                  style={{
-                    padding: "6px 12px",
-                    borderRadius: 999,
-                    border: "1px solid rgba(251,146,60,0.4)",
-                    background: "rgba(251,146,60,0.08)",
-                    color: "#fdba74",
-                    fontSize: 11,
-                    fontWeight: 600,
-                    cursor: c.uninstalling || c.installing || c.isRunning ? "not-allowed" : "pointer",
-                  }}
-                >
-                  卸载
-                </button>
-              ) : null}
-              <button
-                type="button"
-                onClick={() => {
-                  c.openBuiltInConfigTab("external");
-                  setConfigModalOpen(true);
-                }}
-                style={{
-                  padding: "6px 12px",
-                  borderRadius: 999,
-                  border: "1px solid var(--btn-border)",
-                  background: "rgba(59,130,246,0.12)",
-                  color: "#93c5fd",
-                  fontSize: 11,
-                  fontWeight: 600,
-                  cursor: "pointer",
-                }}
-              >
-                配置
-              </button>
-            </div>
-            {c.hasExternalManagedOpenClaw && extNpmHintLive ? (
-              <div
-                style={{
-                  fontSize: 9,
-                  color:
-                    extNpmHintLive.cmp === "upgradeAvailable"
-                      ? "#fcd34d"
-                      : extNpmHintLive.cmp === "same"
-                        ? "#86efac"
-                        : "var(--muted2)",
-                  marginTop: 6,
-                  lineHeight: 1.45,
-                }}
-              >
-                {extNpmHintLive.cmp === "same"
-                  ? `npm latest ${extNpmHintLive.latest} · 与当前解析版本一致（可在弹窗内重新查询）`
-                  : extNpmHintLive.cmp === "upgradeAvailable"
-                    ? `npm latest ${extNpmHintLive.latest} · 可升级，请打开「版本与升级」确认`
-                    : extNpmHintLive.cmp === "localNewer"
-                      ? `npm latest ${extNpmHintLive.latest} · 本地版本号不低于 registry`
-                      : `npm latest ${extNpmHintLive.latest} · 版本号对比不确定，请以弹窗内原文为准`}
-              </div>
-            ) : null}
-            <CardWebUiCorner
-              accent="cyan"
-              engineReady={c.hasExternalManagedOpenClaw}
-              gatewayRunning={externalGatewayRunning}
+              )}
             />
           </div>
         </div>

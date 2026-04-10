@@ -18,6 +18,7 @@ const {
   getGatewayPortConflictsPayload,
   enrichGatewayPortConflictsWithLsof,
 } = require("./openclaw-gateway-port-conflict.js");
+const { resolveEffectiveExternalOpenClawBin } = require("./openclaw-discovery.js");
 
 function killWindowsProcessTree(pid) {
   if (process.platform !== "win32" || pid == null) return;
@@ -378,7 +379,7 @@ async function startEmbeddedOpenClaw() {
   await refreshGatewayWorkspaceFromDb();
   const { getGatewayWorkspaceStateSync, getActiveOpenClawEnv } = require("./openclaw-workspace.js");
   const { getOpenClawSettings } = require("../db.js");
-  const { normalizeGatewayOpenclawBinary, resolveExternalOpenClawBinPath } = require("./openclaw-external.js");
+  const { normalizeGatewayOpenclawBinary } = require("./openclaw-external.js");
 
   const settings = await getOpenClawSettings();
   const binaryMode = normalizeGatewayOpenclawBinary(settings.gatewayOpenclawBinary);
@@ -437,14 +438,21 @@ async function startEmbeddedOpenClaw() {
     };
 
     if (binaryMode === "external") {
-      const extBin = resolveExternalOpenClawBinPath();
+      const resolved = await resolveEffectiveExternalOpenClawBin();
+      const extBin = resolved.binPath;
       if (!extBin) {
         appendGatewayDiag("======== OpenClaw Gateway 启动中止 ========");
-        appendGatewayDiag("原因: ClawHeart 外置目录中未找到 openclaw（请在外置管理 Tab 中完成安装）。");
+        appendGatewayDiag(
+          "原因: 未找到可用于外置模式的 openclaw（ClawHeart npm 前缀内无，且本机扫描 PATH / npm 全局等也未发现）。可点外置卡片「扫描本机」后重试，或「安装到 prefix」。"
+        );
         return false;
       }
       const devEnv = buildOpenClawChildEnv(null, { gatewayOpenclawBinary: "external" });
-      appendGatewayDiag(`启动方式: ClawHeart 外置 CLI（~/.opencarapace/external-openclaw）`);
+      appendGatewayDiag(
+        resolved.source === "managed-prefix"
+          ? "启动方式: ClawHeart 外置 npm 前缀内的 openclaw"
+          : "启动方式: 本机扫描到的 openclaw（非 ClawHeart 前缀）"
+      );
       appendGatewayDiag(`openclaw=${extBin}`);
       let child;
       if (process.platform === "win32") {
@@ -636,18 +644,18 @@ function appendPreStopOutputToDiag(label, text) {
  * 用于正式停止流程与启动前抢占锁/端口。
  */
 async function execOpenClawGatewayStopCli(binaryMode) {
-  const { resolveExternalOpenClawBinPath } = require("./openclaw-external.js");
   const mode = binaryMode === "external" ? "external" : "bundled";
   const packagedBin = getPackagedOpenClawBinFromUnpacked();
   const packagedMjs = packagedBin ? null : getPackagedOpenClawMjsPath();
 
   if (mode === "external") {
-    const extBin = resolveExternalOpenClawBinPath();
+    const resolved = await resolveEffectiveExternalOpenClawBin();
+    const extBin = resolved.binPath;
     if (!extBin) {
       return {
         code: 1,
         stdout: "",
-        stderr: "ClawHeart 外置 openclaw 未安装，跳过 gateway stop 命令",
+        stderr: "外置模式未解析到 openclaw（前缀与本机扫描均无），跳过 gateway stop 命令",
       };
     }
     const env = buildOpenClawChildEnv(null, { gatewayOpenclawBinary: "external" });
@@ -820,7 +828,7 @@ async function getDashboardUrl() {
   try {
     await refreshGatewayWorkspaceFromDb();
     const { getOpenClawSettings } = require("../db.js");
-    const { normalizeGatewayOpenclawBinary, resolveExternalOpenClawBinPath } = require("./openclaw-external.js");
+    const { normalizeGatewayOpenclawBinary } = require("./openclaw-external.js");
     const settings = await getOpenClawSettings();
     const binaryMode = normalizeGatewayOpenclawBinary(settings.gatewayOpenclawBinary);
 
@@ -829,7 +837,8 @@ async function getDashboardUrl() {
     let result;
 
     if (binaryMode === "external") {
-      const extBin = resolveExternalOpenClawBinPath();
+      const resolved = await resolveEffectiveExternalOpenClawBin();
+      const extBin = resolved.binPath;
       if (extBin) {
         const env = buildOpenClawChildEnv(null, { gatewayOpenclawBinary: "external" });
         if (process.platform === "win32") {

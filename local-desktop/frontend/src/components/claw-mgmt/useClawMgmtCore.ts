@@ -11,6 +11,8 @@ import type {
   ClawInventoryEntry,
   ClawMainTab,
   ClawWorkspaceTarget,
+  ExternalOpenClawBinSource,
+  ExternalOpenClawInstallTag,
   ExternalWorkspaceTarget,
   GatewayOpenclawBinary,
   OpenClawCliSource,
@@ -54,13 +56,27 @@ export interface ClawMgmtCoreValue {
   bundledOpenClawVersion: string | null;
   hasExternalManagedOpenClaw: boolean;
   externalOpenClawNpmPrefix: string;
+  /** 磁盘上是否存在 ClawHeart 外置 prefix 目录（卸载后常为 false）；旧服务端未返回时为 null */
+  externalOpenClawPrefixDirExists: boolean | null;
+  /** 磁盘上是否存在 external-openclaw-runtime；旧服务端未返回时为 null */
+  externalOpenClawRuntimeDirExists: boolean | null;
+  /** ClawHeart npm 前缀内的 openclaw；无则为 null */
+  externalManagedOpenClawBinPath: string | null;
+  /** 外置 Gateway 实际会 spawn 的 openclaw（前缀优先，否则本机扫描） */
   externalOpenClawBinPath: string | null;
-  /** prefix 内 openclaw --version，无外置 CLI 时为 null */
+  externalOpenClawBinSource: ExternalOpenClawBinSource;
+  /** 对应 externalOpenClawBinPath 的 --version */
   externalOpenClawVersion: string | null;
-  /** 本机在 prefix 之外探测到的 openclaw（PATH 等）；外置 Gateway 仍要求 prefix */
+  /** 本机在 prefix 之外探测到的 openclaw（PATH 等） */
   userEnvironmentOpenClaw: { binPath: string; version: string | null; source: string | null } | null;
+  /** prefix 内：客户端安装 / 用户标记 / 未记录；无 prefix 时为 null */
+  externalOpenClawInstallTag: ExternalOpenClawInstallTag;
+  /** 是否另有 PATH/其它路径下的 openclaw（与 prefix 并列） */
+  hasUserEnvironmentOpenClawAside: boolean;
+  /** 仅 UI：正在查看哪一侧（配置路径、诊断 Tab）；切换卡片不会改 DB，也不改变「哪侧在跑 Gateway」 */
   builtInBinaryTab: GatewayOpenclawBinary;
   setBuiltInBinaryTab: (t: GatewayOpenclawBinary) => void;
+  /** 与服务端 DB 一致：最近一次成功 start-gateway 所用的侧；用于判断本卡是否真有 Gateway 在跑 */
   gatewayOpenclawBinary: GatewayOpenclawBinary;
   isRunning: boolean;
   localInstalled: boolean | null;
@@ -81,6 +97,8 @@ export interface ClawMgmtCoreValue {
   startingGatewayMode: GatewayOpenclawBinary | null;
   /** 哪一侧正在停止 Gateway；null 表示未在停止 */
   stoppingGatewayMode: GatewayOpenclawBinary | null;
+  /** 启动/停止 Gateway 成功等提示，按内置/外置卡片展示（非全局底栏） */
+  gatewayCardMessage: { mode: GatewayOpenclawBinary; text: string } | null;
   installing: boolean;
   uninstalling: boolean;
   hasEmbeddedNode: boolean;
@@ -95,7 +113,7 @@ export interface ClawMgmtCoreValue {
   configPath: string;
   configLoading: boolean;
   configSaving: boolean;
-  /** 安装 / 卸载 / Node 下载等任务输出（与两侧 Gateway 诊断分开；无内容时不展示 UI） */
+  /** 安装 / 卸载 / Node 下载等任务输出（与 Gateway 子进程诊断分 Tab 展示） */
   taskLog: string;
   /** 内置模式 Gateway 诊断（与服务端 openclaw-gateway-bundled 一致） */
   gatewayBundledLog: string;
@@ -103,7 +121,7 @@ export interface ClawMgmtCoreValue {
   gatewayExternalLog: string;
   gatewayLogFileBundled: string | null;
   gatewayLogFileExternal: string | null;
-  /** 当前 Tab 对应的 Gateway 诊断框（随 builtInBinaryTab 切换展示内置或外置日志） */
+  /** Gateway 子进程诊断文本框（内容由 builtInBinaryTab 决定内置/外置侧） */
   gatewayDiagnosticConsoleRef: RefObject<HTMLTextAreaElement | null>;
   taskLogConsoleRef: RefObject<HTMLTextAreaElement | null>;
   refresh: () => Promise<void>;
@@ -146,13 +164,19 @@ export function useClawMgmtCore(): ClawMgmtCoreValue {
   const [bundledOpenClawVersion, setBundledOpenClawVersion] = useState<string | null>(null);
   const [hasExternalManagedOpenClaw, setHasExternalManagedOpenClaw] = useState(false);
   const [externalOpenClawNpmPrefix, setExternalOpenClawNpmPrefix] = useState("");
+  const [externalOpenClawPrefixDirExists, setExternalOpenClawPrefixDirExists] = useState<boolean | null>(null);
+  const [externalOpenClawRuntimeDirExists, setExternalOpenClawRuntimeDirExists] = useState<boolean | null>(null);
+  const [externalManagedOpenClawBinPath, setExternalManagedOpenClawBinPath] = useState<string | null>(null);
   const [externalOpenClawBinPath, setExternalOpenClawBinPath] = useState<string | null>(null);
+  const [externalOpenClawBinSource, setExternalOpenClawBinSource] = useState<ExternalOpenClawBinSource>(null);
   const [externalOpenClawVersion, setExternalOpenClawVersion] = useState<string | null>(null);
   const [userEnvironmentOpenClaw, setUserEnvironmentOpenClaw] = useState<{
     binPath: string;
     version: string | null;
     source: string | null;
   } | null>(null);
+  const [externalOpenClawInstallTag, setExternalOpenClawInstallTag] = useState<ExternalOpenClawInstallTag>(null);
+  const [hasUserEnvironmentOpenClawAside, setHasUserEnvironmentOpenClawAside] = useState(false);
   const [builtInBinaryTab, setBuiltInBinaryTab] = useState<GatewayOpenclawBinary>("bundled");
   const [gatewayOpenclawBinary, setGatewayOpenclawBinary] = useState<GatewayOpenclawBinary>("bundled");
   const builtInTabInitRef = useRef(false);
@@ -173,6 +197,39 @@ export function useClawMgmtCore(): ClawMgmtCoreValue {
 
   const [startingGatewayMode, setStartingGatewayMode] = useState<GatewayOpenclawBinary | null>(null);
   const [stoppingGatewayMode, setStoppingGatewayMode] = useState<GatewayOpenclawBinary | null>(null);
+  const [gatewayCardMessage, setGatewayCardMessage] = useState<{
+    mode: GatewayOpenclawBinary;
+    text: string;
+  } | null>(null);
+  const gatewayCardMessageClearRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const showGatewayCardMessage = useCallback((mode: GatewayOpenclawBinary, text: string) => {
+    if (gatewayCardMessageClearRef.current) {
+      clearTimeout(gatewayCardMessageClearRef.current);
+      gatewayCardMessageClearRef.current = null;
+    }
+    setGatewayCardMessage({ mode, text });
+    gatewayCardMessageClearRef.current = setTimeout(() => {
+      setGatewayCardMessage(null);
+      gatewayCardMessageClearRef.current = null;
+    }, 4000);
+  }, []);
+
+  const dismissGatewayCardMessage = useCallback(() => {
+    if (gatewayCardMessageClearRef.current) {
+      clearTimeout(gatewayCardMessageClearRef.current);
+      gatewayCardMessageClearRef.current = null;
+    }
+    setGatewayCardMessage(null);
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (gatewayCardMessageClearRef.current) {
+        clearTimeout(gatewayCardMessageClearRef.current);
+      }
+    };
+  }, []);
   const [installing, setInstalling] = useState(false);
   const [uninstalling, setUninstalling] = useState(false);
   const [hasEmbeddedNode, setHasEmbeddedNode] = useState(false);
@@ -202,7 +259,6 @@ export function useClawMgmtCore(): ClawMgmtCoreValue {
   const gatewayDiagnosticConsoleRef = useRef<HTMLTextAreaElement | null>(null);
   const taskLogConsoleRef = useRef<HTMLTextAreaElement | null>(null);
   /** 避免首次加载后用默认 tab 覆盖 DB；仅在用户切换内置/外置页签后把 binary 写入服务端 */
-  const gatewayBinaryTabHydratedRef = useRef(false);
   const panelInstallDiagRef = useRef<OpenClawInstallDiag | undefined>(undefined);
   const panelUninstallDiagRef = useRef<OpenClawInstallDiag | undefined>(undefined);
   const gatewayDiagBundledRef = useRef("");
@@ -314,7 +370,11 @@ export function useClawMgmtCore(): ClawMgmtCoreValue {
     bundledOpenClawVersion?: string | null;
     hasExternalManagedOpenClaw?: boolean;
     externalOpenClawNpmPrefix?: string;
+    externalOpenClawPrefixDirExists?: boolean;
+    externalOpenClawRuntimeDirExists?: boolean;
+    externalManagedOpenClawBinPath?: string | null;
     externalOpenClawBinPath?: string | null;
+    externalOpenClawBinSource?: string | null;
     externalOpenClawVersion?: string | null;
     userEnvironmentOpenClaw?: {
       binPath?: string;
@@ -329,6 +389,8 @@ export function useClawMgmtCore(): ClawMgmtCoreValue {
     gatewayDiagnosticLogFileExternal?: string;
     gatewayPortConflictBundled?: unknown;
     gatewayPortConflictExternal?: unknown;
+    externalOpenClawInstallTag?: string | null;
+    hasUserEnvironmentOpenClawAside?: boolean;
   }) => {
     setHasEmbedded(!!data?.hasEmbedded);
     if (typeof data?.hasBundledOpenClaw === "boolean") {
@@ -351,8 +413,24 @@ export function useClawMgmtCore(): ClawMgmtCoreValue {
     if (typeof data?.externalOpenClawNpmPrefix === "string") {
       setExternalOpenClawNpmPrefix(data.externalOpenClawNpmPrefix);
     }
+    if (typeof data?.externalOpenClawPrefixDirExists === "boolean") {
+      setExternalOpenClawPrefixDirExists(data.externalOpenClawPrefixDirExists);
+    }
+    if (typeof data?.externalOpenClawRuntimeDirExists === "boolean") {
+      setExternalOpenClawRuntimeDirExists(data.externalOpenClawRuntimeDirExists);
+    }
+    if (data?.externalManagedOpenClawBinPath !== undefined) {
+      const mb = data.externalManagedOpenClawBinPath;
+      setExternalManagedOpenClawBinPath(typeof mb === "string" && mb.trim() ? mb.trim() : null);
+    }
     if (data?.externalOpenClawBinPath !== undefined) {
       setExternalOpenClawBinPath(typeof data.externalOpenClawBinPath === "string" ? data.externalOpenClawBinPath : null);
+    }
+    if (Object.prototype.hasOwnProperty.call(data || {}, "externalOpenClawBinSource")) {
+      const src = data?.externalOpenClawBinSource;
+      setExternalOpenClawBinSource(
+        src === "managed-prefix" || src === "user-environment" ? src : null
+      );
     }
     if (data && Object.prototype.hasOwnProperty.call(data, "externalOpenClawVersion")) {
       const v = data.externalOpenClawVersion;
@@ -369,6 +447,31 @@ export function useClawMgmtCore(): ClawMgmtCoreValue {
       } else {
         setUserEnvironmentOpenClaw(null);
       }
+    }
+    if (Object.prototype.hasOwnProperty.call(data || {}, "externalOpenClawInstallTag")) {
+      const tag = data?.externalOpenClawInstallTag;
+      setExternalOpenClawInstallTag(
+        tag === "client" || tag === "user" || tag === "unknown" ? tag : null
+      );
+    }
+    if (typeof data?.hasUserEnvironmentOpenClawAside === "boolean") {
+      setHasUserEnvironmentOpenClawAside(data.hasUserEnvironmentOpenClawAside);
+    }
+    if (
+      data?.externalManagedOpenClawBinPath === undefined &&
+      data?.hasExternalManagedOpenClaw === true &&
+      typeof data?.externalOpenClawBinPath === "string" &&
+      data.externalOpenClawBinPath.trim()
+    ) {
+      setExternalManagedOpenClawBinPath(data.externalOpenClawBinPath.trim());
+    }
+    if (
+      !Object.prototype.hasOwnProperty.call(data || {}, "externalOpenClawBinSource") &&
+      typeof data?.externalOpenClawBinPath === "string" &&
+      data.externalOpenClawBinPath.trim() &&
+      data?.hasExternalManagedOpenClaw === true
+    ) {
+      setExternalOpenClawBinSource("managed-prefix");
     }
     const gb = data?.gatewayOpenclawBinary;
     if (gb === "bundled" || gb === "external") {
@@ -590,7 +693,7 @@ export function useClawMgmtCore(): ClawMgmtCoreValue {
       const res = await fetch("http://127.0.0.1:19111/api/openclaw/restart-gateway", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ gatewayOpenclawBinary: builtInBinaryTab }),
+        body: JSON.stringify({ gatewayOpenclawBinary: gatewayOpenclawBinary }),
       });
 
       const data = await res.json();
@@ -610,7 +713,7 @@ export function useClawMgmtCore(): ClawMgmtCoreValue {
     } finally {
       setConfigSaving(false);
     }
-  }, [builtInBinaryTab, refresh]);
+  }, [gatewayOpenclawBinary, refresh]);
 
   const formatJson = useCallback(() => {
     try {
@@ -886,6 +989,7 @@ export function useClawMgmtCore(): ClawMgmtCoreValue {
       setBuiltInBinaryTab(mode);
     }
     setStartingGatewayMode(bin);
+    dismissGatewayCardMessage();
     setMessage(null);
     setError(null);
 
@@ -916,7 +1020,7 @@ export function useClawMgmtCore(): ClawMgmtCoreValue {
         return;
       }
 
-      setMessage(data?.ok ? "Gateway 已启动" : (data?.message ?? "启动未就绪"));
+      showGatewayCardMessage(bin, "Gateway 已启动");
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : "启动失败");
     } finally {
@@ -926,15 +1030,18 @@ export function useClawMgmtCore(): ClawMgmtCoreValue {
   }, [
     applyEmbeddedStatus,
     builtInBinaryTab,
+    dismissGatewayCardMessage,
     fetchEmbeddedStatus,
     ingestGatewayDiagnosticFields,
     mergePanelGatewayLog,
     refresh,
+    showGatewayCardMessage,
   ]);
 
   const stopGateway = useCallback(async (mode?: GatewayOpenclawBinary) => {
     const side = mode ?? gatewayOpenclawBinary;
     setStoppingGatewayMode(side);
+    dismissGatewayCardMessage();
     setMessage(null);
     setError(null);
 
@@ -950,14 +1057,14 @@ export function useClawMgmtCore(): ClawMgmtCoreValue {
         return;
       }
 
-      setMessage(data?.message ?? "Gateway 已停止");
+      showGatewayCardMessage(side, data?.message ?? "Gateway 已停止");
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : "停止失败");
     } finally {
       setStoppingGatewayMode(null);
       void refresh();
     }
-  }, [gatewayOpenclawBinary, refresh]);
+  }, [dismissGatewayCardMessage, gatewayOpenclawBinary, refresh, showGatewayCardMessage]);
 
   const killGatewayPortListener = useCallback(
     async (pid: number, conflictPort: number) => {
@@ -996,7 +1103,7 @@ export function useClawMgmtCore(): ClawMgmtCoreValue {
       const uTarget = opts?.uninstallTarget === "clawheart-external" ? "clawheart-external" : "default";
       const confirmMsg =
         uTarget === "clawheart-external"
-          ? `确定卸载 ClawHeart 外置目录中的「${title}」？\n\n仅移除 ~/.opencarapace/external-openclaw 下 npm 安装的包；若 Gateway 正在运行请先停止。`
+          ? `确定完整卸载 ClawHeart 外置「${title}」？\n\n将执行 npm 卸载并删除 ~/.opencarapace 下的 external-openclaw 与 external-openclaw-runtime；不会删除标准 ~/.openclaw。若当前为外置 Gateway，卸载后会自动切回内置模式。\n\n请先停止外置 Gateway 再确认。`
           : `确定从全局 npm 卸载「${title}」？\n\n不会自动删除各工具的数据目录；若正在使用 Gateway，请先停止相关服务。`;
       if (!window.confirm(confirmMsg)) {
         return;
@@ -1131,41 +1238,6 @@ export function useClawMgmtCore(): ClawMgmtCoreValue {
     void loadConfig();
   }, [activeOpenClawConfigTarget, loadConfig]);
 
-  const persistGatewayBinaryOnly = useCallback(async (mode: GatewayOpenclawBinary) => {
-    try {
-      const st = await fetch("http://127.0.0.1:19111/api/openclaw/status").then((r) => r.json());
-      const c = st?.config || {};
-      const res = await fetch("http://127.0.0.1:19111/api/openclaw/config", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          uiUrl: c.uiUrl ?? "http://localhost:18789",
-          installCmd: c.installCmd ?? "",
-          gatewayOpenclawBinary: mode,
-        }),
-      });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok || data?.error) {
-        return;
-      }
-      setGatewayOpenclawBinary(mode);
-    } catch {
-      /* ignore */
-    }
-  }, []);
-
-  useEffect(() => {
-    if (loading) return;
-    if (!gatewayBinaryTabHydratedRef.current) {
-      gatewayBinaryTabHydratedRef.current = true;
-      return;
-    }
-    const t = window.setTimeout(() => {
-      void persistGatewayBinaryOnly(builtInBinaryTab);
-    }, 200);
-    return () => window.clearTimeout(t);
-  }, [builtInBinaryTab, loading, persistGatewayBinaryOnly]);
-
   const cliSourceLabel =
     cliSource === "global"
       ? "全局 npm CLI"
@@ -1186,9 +1258,15 @@ export function useClawMgmtCore(): ClawMgmtCoreValue {
     bundledOpenClawVersion,
     hasExternalManagedOpenClaw,
     externalOpenClawNpmPrefix,
+    externalOpenClawPrefixDirExists,
+    externalOpenClawRuntimeDirExists,
+    externalManagedOpenClawBinPath,
     externalOpenClawBinPath,
+    externalOpenClawBinSource,
     externalOpenClawVersion,
     userEnvironmentOpenClaw,
+    externalOpenClawInstallTag,
+    hasUserEnvironmentOpenClawAside,
     builtInBinaryTab,
     setBuiltInBinaryTab,
     gatewayOpenclawBinary,
@@ -1208,6 +1286,7 @@ export function useClawMgmtCore(): ClawMgmtCoreValue {
     uiUrl,
     startingGatewayMode,
     stoppingGatewayMode,
+    gatewayCardMessage,
     installing,
     uninstalling,
     hasEmbeddedNode,

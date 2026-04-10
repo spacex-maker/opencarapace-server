@@ -148,6 +148,10 @@ function getDb() {
       }
     );
     db.run(
+      "ALTER TABLE local_openclaw_settings ADD COLUMN external_openclaw_install_source TEXT",
+      () => {}
+    );
+    db.run(
       `CREATE TABLE IF NOT EXISTS skills (
         id INTEGER,
         slug TEXT PRIMARY KEY,
@@ -347,10 +351,13 @@ function seedLocalAgentCatalog(database) {
 function getOpenClawSettings() {
   const database = getDb();
   const { normalizeGatewayWorkspaceTarget, normalizeExternalWorkspaceTarget } = require("./server/openclaw-workspace.js");
-  const { normalizeGatewayOpenclawBinary } = require("./server/openclaw-external.js");
+  const {
+    normalizeGatewayOpenclawBinary,
+    normalizeExternalOpenClawInstallSource,
+  } = require("./server/openclaw-external.js");
   return new Promise((resolve) => {
     database.get(
-      "SELECT ui_url, install_cmd, gateway_openclaw_target, gateway_openclaw_binary, gateway_openclaw_target_external FROM local_openclaw_settings WHERE id = 1",
+      "SELECT ui_url, install_cmd, gateway_openclaw_target, gateway_openclaw_binary, gateway_openclaw_target_external, external_openclaw_install_source FROM local_openclaw_settings WHERE id = 1",
       (err, row) => {
         if (err || !row) {
           resolve({
@@ -359,6 +366,7 @@ function getOpenClawSettings() {
             gatewayOpenclawTarget: "clawheart-managed",
             gatewayOpenclawBinary: "bundled",
             gatewayOpenclawTargetExternal: "user-profile",
+            externalOpenClawInstallSource: null,
           });
         } else {
           let builtinT = normalizeGatewayWorkspaceTarget(row.gateway_openclaw_target || "clawheart-managed");
@@ -370,6 +378,9 @@ function getOpenClawSettings() {
             gatewayOpenclawBinary: normalizeGatewayOpenclawBinary(row.gateway_openclaw_binary),
             gatewayOpenclawTargetExternal: normalizeExternalWorkspaceTarget(
               row.gateway_openclaw_target_external || "user-profile"
+            ),
+            externalOpenClawInstallSource: normalizeExternalOpenClawInstallSource(
+              row.external_openclaw_install_source
             ),
           });
         }
@@ -384,7 +395,10 @@ function saveOpenClawSettings(settings) {
     normalizeGatewayWorkspaceTarget,
     normalizeExternalWorkspaceTarget,
   } = require("./server/openclaw-workspace.js");
-  const { normalizeGatewayOpenclawBinary } = require("./server/openclaw-external.js");
+  const {
+    normalizeGatewayOpenclawBinary,
+    normalizeExternalOpenClawInstallSource,
+  } = require("./server/openclaw-external.js");
   const uiUrl = String(settings?.uiUrl || "http://localhost:18789");
   const installCmd = String(settings?.installCmd || "");
   let gatewayOpenclawTarget = normalizeGatewayWorkspaceTarget(
@@ -398,16 +412,60 @@ function saveOpenClawSettings(settings) {
     settings?.gatewayOpenclawTargetExternal != null ? settings.gatewayOpenclawTargetExternal : "user-profile"
   );
   return new Promise((resolve, reject) => {
+    const mergeInstallSource = (cb) => {
+      const explicit = Object.prototype.hasOwnProperty.call(settings || {}, "externalOpenClawInstallSource");
+      if (explicit) {
+        const v = normalizeExternalOpenClawInstallSource(settings.externalOpenClawInstallSource);
+        cb(v);
+        return;
+      }
+      database.get(
+        "SELECT external_openclaw_install_source FROM local_openclaw_settings WHERE id = 1",
+        (e2, r2) => {
+          if (e2 || !r2) cb(null);
+          else cb(normalizeExternalOpenClawInstallSource(r2.external_openclaw_install_source));
+        }
+      );
+    };
+    mergeInstallSource((externalOpenclawInstallSource) => {
+      database.run(
+        `INSERT INTO local_openclaw_settings (id, ui_url, install_cmd, gateway_openclaw_target, gateway_openclaw_binary, gateway_openclaw_target_external, external_openclaw_install_source)
+         VALUES (1, ?, ?, ?, ?, ?, ?)
+         ON CONFLICT(id) DO UPDATE SET
+           ui_url = excluded.ui_url,
+           install_cmd = excluded.install_cmd,
+           gateway_openclaw_target = excluded.gateway_openclaw_target,
+           gateway_openclaw_binary = excluded.gateway_openclaw_binary,
+           gateway_openclaw_target_external = excluded.gateway_openclaw_target_external,
+           external_openclaw_install_source = excluded.external_openclaw_install_source`,
+        [
+          uiUrl,
+          installCmd,
+          gatewayOpenclawTarget,
+          gatewayOpenclawBinary,
+          gatewayOpenclawTargetExternal,
+          externalOpenclawInstallSource,
+        ],
+        (err) => {
+          if (err) reject(err);
+          else resolve();
+        }
+      );
+    });
+  });
+}
+
+/** 仅更新外置 OpenClaw 安装来源（clawheart | user | null）；无行时插入默认配置行 */
+function patchExternalOpenClawInstallSource(source) {
+  const database = getDb();
+  const { normalizeExternalOpenClawInstallSource } = require("./server/openclaw-external.js");
+  const v = normalizeExternalOpenClawInstallSource(source);
+  return new Promise((resolve, reject) => {
     database.run(
-      `INSERT INTO local_openclaw_settings (id, ui_url, install_cmd, gateway_openclaw_target, gateway_openclaw_binary, gateway_openclaw_target_external)
-       VALUES (1, ?, ?, ?, ?, ?)
-       ON CONFLICT(id) DO UPDATE SET
-         ui_url = excluded.ui_url,
-         install_cmd = excluded.install_cmd,
-         gateway_openclaw_target = excluded.gateway_openclaw_target,
-         gateway_openclaw_binary = excluded.gateway_openclaw_binary,
-         gateway_openclaw_target_external = excluded.gateway_openclaw_target_external`,
-      [uiUrl, installCmd, gatewayOpenclawTarget, gatewayOpenclawBinary, gatewayOpenclawTargetExternal],
+      `INSERT INTO local_openclaw_settings (id, ui_url, install_cmd, gateway_openclaw_target, gateway_openclaw_binary, gateway_openclaw_target_external, external_openclaw_install_source)
+       VALUES (1, 'http://localhost:18789', '', 'clawheart-managed', 'bundled', 'user-profile', ?)
+       ON CONFLICT(id) DO UPDATE SET external_openclaw_install_source = excluded.external_openclaw_install_source`,
+      [v],
       (err) => {
         if (err) reject(err);
         else resolve();
@@ -1522,8 +1580,9 @@ module.exports = {
   upsertSkills,
   getLocalSettings,
   saveLocalSettings,
-  getOpenClawSettings,
-  saveOpenClawSettings,
+    getOpenClawSettings,
+    saveOpenClawSettings,
+    patchExternalOpenClawInstallSource,
   getLlmRouteMode,
   saveLlmRouteMode,
   getSecurityScanPrivacy,

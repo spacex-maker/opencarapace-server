@@ -12,7 +12,11 @@
 const path = require("path");
 const fs = require("fs");
 const os = require("os");
-const { getOpenCarapaceBaseDir, normalizeGatewayOpenclawBinary } = require("./openclaw-external.js");
+const {
+  getOpenCarapaceBaseDir,
+  getExternalOpenClawRuntimeStateDir,
+  normalizeGatewayOpenclawBinary,
+} = require("./openclaw-external.js");
 
 /**
  * 与 DB 同步：gateway_openclaw_binary 决定「用哪套 CLI」。
@@ -43,7 +47,7 @@ function normalizeExternalWorkspaceTarget(_t) {
 
 /** ClawHeart 外置 OpenClaw 专用状态目录（与 npm --prefix 安装目录分离） */
 function getExternalOpenClawRuntimeEnv() {
-  const stateDir = path.join(getOpenCarapaceBaseDir(), "external-openclaw-runtime");
+  const stateDir = getExternalOpenClawRuntimeStateDir();
   return {
     OPENCLAW_STATE_DIR: stateDir,
     OPENCLAW_CONFIG_PATH: path.join(stateDir, "openclaw.json"),

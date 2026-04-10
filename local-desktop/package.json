@@ -39,6 +39,9 @@
     "electron-builder": "^25.1.8",
     "png2icons": "^2.0.1"
   },
+  "overrides": {
+    "isbinaryfile": "^5.0.4"
+  },
   "build": {
     "appId": "com.clawheart.desktop",
     "productName": "ClawHeart Desktop",

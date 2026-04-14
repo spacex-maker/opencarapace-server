@@ -104,7 +104,7 @@ function WebUiHelpTag({ accent }: { accent: "purple" | "cyan" }) {
   const [open, setOpen] = useState(false);
   const line =
     accent === "purple" ? "rgba(167,139,250,0.45)" : "rgba(56,189,248,0.45)";
-  const fg = accent === "purple" ? "#ddd6fe" : "#bae6fd";
+  const fg = accent === "purple" ? "var(--claw-purple-fg)" : "var(--claw-cyan-fg)";
 
   return (
     <span style={{ position: "relative", display: "inline-flex", alignItems: "center", verticalAlign: "middle" }}>
@@ -188,13 +188,13 @@ function OpenClawModeDetails() {
         在下方两张并排卡片中点击<strong>标题区</strong>切换<strong>查看中</strong>的一侧；「配置」与底部诊断里看的{" "}
         <code style={{ fontSize: 10 }}>openclaw.json</code> / Gateway 日志随查看侧切换。
         {c.isRunning ? (
-          <span style={{ color: "#fbbf24", fontWeight: 600 }}> 首次请配 LLM。</span>
+          <span style={{ color: "var(--claw-amber-fg)", fontWeight: 600 }}> 首次请配 LLM。</span>
         ) : null}
       </div>
       <div style={{ fontWeight: 700, marginBottom: 8, fontSize: 12 }}>记录模式</div>
       <div style={{ color: "var(--muted)", marginBottom: 14 }}>
         服务端记录的「最近一次成功启动 Gateway」侧：
-        <strong style={{ color: "#93c5fd" }}>
+        <strong style={{ color: "var(--claw-code-fg)" }}>
           {c.gatewayOpenclawBinary === "external" ? "外置 OpenClaw" : "内置 OpenClaw"}
         </strong>
         。仅切换查看卡片<strong>不会</strong>改此项；在某侧点「启动 Gateway」成功后才会写入。
@@ -282,7 +282,7 @@ function NodeRuntimeModal({
 
   if (!open) return null;
 
-  const accent = bundled ? "#ddd6fe" : "#bae6fd";
+  const accent = bundled ? "var(--claw-purple-fg)" : "var(--claw-cyan-fg)";
   const dirHint = bundled
     ? "~/.opencarapace/embedded-node（与外置专用目录不同）"
     : "~/.opencarapace/external-gateway-node（仅外置 npm / Gateway PATH）";
@@ -423,13 +423,13 @@ function NodeRuntimeModal({
                   <>
                     已检测到打包或工程内的 Node，内置 Gateway 会优先使用：
                     <br />
-                    <code style={{ fontSize: 9, color: "#93c5fd", wordBreak: "break-all" }}>{c.packagedNodePath}</code>
+                    <code style={{ fontSize: 9, color: "var(--claw-code-fg)", wordBreak: "break-all" }}>{c.packagedNodePath}</code>
                     <div style={{ marginTop: 8, color: "var(--muted2)", fontSize: 10 }}>
                       无需再下载；若启动仍失败，可改用「下载到用户目录」作为后备。
                     </div>
                   </>
                 ) : (
-                  <span style={{ color: "#fbbf24" }}>当前环境未检测到安装包 / 开发目录内的 Node，请改用「下载到用户目录」。</span>
+                  <span style={{ color: "var(--claw-amber-fg)" }}>当前环境未检测到安装包 / 开发目录内的 Node，请改用「下载到用户目录」。</span>
                 )}
               </div>
             ) : (
@@ -437,14 +437,14 @@ function NodeRuntimeModal({
                 <div style={{ fontSize: 10, color: "var(--muted2)", marginBottom: 8, lineHeight: 1.5 }}>
         {dirHint}
                 </div>
-                <div style={{ fontSize: 11, color: hasDl ? "#86efac" : "var(--muted)", marginBottom: 10 }}>
+                <div style={{ fontSize: 11, color: hasDl ? "var(--claw-green-fg)" : "var(--muted)", marginBottom: 10 }}>
                   状态：{hasDl ? `已安装（v${targetVer} 发行包）` : systemNodeReady ? "专用目录为空（本机 Node 已可用）" : "未安装"}
                 </div>
                 {systemNodeReady && !hasDl ? (
                   <div
                     style={{
                       fontSize: 10,
-                      color: "#86efac",
+                      color: "var(--claw-green-fg)",
                       lineHeight: 1.5,
                       marginBottom: 10,
                       padding: "8px 10px",
@@ -454,7 +454,7 @@ function NodeRuntimeModal({
                     }}
                   >
                     本机已有 Node 与 npm 时，内置卡多数流程可直接使用，无需下载到{" "}
-                    <code style={{ fontSize: 9, color: "#93c5fd" }}>embedded-node</code>。
+                    <code style={{ fontSize: 9, color: "var(--claw-code-fg)" }}>embedded-node</code>。
                   </div>
                 ) : null}
                 <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
@@ -470,7 +470,7 @@ function NodeRuntimeModal({
                           ? "1px solid var(--panel-border)"
                           : "1px solid rgba(34,197,94,0.4)",
                         background: systemNodeReady ? "transparent" : "rgba(34,197,94,0.12)",
-                        color: systemNodeReady ? "var(--muted)" : "#bbf7d0",
+                        color: systemNodeReady ? "var(--muted)" : "var(--claw-green-fg-soft)",
                         fontSize: systemNodeReady ? 11 : 12,
                         fontWeight: systemNodeReady ? 600 : 700,
                         cursor: c.nodeInstalling ? "not-allowed" : "pointer",
@@ -489,7 +489,7 @@ function NodeRuntimeModal({
                           borderRadius: 999,
                           border: "1px solid rgba(56,189,248,0.45)",
                           background: "rgba(56,189,248,0.1)",
-                          color: "#bae6fd",
+                          color: "var(--claw-cyan-fg)",
                           fontSize: 12,
                           fontWeight: 600,
                           cursor: c.nodeInstalling || c.isRunning ? "not-allowed" : "pointer",
@@ -506,7 +506,7 @@ function NodeRuntimeModal({
                           borderRadius: 999,
                           border: "1px solid rgba(239,68,68,0.4)",
                           background: "rgba(239,68,68,0.08)",
-                          color: "#fca5a5",
+                          color: "var(--claw-danger-fg)",
                           fontSize: 12,
                           cursor: c.nodeInstalling || c.isRunning ? "not-allowed" : "pointer",
                         }}
@@ -535,7 +535,7 @@ function NodeRuntimeModal({
                   fontSize: 9,
                   fontWeight: 700,
                   letterSpacing: "0.06em",
-                  color: "rgba(186,230,253,0.85)",
+                  color: "var(--claw-cyan-fg)",
                   marginBottom: 10,
                 }}
               >
@@ -552,7 +552,7 @@ function NodeRuntimeModal({
                     style={{
                       fontSize: 13,
                       fontWeight: 600,
-                      color: sysNpmOk ? "#86efac" : "#fca5a5",
+                      color: sysNpmOk ? "var(--claw-green-fg)" : "var(--claw-danger-fg)",
                     }}
                   >
                     {sysNpmOk ? "可用" : "不可用"}
@@ -576,7 +576,7 @@ function NodeRuntimeModal({
                     fontSize: 9,
                     fontWeight: 700,
                     letterSpacing: "0.06em",
-                    color: "rgba(186,230,253,0.9)",
+                    color: "var(--claw-cyan-fg)",
                   }}
                 >
                   外置专用 Node
@@ -589,7 +589,7 @@ function NodeRuntimeModal({
                     borderRadius: 999,
                     border: hasDl ? "1px solid rgba(34,197,94,0.35)" : "1px solid rgba(148,163,184,0.35)",
                     background: hasDl ? "rgba(34,197,94,0.12)" : "rgba(148,163,184,0.1)",
-                    color: hasDl ? "#86efac" : "var(--muted2)",
+                    color: hasDl ? "var(--claw-green-fg)" : "var(--muted2)",
                   }}
                 >
                   {hasDl ? `已安装 · v${targetVer}` : systemNodeReady ? "专用目录未使用" : "未安装"}
@@ -597,7 +597,7 @@ function NodeRuntimeModal({
               </div>
               <p style={{ fontSize: 10, color: "var(--muted2)", margin: "0 0 10px", lineHeight: 1.5 }}>
                 仅此目录供<strong style={{ color: "var(--muted)" }}>外置卡</strong>的 npm 安装与 Gateway 子进程优先使用；与内置卡目录{" "}
-                <code style={{ fontSize: 9, color: "#93c5fd" }}>embedded-node</code> 互不共用。
+                <code style={{ fontSize: 9, color: "var(--claw-code-fg)" }}>embedded-node</code> 互不共用。
                 {systemNodeReady && !hasDl ? (
                   <>
                     {" "}
@@ -618,7 +618,7 @@ function NodeRuntimeModal({
                 style={{
                   display: "block",
                   fontSize: 10,
-                  color: "#93c5fd",
+                  color: "var(--claw-code-fg)",
                   wordBreak: "break-all",
                   lineHeight: 1.45,
                   padding: "8px 10px",
@@ -639,7 +639,7 @@ function NodeRuntimeModal({
                 <div
                   style={{
                     fontSize: 10,
-                    color: "#86efac",
+                    color: "var(--claw-green-fg)",
                     lineHeight: 1.5,
                     marginBottom: 10,
                     padding: "8px 10px",
@@ -664,7 +664,7 @@ function NodeRuntimeModal({
                         ? "1px solid rgba(56,189,248,0.35)"
                         : "1px solid rgba(34,197,94,0.45)",
                       background: systemNodeReady ? "transparent" : "rgba(34,197,94,0.16)",
-                      color: systemNodeReady ? "#bae6fd" : "#bbf7d0",
+                      color: systemNodeReady ? "var(--claw-cyan-fg)" : "var(--claw-green-fg-soft)",
                       fontSize: systemNodeReady ? 11 : 12,
                       fontWeight: systemNodeReady ? 600 : 700,
                       cursor: c.nodeInstalling ? "not-allowed" : "pointer",
@@ -683,7 +683,7 @@ function NodeRuntimeModal({
                         borderRadius: 999,
                         border: "1px solid rgba(56,189,248,0.45)",
                         background: "rgba(56,189,248,0.12)",
-                        color: "#bae6fd",
+                        color: "var(--claw-cyan-fg)",
                         fontSize: 12,
                         fontWeight: 600,
                         cursor: c.nodeInstalling || c.isRunning ? "not-allowed" : "pointer",
@@ -700,7 +700,7 @@ function NodeRuntimeModal({
                         borderRadius: 999,
                         border: "1px solid rgba(239,68,68,0.4)",
                         background: "rgba(239,68,68,0.08)",
-                        color: "#fca5a5",
+                        color: "var(--claw-danger-fg)",
                         fontSize: 12,
                         fontWeight: 600,
                         cursor: c.nodeInstalling || c.isRunning ? "not-allowed" : "pointer",
@@ -728,7 +728,7 @@ function NodeRuntimeModal({
               ：若已下载专用副本则优先用该目录；否则依次尝试本机 PATH、内置卡已下载 Node（
               <code
                 title={embeddedDirAbs || undefined}
-                style={{ fontSize: 9, color: "#93c5fd" }}
+                style={{ fontSize: 9, color: "var(--claw-code-fg)" }}
               >
                 {embeddedDirAbs ? shortenFsPath(embeddedDirAbs, 40) : "~/.opencarapace/embedded-node"}
               </code>
@@ -737,7 +737,7 @@ function NodeRuntimeModal({
           </>
         )}
         {c.isRunning ? (
-          <div style={{ fontSize: 10, color: "#fbbf24", marginTop: 12 }}>Gateway 运行中时建议先停止再卸载 Node。</div>
+          <div style={{ fontSize: 10, color: "var(--claw-amber-fg)", marginTop: 12 }}>Gateway 运行中时建议先停止再卸载 Node。</div>
         ) : null}
       </div>
     </>
@@ -776,7 +776,7 @@ function ExternalOpenClawInstallPills() {
       pills.push(
         pill("client", "客户端安装", {
           background: "rgba(34,197,94,0.18)",
-          color: "#86efac",
+          color: "var(--claw-green-fg)",
           border: "1px solid rgba(34,197,94,0.35)",
         })
       );
@@ -784,7 +784,7 @@ function ExternalOpenClawInstallPills() {
       pills.push(
         pill("user", "用户安装", {
           background: "rgba(251,191,36,0.12)",
-          color: "#fcd34d",
+          color: "var(--claw-amber-strong)",
           border: "1px solid rgba(251,191,36,0.35)",
         })
       );
@@ -803,7 +803,7 @@ function ExternalOpenClawInstallPills() {
       pills.push(
         pill("env", "另有用户环境", {
           background: "rgba(56,189,248,0.12)",
-          color: "#bae6fd",
+          color: "var(--claw-cyan-fg)",
           border: "1px solid rgba(56,189,248,0.35)",
         })
       );
@@ -811,7 +811,7 @@ function ExternalOpenClawInstallPills() {
       pills.push(
         pill("env-only", "用户安装", {
           background: "rgba(251,191,36,0.12)",
-          color: "#fcd34d",
+          color: "var(--claw-amber-strong)",
           border: "1px solid rgba(251,191,36,0.35)",
         })
       );
@@ -838,7 +838,7 @@ function ExternalOpenClawPathsDetail() {
           <span style={{ fontWeight: 400, color: "var(--muted)", marginLeft: 6 }}>{hint}</span>
         ) : null}
       </div>
-      <code style={{ fontSize: 10, color: "#93c5fd", wordBreak: "break-all", lineHeight: 1.5 }}>{path}</code>
+      <code style={{ fontSize: 10, color: "var(--claw-code-fg)", wordBreak: "break-all", lineHeight: 1.5 }}>{path}</code>
     </div>
   );
   const diskHint = (exists: boolean | null) =>
@@ -856,17 +856,17 @@ function ExternalOpenClawPathsDetail() {
           border: "1px solid rgba(56,189,248,0.22)",
         }}
       >
-        <strong style={{ color: "#bae6fd" }}>与「卸载 ClawHeart 外置」的关系：</strong>
+        <strong style={{ color: "var(--claw-cyan-fg)" }}>与「卸载 ClawHeart 外置」的关系：</strong>
         卸载只会删掉 <code style={{ fontSize: 9 }}>.opencarapace/external-openclaw</code> 与{" "}
         <code style={{ fontSize: 9 }}>external-openclaw-runtime</code>。
         下方的 <code style={{ fontSize: 9 }}>~/.openclaw</code> 是 OpenClaw 的<strong>标准用户数据</strong>，按设计<strong>不会</strong>
         随卸载删除。若仍看到 CLI，多为<strong>本机扫描</strong>到的其它安装（例如当前仓库的{" "}
         <code style={{ fontSize: 9 }}>node_modules/.bin/openclaw</code>），与是否装过前缀无关。
       </div>
-      <div style={{ fontWeight: 700, marginBottom: 8, color: "#bae6fd" }}>标准用户环境（外置 Gateway 注入）</div>
+      <div style={{ fontWeight: 700, marginBottom: 8, color: "var(--claw-cyan-fg)" }}>标准用户环境（外置 Gateway 注入）</div>
       {row("OPENCLAW_STATE_DIR", up.stateDir, "· 非 ClawHeart 专有")}
       {row("OPENCLAW_CONFIG_PATH", up.configPath, "· 卸载外置不删此文件")}
-      <div style={{ fontWeight: 700, marginBottom: 8, marginTop: 4, color: "#bae6fd" }}>ClawHeart 管理的 npm 前缀</div>
+      <div style={{ fontWeight: 700, marginBottom: 8, marginTop: 4, color: "var(--claw-cyan-fg)" }}>ClawHeart 管理的 npm 前缀</div>
       {row("prefix 目录", c.externalOpenClawNpmPrefix || "—", diskHint(c.externalOpenClawPrefixDirExists))}
       {c.openClawDiscovery.externalManaged ? (
         row(
@@ -878,7 +878,7 @@ function ExternalOpenClawPathsDetail() {
       {c.externalManagedOpenClawBinPath
         ? row("前缀内 openclaw", c.externalManagedOpenClawBinPath)
         : null}
-      <div style={{ fontWeight: 700, marginBottom: 8, marginTop: 4, color: "#bae6fd" }}>实际启动的 CLI</div>
+      <div style={{ fontWeight: 700, marginBottom: 8, marginTop: 4, color: "var(--claw-cyan-fg)" }}>实际启动的 CLI</div>
       {c.externalOpenClawBinPath ? (
         row(
           c.externalOpenClawBinSource === "managed-prefix"
@@ -905,7 +905,7 @@ function CardAdvancedMenu({ accent, children }: { accent: "purple" | "cyan"; chi
     accent === "purple" ? "rgba(167,139,250,0.45)" : "rgba(56,189,248,0.45)";
   const bgOpen =
     accent === "purple" ? "rgba(167,139,250,0.14)" : "rgba(56,189,248,0.12)";
-  const fg = accent === "purple" ? "#ddd6fe" : "#bae6fd";
+  const fg = accent === "purple" ? "var(--claw-purple-fg)" : "var(--claw-cyan-fg)";
 
   return (
     <span style={{ position: "relative", display: "inline-flex", alignItems: "center" }}>
@@ -1035,8 +1035,8 @@ function CardWebUiCorner({
             background: "rgba(251,191,36,0.10)",
           }}
         >
-          <div style={{ fontSize: 10, fontWeight: 700, color: "#fbbf24", marginBottom: 2 }}>需配置 LLM</div>
-          <div style={{ fontSize: 10, color: "#fde68a", lineHeight: 1.5 }}>
+          <div style={{ fontSize: 10, fontWeight: 700, color: "var(--claw-amber-fg)", marginBottom: 2 }}>需配置 LLM</div>
+          <div style={{ fontSize: 10, color: "var(--claw-amber-fg-muted)", lineHeight: 1.5 }}>
             点左下「高级功能」→「配置」填写提供商，否则 Web UI 聊天可能 401。
           </div>
         </div>
@@ -1073,7 +1073,7 @@ function CardWebUiCorner({
                 borderRadius: 999,
                 border: "1px solid rgba(34,197,94,0.45)",
                 background: "rgba(34,197,94,0.14)",
-                color: "#bbf7d0",
+                color: "var(--claw-green-fg-soft)",
                 fontSize: 11,
                 fontWeight: 700,
                 cursor: gatewayStartPending ? "not-allowed" : "pointer",
@@ -1093,7 +1093,7 @@ function CardWebUiCorner({
                 borderRadius: 999,
                 border: "1px solid rgba(239,68,68,0.4)",
                 background: "rgba(239,68,68,0.1)",
-                color: "#fca5a5",
+                color: "var(--claw-danger-fg)",
                 fontSize: 11,
                 fontWeight: 700,
                 cursor: gatewayStopPending ? "not-allowed" : "pointer",
@@ -1112,7 +1112,7 @@ function CardWebUiCorner({
                 padding: "7px 14px",
                 borderRadius: 999,
                 border: "none",
-                background: "#3b82f6",
+                background: "var(--claw-webui-blue)",
                 color: "#fff",
                 fontSize: 11,
                 fontWeight: 700,
@@ -1142,9 +1142,9 @@ function CardWebUiCorner({
             lineHeight: 1.45,
           }}
         >
-          <code style={{ fontSize: 9, color: "#93c5fd" }}>{c.uiUrl}</code>
+          <code style={{ fontSize: 9, color: "var(--claw-code-fg)" }}>{c.uiUrl}</code>
           {c.uiUrl.includes("token=") ? (
-            <span style={{ marginLeft: 6, color: "#4ade80", fontWeight: 600 }}>token ✓</span>
+            <span style={{ marginLeft: 6, color: "var(--claw-success-toast)", fontWeight: 600 }}>token ✓</span>
           ) : null}
         </div>
       ) : null}
@@ -1153,7 +1153,7 @@ function CardWebUiCorner({
           style={{
             marginTop: 8,
             fontSize: 11,
-            color: "#4ade80",
+            color: "var(--claw-success-toast)",
             lineHeight: 1.5,
             textAlign: "right",
           }}
@@ -1240,7 +1240,7 @@ function NpmOpenClawUpgradeModal({
 
   if (!open || !kind) return null;
 
-  const accent = bundled ? "#ddd6fe" : "#bae6fd";
+  const accent = bundled ? "var(--claw-purple-fg)" : "var(--claw-cyan-fg)";
   const titleId = bundled ? "openclaw-npm-upgrade-bundled-title" : "openclaw-npm-upgrade-external-title";
 
   const localDisp = bundled
@@ -1377,20 +1377,20 @@ function NpmOpenClawUpgradeModal({
         </div>
 
         {err ? (
-          <div style={{ fontSize: 11, color: "#fca5a5", marginBottom: 10, lineHeight: 1.5, whiteSpace: "pre-wrap" }}>{err}</div>
+          <div style={{ fontSize: 11, color: "var(--claw-danger-fg)", marginBottom: 10, lineHeight: 1.5, whiteSpace: "pre-wrap" }}>{err}</div>
         ) : null}
         {cmpHint ? (
           <div style={{ fontSize: 11, color: "var(--muted)", marginBottom: 12, lineHeight: 1.55 }}>{cmpHint}</div>
         ) : null}
 
         {blockNoNpm ? (
-          <div style={{ fontSize: 11, color: "#fbbf24", marginBottom: 12, fontWeight: 600 }}>
+          <div style={{ fontSize: 11, color: "var(--claw-amber-fg)", marginBottom: 12, fontWeight: 600 }}>
             需要本机 npm 或面板「Node」已下载的运行时，请先完成后再安装内置 OpenClaw。
           </div>
         ) : null}
 
         {c.isRunning ? (
-          <div style={{ fontSize: 11, color: "#fbbf24", marginBottom: 12, fontWeight: 600 }}>
+          <div style={{ fontSize: 11, color: "var(--claw-amber-fg)", marginBottom: 12, fontWeight: 600 }}>
             请先停止当前 Gateway，再执行安装/升级（避免与运行中实例冲突）。
           </div>
         ) : null}
@@ -1531,7 +1531,7 @@ export function ClawHeartBuiltInTab() {
             style={{
               fontSize: 13,
               fontWeight: 700,
-              color: accent === "purple" ? (active ? "#ddd6fe" : "var(--fg)") : active ? "#bae6fd" : "var(--fg)",
+              color: accent === "purple" ? (active ? "var(--claw-purple-fg)" : "var(--fg)") : active ? "var(--claw-cyan-fg)" : "var(--fg)",
             }}
           >
             {title}
@@ -1544,7 +1544,7 @@ export function ClawHeartBuiltInTab() {
                 padding: "2px 8px",
                 borderRadius: 999,
                 background: "rgba(34,197,94,0.2)",
-                color: "#86efac",
+                color: "var(--claw-green-fg)",
               }}
             >
               查看中
@@ -1553,7 +1553,7 @@ export function ClawHeartBuiltInTab() {
             <span style={{ fontSize: 9, color: "var(--muted2)" }}>点击标题区查看此侧</span>
           )}
         </div>
-        <div style={{ fontSize: 10, color: "#86efac" }}>{statusLine}</div>
+        <div style={{ fontSize: 10, color: "var(--claw-green-fg)" }}>{statusLine}</div>
       </div>
       {headerRight != null ? (
         <div
@@ -1652,7 +1652,7 @@ export function ClawHeartBuiltInTab() {
                       borderRadius: 8,
                       border: "1px solid rgba(167,139,250,0.4)",
                       background: "rgba(167,139,250,0.08)",
-                      color: "#ddd6fe",
+                      color: "var(--claw-purple-fg)",
                       fontSize: 11,
                       fontWeight: 600,
                       cursor: "pointer",
@@ -1675,7 +1675,7 @@ export function ClawHeartBuiltInTab() {
                         borderRadius: 8,
                         border: "1px solid rgba(167,139,250,0.4)",
                         background: "rgba(167,139,250,0.06)",
-                        color: "#ddd6fe",
+                        color: "var(--claw-purple-fg)",
                         fontSize: 11,
                         fontWeight: 600,
                         cursor: c.installing || c.uninstalling || c.nodeInstalling ? "not-allowed" : "pointer",
@@ -1699,7 +1699,7 @@ export function ClawHeartBuiltInTab() {
                         borderRadius: 8,
                         border: "1px solid rgba(251,146,60,0.45)",
                         background: "rgba(251,146,60,0.06)",
-                        color: "#fdba74",
+                        color: "var(--claw-orange-fg)",
                         fontSize: 11,
                         fontWeight: 600,
                         cursor: c.uninstalling || c.installing || c.isRunning ? "not-allowed" : "pointer",
@@ -1722,7 +1722,7 @@ export function ClawHeartBuiltInTab() {
                       borderRadius: 8,
                       border: "1px solid var(--btn-border)",
                       background: "rgba(59,130,246,0.1)",
-                      color: "#93c5fd",
+                      color: "var(--claw-code-fg)",
                       fontSize: 11,
                       fontWeight: 600,
                       cursor: "pointer",
@@ -1737,9 +1737,9 @@ export function ClawHeartBuiltInTab() {
                         fontSize: 9,
                         color:
                           bundledNpmHintLive.cmp === "upgradeAvailable"
-                            ? "#fcd34d"
+                            ? "var(--claw-amber-strong)"
                             : bundledNpmHintLive.cmp === "same"
-                              ? "#86efac"
+                              ? "var(--claw-green-fg)"
                               : "var(--muted2)",
                         marginTop: 4,
                         lineHeight: 1.45,
@@ -1816,7 +1816,7 @@ export function ClawHeartBuiltInTab() {
                       borderRadius: 8,
                       border: "1px solid rgba(56,189,248,0.4)",
                       background: "rgba(56,189,248,0.08)",
-                      color: "#bae6fd",
+                      color: "var(--claw-cyan-fg)",
                       fontSize: 11,
                       fontWeight: 600,
                       cursor: "pointer",
@@ -1840,7 +1840,7 @@ export function ClawHeartBuiltInTab() {
                       borderRadius: 8,
                       border: "1px solid rgba(56,189,248,0.35)",
                       background: "rgba(56,189,248,0.05)",
-                      color: "#bae6fd",
+                      color: "var(--claw-cyan-fg)",
                       fontSize: 11,
                       fontWeight: 600,
                       cursor:
@@ -1870,7 +1870,7 @@ export function ClawHeartBuiltInTab() {
                         borderRadius: 8,
                         border: "1px solid rgba(34,197,94,0.4)",
                         background: "rgba(34,197,94,0.08)",
-                        color: "#bbf7d0",
+                        color: "var(--claw-green-fg-soft)",
                         fontSize: 11,
                         fontWeight: 600,
                         cursor:
@@ -1900,7 +1900,7 @@ export function ClawHeartBuiltInTab() {
                         borderRadius: 8,
                         border: "1px solid rgba(56,189,248,0.4)",
                         background: "rgba(56,189,248,0.06)",
-                        color: "#bae6fd",
+                        color: "var(--claw-cyan-fg)",
                         fontSize: 11,
                         fontWeight: 600,
                         cursor: c.installing || c.uninstalling || c.nodeInstalling ? "not-allowed" : "pointer",
@@ -1924,7 +1924,7 @@ export function ClawHeartBuiltInTab() {
                         borderRadius: 8,
                         border: "1px solid rgba(251,146,60,0.45)",
                         background: "rgba(251,146,60,0.06)",
-                        color: "#fdba74",
+                        color: "var(--claw-orange-fg)",
                         fontSize: 11,
                         fontWeight: 600,
                         cursor: c.uninstalling || c.installing || c.isRunning ? "not-allowed" : "pointer",
@@ -1947,7 +1947,7 @@ export function ClawHeartBuiltInTab() {
                       borderRadius: 8,
                       border: "1px solid var(--btn-border)",
                       background: "rgba(59,130,246,0.1)",
-                      color: "#93c5fd",
+                      color: "var(--claw-code-fg)",
                       fontSize: 11,
                       fontWeight: 600,
                       cursor: "pointer",
@@ -1962,9 +1962,9 @@ export function ClawHeartBuiltInTab() {
                         fontSize: 9,
                         color:
                           extNpmHintLive.cmp === "upgradeAvailable"
-                            ? "#fcd34d"
+                            ? "var(--claw-amber-strong)"
                             : extNpmHintLive.cmp === "same"
-                              ? "#86efac"
+                              ? "var(--claw-green-fg)"
                               : "var(--muted2)",
                         marginTop: 4,
                         lineHeight: 1.45,
@@ -2094,7 +2094,7 @@ function BuiltInConfigSubTab({ variant = "panel" }: { variant?: "panel" | "modal
           </DetailsButton>
         </div>
         <div style={{ fontSize: 11, color: "var(--muted)", marginBottom: 8, wordBreak: "break-all" }}>
-          <code style={{ fontSize: 10, color: "#60a5fa" }}>{c.configPath}</code>
+          <code style={{ fontSize: 10, color: "var(--claw-link-blue)" }}>{c.configPath}</code>
         </div>
         <div style={{ display: "flex", gap: 8, marginBottom: 10, alignItems: "center", flexWrap: "wrap" }}>
           <button
@@ -2105,8 +2105,8 @@ function BuiltInConfigSubTab({ variant = "panel" }: { variant?: "panel" | "modal
               padding: "6px 14px",
               borderRadius: 999,
               border: "none",
-              background: c.configSaving ? "#065f46" : "#22c55e",
-              color: "#022c22",
+              background: c.configSaving ? "var(--claw-save-bg-busy)" : "var(--claw-save-bg)",
+              color: "var(--claw-save-fg)",
               fontSize: 11,
               fontWeight: 700,
               cursor: c.configSaving ? "not-allowed" : "pointer",
@@ -2123,7 +2123,7 @@ function BuiltInConfigSubTab({ variant = "panel" }: { variant?: "panel" | "modal
               borderRadius: 999,
               border: "1px solid rgba(251,191,36,0.5)",
               background: "transparent",
-              color: "#fbbf24",
+              color: "var(--claw-amber-fg)",
               fontSize: 11,
               fontWeight: 600,
               cursor: c.configSaving ? "not-allowed" : "pointer",
@@ -2164,7 +2164,7 @@ function BuiltInConfigSubTab({ variant = "panel" }: { variant?: "panel" | "modal
           >
             {c.configLoading ? "加载…" : "重新加载"}
           </button>
-          {c.message ? <span style={{ fontSize: 11, color: "#4ade80" }}>{c.message}</span> : null}
+          {c.message ? <span style={{ fontSize: 11, color: "var(--claw-success-toast)" }}>{c.message}</span> : null}
         </div>
       </div>
 
@@ -2193,7 +2193,7 @@ function BuiltInConfigSubTab({ variant = "panel" }: { variant?: "panel" | "modal
         style={{
           marginTop: 10,
           fontSize: 10,
-          color: "#93c5fd",
+          color: "var(--claw-code-fg)",
           lineHeight: 1.55,
         }}
       >
@@ -2202,7 +2202,7 @@ function BuiltInConfigSubTab({ variant = "panel" }: { variant?: "panel" | "modal
           href="https://docs.openclaw.ai/gateway/configuration-reference"
           target="_blank"
           rel="noopener noreferrer"
-          style={{ color: "#60a5fa", marginLeft: 8, textDecoration: "underline" }}
+          style={{ color: "var(--claw-link-blue)", marginLeft: 8, textDecoration: "underline" }}
         >
           配置文档
         </a>

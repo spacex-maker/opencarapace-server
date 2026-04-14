@@ -301,6 +301,25 @@ export function App() {
         ["--chip-fg" as any]: theme === "light" ? "#475569" : "#94a3b8",
         ["--btn-bg" as any]: theme === "light" ? "rgba(248,250,252,0.85)" : "rgba(15,23,42,0.6)",
         ["--btn-border" as any]: theme === "light" ? "rgba(15,23,42,0.14)" : "rgba(71,85,105,1)",
+        // Claw 管理面板：亮色下不用浅 pastel 当主字色，避免看不清
+        ["--claw-code-fg" as any]: theme === "light" ? "#1d4ed8" : "#93c5fd",
+        ["--claw-cyan-fg" as any]: theme === "light" ? "#0369a1" : "#bae6fd",
+        ["--claw-purple-fg" as any]: theme === "light" ? "#6d28d9" : "#ddd6fe",
+        ["--claw-violet-muted" as any]: theme === "light" ? "#5b21b6" : "#c4b5fd",
+        ["--claw-green-fg" as any]: theme === "light" ? "#15803d" : "#86efac",
+        ["--claw-green-fg-soft" as any]: theme === "light" ? "#166534" : "#bbf7d0",
+        ["--claw-mint-muted" as any]: theme === "light" ? "#047857" : "#6ee7b7",
+        ["--claw-amber-fg" as any]: theme === "light" ? "#b45309" : "#fbbf24",
+        ["--claw-amber-fg-muted" as any]: theme === "light" ? "#92400e" : "#fde68a",
+        ["--claw-amber-strong" as any]: theme === "light" ? "#b45309" : "#fcd34d",
+        ["--claw-danger-fg" as any]: theme === "light" ? "#b91c1c" : "#fca5a5",
+        ["--claw-orange-fg" as any]: theme === "light" ? "#9a3412" : "#fdba74",
+        ["--claw-success-toast" as any]: theme === "light" ? "#166534" : "#4ade80",
+        ["--claw-link-blue" as any]: theme === "light" ? "#2563eb" : "#60a5fa",
+        ["--claw-webui-blue" as any]: theme === "light" ? "#2563eb" : "#3b82f6",
+        ["--claw-save-bg" as any]: theme === "light" ? "#16a34a" : "#22c55e",
+        ["--claw-save-bg-busy" as any]: theme === "light" ? "#166534" : "#065f46",
+        ["--claw-save-fg" as any]: theme === "light" ? "#ffffff" : "#022c22",
       }}
     >
       {/* 顶部横向导航栏 */}

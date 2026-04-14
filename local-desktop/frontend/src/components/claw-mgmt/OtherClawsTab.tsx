@@ -55,7 +55,7 @@ export function OtherClawsTab() {
             </div>
             <div>
               <div style={{ fontSize: 10, color: "var(--muted2)" }}>用户目录</div>
-              <code style={{ fontSize: 9, wordBreak: "break-all", color: "#93c5fd" }}>
+              <code style={{ fontSize: 9, wordBreak: "break-all", color: "var(--claw-code-fg)" }}>
                 {c.clawEnvironment.homedir}
               </code>
             </div>
@@ -140,7 +140,7 @@ export function OtherClawsTab() {
                     <div style={{ fontSize: 10, color: "var(--muted2)" }}>{row.productId}</div>
                   </td>
                   <td style={clawTableCellStyle}>
-                    <code style={{ fontSize: 9, wordBreak: "break-all", color: "#e2e8f0" }}>{row.executable}</code>
+                    <code style={{ fontSize: 9, wordBreak: "break-all", color: "var(--claw-code-fg)" }}>{row.executable}</code>
                   </td>
                   <td style={clawTableCellStyle}>{row.version ?? "—"}</td>
                   <td style={clawTableCellStyle}>{row.source}</td>
@@ -154,7 +154,7 @@ export function OtherClawsTab() {
                           borderRadius: 999,
                           border: "1px solid var(--btn-border)",
                           background: "rgba(59,130,246,0.12)",
-                          color: "#93c5fd",
+                          color: "var(--claw-code-fg)",
                           fontSize: 10,
                           fontWeight: 600,
                           cursor: "pointer",
@@ -176,7 +176,7 @@ export function OtherClawsTab() {
                           borderRadius: 999,
                           border: "1px solid rgba(251,146,60,0.4)",
                           background: "rgba(251,146,60,0.08)",
-                          color: "#fdba74",
+                          color: "var(--claw-orange-fg)",
                           fontSize: 10,
                           fontWeight: 600,
                           cursor: !row.npmPackage || c.uninstalling ? "not-allowed" : "pointer",

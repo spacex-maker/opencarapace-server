@@ -51,9 +51,9 @@ export function ClawMgmtPanel() {
             style={{
               padding: "8px 18px",
               borderRadius: 999,
-              border: core.mainTab === "builtin" ? "1px solid #38bdf8" : "1px solid var(--panel-border)",
+              border: core.mainTab === "builtin" ? "1px solid var(--claw-cyan-fg)" : "1px solid var(--panel-border)",
               background: core.mainTab === "builtin" ? "rgba(56,189,248,0.12)" : "transparent",
-              color: core.mainTab === "builtin" ? "#bae6fd" : "var(--muted)",
+              color: core.mainTab === "builtin" ? "var(--claw-cyan-fg)" : "var(--muted)",
               fontSize: 12,
               fontWeight: 700,
               cursor: "pointer",
@@ -67,9 +67,9 @@ export function ClawMgmtPanel() {
             style={{
               padding: "8px 18px",
               borderRadius: 999,
-              border: core.mainTab === "other" ? "1px solid #a78bfa" : "1px solid var(--panel-border)",
+              border: core.mainTab === "other" ? "1px solid var(--claw-purple-fg)" : "1px solid var(--panel-border)",
               background: core.mainTab === "other" ? "rgba(167,139,250,0.12)" : "transparent",
-              color: core.mainTab === "other" ? "#ddd6fe" : "var(--muted)",
+              color: core.mainTab === "other" ? "var(--claw-purple-fg)" : "var(--muted)",
               fontSize: 12,
               fontWeight: 700,
               cursor: "pointer",
@@ -98,10 +98,10 @@ export function ClawMgmtPanel() {
                     background: "rgba(251,191,36,0.08)",
                     fontSize: 11,
                     lineHeight: 1.55,
-                    color: "#fde68a",
+                    color: "var(--claw-amber-fg-muted)",
                   }}
                 >
-                  <div style={{ fontWeight: 700, marginBottom: 6, color: "#fcd34d" }}>Gateway 端口被占用</div>
+                  <div style={{ fontWeight: 700, marginBottom: 6, color: "var(--claw-amber-strong)" }}>Gateway 端口被占用</div>
                   <div>
                     端口 <strong>{gc.port}</strong>
                     {gc.bindAddress ? (
@@ -126,7 +126,7 @@ export function ClawMgmtPanel() {
                     </div>
                   ) : null}
                   {typeof gc.ambiguousListenerCount === "number" && gc.ambiguousListenerCount > 1 ? (
-                    <div style={{ marginTop: 6, color: "#fca5a5" }}>
+                    <div style={{ marginTop: 6, color: "var(--claw-danger-fg)" }}>
                       该端口上有 {gc.ambiguousListenerCount}{" "}
                       个监听进程，无法自动判断要结束哪一个；请用系统工具确认后再操作，或逐个结束。
                     </div>
@@ -151,7 +151,7 @@ export function ClawMgmtPanel() {
                           borderRadius: 999,
                           border: "1px solid rgba(239,68,68,0.5)",
                           background: "rgba(239,68,68,0.12)",
-                          color: "#fca5a5",
+                          color: "var(--claw-danger-fg)",
                           fontSize: 11,
                           fontWeight: 700,
                           cursor: core.killingGatewayPortPid === gc.pid ? "not-allowed" : "pointer",
@@ -171,7 +171,7 @@ export function ClawMgmtPanel() {
           : null}
 
         {core.message ? (
-          <div style={{ marginTop: 12, fontSize: 11, color: "#4ade80", lineHeight: 1.5 }}>{core.message}</div>
+          <div style={{ marginTop: 12, fontSize: 11, color: "var(--claw-success-toast)", lineHeight: 1.5 }}>{core.message}</div>
         ) : null}
 
         {core.mainTab === "builtin" ? (
@@ -209,7 +209,7 @@ export function ClawMgmtPanel() {
                       ? "1px solid rgba(129,140,248,0.55)"
                       : "1px solid var(--panel-border)",
                   background: clawBottomLogTab === "gateway" ? "rgba(129,140,248,0.14)" : "transparent",
-                  color: clawBottomLogTab === "gateway" ? "#c4b5fd" : "var(--muted)",
+                  color: clawBottomLogTab === "gateway" ? "var(--claw-violet-muted)" : "var(--muted)",
                   fontSize: 11,
                   fontWeight: 700,
                   cursor: "pointer",
@@ -228,7 +228,7 @@ export function ClawMgmtPanel() {
                       ? "1px solid rgba(52,211,153,0.45)"
                       : "1px solid var(--panel-border)",
                   background: clawBottomLogTab === "tasks" ? "rgba(52,211,153,0.1)" : "transparent",
-                  color: clawBottomLogTab === "tasks" ? "#6ee7b7" : "var(--muted)",
+                  color: clawBottomLogTab === "tasks" ? "var(--claw-mint-muted)" : "var(--muted)",
                   fontSize: 11,
                   fontWeight: 700,
                   cursor: "pointer",
@@ -252,7 +252,7 @@ export function ClawMgmtPanel() {
                   <span
                     style={{
                       fontWeight: 700,
-                      color: core.builtInBinaryTab === "bundled" ? "#ddd6fe" : "#bae6fd",
+                      color: core.builtInBinaryTab === "bundled" ? "var(--claw-purple-fg)" : "var(--claw-cyan-fg)",
                       marginRight: 6,
                     }}
                   >
@@ -300,7 +300,7 @@ export function ClawMgmtPanel() {
                   borderRadius: 999,
                   border: "1px solid var(--btn-border)",
                   background: "rgba(59,130,246,0.15)",
-                  color: "#93c5fd",
+                  color: "var(--claw-code-fg)",
                   fontSize: 11,
                   fontWeight: 600,
                   cursor: "pointer",
@@ -332,7 +332,7 @@ export function ClawMgmtPanel() {
         ) : null}
 
         {core.loading && <div style={{ marginTop: 10, fontSize: 11, color: "var(--muted2)" }}>加载中…</div>}
-        {core.error && <div style={{ marginTop: 6, fontSize: 11, color: "#f97373" }}>{core.error}</div>}
+        {core.error && <div style={{ marginTop: 6, fontSize: 11, color: "var(--claw-danger-fg)" }}>{core.error}</div>}
       </div>
     </ClawMgmtProvider>
   );

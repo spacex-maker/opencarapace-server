@@ -15,6 +15,24 @@ function shortenFsPath(p: string, maxLen = 54): string {
   return `…${s.slice(-(maxLen - 1))}`;
 }
 
+/**
+ * home + POSIX 相对段 → 当前平台展示路径（Windows 全用 `\`，避免 C:\Users\x/.opencarapace/... 混用）
+ */
+function joinUnderHome(home: string, relativePosix: string, platform?: string): string {
+  const h = String(home || "")
+    .trim()
+    .replace(/[/\\]+$/, "");
+  const rel = relativePosix.replace(/^[/\\]+/, "");
+  const segments = rel.split("/").filter(Boolean);
+  const win =
+    platform === "win32" ||
+    /^[a-zA-Z]:[\\/]/.test(h) ||
+    /^\\\\/.test(h);
+  const sep = win ? "\\" : "/";
+  if (!h) return segments.join(sep);
+  return [h, ...segments].join(sep);
+}
+
 /** 点击「详情」弹出说明（非原生下拉） */
 function DetailsButton({
   label,
@@ -287,9 +305,13 @@ function NodeRuntimeModal({
     ? "~/.opencarapace/embedded-node（与外置专用目录不同）"
     : "~/.opencarapace/external-gateway-node（仅外置 npm / Gateway PATH）";
   const home = c.clawEnvironment?.homedir?.trim();
+  const runPlatform = c.clawEnvironment?.platform;
   const externalGatewayDirAbs =
-    home && home.length > 0 ? `${home}/.opencarapace/external-gateway-node` : null;
-  const embeddedDirAbs = home && home.length > 0 ? `${home}/.opencarapace/embedded-node` : null;
+    home && home.length > 0
+      ? joinUnderHome(home, ".opencarapace/external-gateway-node", runPlatform)
+      : null;
+  const embeddedDirAbs =
+    home && home.length > 0 ? joinUnderHome(home, ".opencarapace/embedded-node", runPlatform) : null;
 
   return (
     <>

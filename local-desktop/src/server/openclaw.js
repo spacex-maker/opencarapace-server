@@ -5,6 +5,8 @@ const {
   execWithOutputStream,
   hasCommand,
   sanitizeInstallEnv,
+  envWithWindowsNodePathProbe,
+  resolveWindowsSystemNodeExeSync,
 } = require("./utils.js");
 const { detectOpenClawGatewayProcessRunning } = require("./openclaw-gateway-process.js");
 const fs = require("fs");
@@ -678,33 +680,89 @@ function isSafeNpmPackageName(name) {
 }
 
 async function collectClawEnvironment() {
-  const systemNpmOk = await hasCommand("npm");
-  const systemNodeOk = await hasCommand("node");
+  let systemNpmOk = false;
+  let systemNodeOk = false;
   let systemNpmVersion = null;
   let systemNodeVersion = null;
   const unixSh = fs.existsSync("/bin/bash") ? "/bin/bash" : "/bin/sh";
   const unixArg = fs.existsSync("/bin/bash") ? "-lc" : "-c";
-  try {
-    if (systemNpmOk) {
-      const r =
-        process.platform === "win32"
-          ? await execWithOutput("cmd.exe", ["/c", "npm", "--version"], { cwd: os.tmpdir() })
-          : await execWithOutput(unixSh, [unixArg, "npm --version"], { cwd: os.tmpdir() });
-      if (r.code === 0 && r.stdout?.trim()) systemNpmVersion = r.stdout.trim().split(/\r?\n/)[0];
+  const winProbeEnv = process.platform === "win32" ? envWithWindowsNodePathProbe() : null;
+
+  if (process.platform === "win32") {
+    const directNode = resolveWindowsSystemNodeExeSync();
+    if (directNode) {
+      systemNodeOk = true;
+      try {
+        const out = execFileSync(directNode, ["--version"], {
+          encoding: "utf8",
+          timeout: 8000,
+          windowsHide: true,
+          maxBuffer: 64 * 1024,
+        });
+        const line = String(out || "")
+          .trim()
+          .split(/\r?\n/)[0];
+        if (line) systemNodeVersion = line;
+      } catch {
+        /* ignore */
+      }
+      const npmCmd = path.join(path.dirname(directNode), "npm.cmd");
+      if (fs.existsSync(npmCmd)) {
+        systemNpmOk = true;
+        try {
+          const r = await execWithOutput("cmd.exe", ["/c", npmCmd, "--version"], {
+            cwd: os.tmpdir(),
+            env: winProbeEnv,
+          });
+          if (r.code === 0 && r.stdout?.trim()) systemNpmVersion = r.stdout.trim().split(/\r?\n/)[0];
+        } catch {
+          /* ignore */
+        }
+      }
     }
-  } catch {
-    /* ignore */
-  }
-  try {
-    if (systemNodeOk) {
-      const r =
-        process.platform === "win32"
-          ? await execWithOutput("cmd.exe", ["/c", "node", "--version"], { cwd: os.tmpdir() })
-          : await execWithOutput(unixSh, [unixArg, "node --version"], { cwd: os.tmpdir() });
-      if (r.code === 0 && r.stdout?.trim()) systemNodeVersion = r.stdout.trim().split(/\r?\n/)[0];
+    if (!systemNodeOk) systemNodeOk = await hasCommand("node");
+    if (!systemNpmOk) systemNpmOk = await hasCommand("npm");
+    try {
+      if (systemNodeOk && !systemNodeVersion) {
+        const r = await execWithOutput("cmd.exe", ["/c", "node", "--version"], {
+          cwd: os.tmpdir(),
+          env: winProbeEnv,
+        });
+        if (r.code === 0 && r.stdout?.trim()) systemNodeVersion = r.stdout.trim().split(/\r?\n/)[0];
+      }
+    } catch {
+      /* ignore */
     }
-  } catch {
-    /* ignore */
+    try {
+      if (systemNpmOk && !systemNpmVersion) {
+        const r = await execWithOutput("cmd.exe", ["/c", "npm", "--version"], {
+          cwd: os.tmpdir(),
+          env: winProbeEnv,
+        });
+        if (r.code === 0 && r.stdout?.trim()) systemNpmVersion = r.stdout.trim().split(/\r?\n/)[0];
+      }
+    } catch {
+      /* ignore */
+    }
+  } else {
+    systemNpmOk = await hasCommand("npm");
+    systemNodeOk = await hasCommand("node");
+    try {
+      if (systemNpmOk) {
+        const r = await execWithOutput(unixSh, [unixArg, "npm --version"], { cwd: os.tmpdir() });
+        if (r.code === 0 && r.stdout?.trim()) systemNpmVersion = r.stdout.trim().split(/\r?\n/)[0];
+      }
+    } catch {
+      /* ignore */
+    }
+    try {
+      if (systemNodeOk) {
+        const r = await execWithOutput(unixSh, [unixArg, "node --version"], { cwd: os.tmpdir() });
+        if (r.code === 0 && r.stdout?.trim()) systemNodeVersion = r.stdout.trim().split(/\r?\n/)[0];
+      }
+    } catch {
+      /* ignore */
+    }
   }
   return {
     platform: process.platform,

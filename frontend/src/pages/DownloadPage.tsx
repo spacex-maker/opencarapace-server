@@ -4,6 +4,14 @@ import React, { useEffect, useMemo, useState } from "react";
 import { useTheme } from "../contexts/ThemeContext";
 import { useAuth } from "../contexts/AuthContext";
 import { trackEvent } from "../tracking/clientTracking";
+import {
+  detectDownloadClient,
+  isMacVariantRecommended,
+  isWinVariantRecommended,
+  recommendationBannerText,
+  recommendedDownloadTarget,
+  type DownloadClientDetect,
+} from "../utils/downloadClientDetect";
 
 type DesktopDownloadVariant = {
   label: string;
@@ -122,6 +130,26 @@ export function DownloadPage() {
 
   const [openFaq, setOpenFaq] = useState<null | "gate" | "openclaw" | "trust">("gate");
   const [winDownloadModalOpen, setWinDownloadModalOpen] = useState(false);
+  const [clientDetect, setClientDetect] = useState<DownloadClientDetect | null>(null);
+
+  useEffect(() => {
+    let alive = true;
+    void detectDownloadClient().then((d) => {
+      if (alive) setClientDetect(d);
+    });
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  const recommendedTargetId = useMemo(
+    () => recommendedDownloadTarget(clientDetect),
+    [clientDetect],
+  );
+  const recommendationBanner = useMemo(
+    () => recommendationBannerText(clientDetect),
+    [clientDetect],
+  );
 
   const trackDownloadClick = (
     target: DownloadTarget["id"],
@@ -137,6 +165,8 @@ export function DownloadPage() {
         variant: variantLabel,
         url: href,
         fromModal,
+        detectedOs: clientDetect?.os ?? null,
+        macPreferArm64: clientDetect?.macPreferArm64 ?? null,
       },
     });
   };
@@ -287,11 +317,22 @@ export function DownloadPage() {
 
             {/* 右侧下载卡片 */}
             <div className="lg:col-span-7 lg:pl-10">
+              {recommendationBanner ? (
+                <div
+                  className="mb-5 rounded-2xl border border-brand-500/25 bg-brand-50/80 dark:bg-brand-500/10 dark:border-brand-500/20 px-4 py-3 text-[13px] font-medium text-brand-800 dark:text-brand-200 leading-relaxed shadow-sm"
+                  role="status"
+                >
+                  {recommendationBanner}
+                </div>
+              ) : null}
               <div className="grid sm:grid-cols-2 gap-6 relative">
                 
                 {targets.map((t) => {
                   const Icon = t.icon;
                   const isAvailable = !!(t.href || (t.variants && t.variants.length > 0));
+                  const isRecommendedCard = isAvailable && recommendedTargetId === t.id;
+                  const cardBadge =
+                    isRecommendedCard && (t.id === "windows" || t.id === "mac") ? "本机推荐" : t.badge;
                   
                   return (
                     <div
@@ -300,6 +341,7 @@ export function DownloadPage() {
                         ${isAvailable 
                           ? "bg-white dark:bg-slate-900/80 border-brand-500/20 dark:border-brand-500/20 shadow-xl shadow-brand-500/5 hover:shadow-brand-500/10 hover:-translate-y-1" 
                           : "bg-slate-50/50 dark:bg-slate-900/20 border-slate-200 dark:border-slate-800/50 opacity-80"}
+                        ${isRecommendedCard ? "ring-2 ring-brand-500/55 ring-offset-2 ring-offset-[#fafbfc] dark:ring-offset-[#030712]" : ""}
                       `}
                     >
                       {/* 可用时的辉光背景 */}
@@ -319,7 +361,7 @@ export function DownloadPage() {
                               ? "bg-brand-50 dark:bg-brand-500/10 text-brand-600 dark:text-brand-400 border-brand-200 dark:border-brand-500/20" 
                               : "bg-slate-100 dark:bg-slate-800/50 text-slate-500 dark:text-slate-400 border-slate-200 dark:border-slate-700"}
                           `}>
-                            {t.badge}
+                            {cardBadge}
                           </span>
                         </div>
 
@@ -359,18 +401,32 @@ export function DownloadPage() {
                                 </button>
                                 <div className="mt-3 text-center text-[12px] font-medium text-slate-500 dark:text-slate-400">
                                   点击后选择是否内置 OpenClaw（完整版 / Core）
+                                  {recommendedTargetId === "windows" ? (
+                                    <span className="block mt-1 text-brand-600 dark:text-brand-400">
+                                      本机推荐：完整版（内置 OpenClaw）
+                                    </span>
+                                  ) : null}
                                 </div>
                               </div>
                             ) : (
                               <div className="space-y-2.5">
-                                {t.variants.map((v) => (
+                                {t.variants.map((v) => {
+                                  const recRow =
+                                    t.id === "mac"
+                                      ? isMacVariantRecommended(clientDetect, v.label)
+                                      : isWinVariantRecommended(clientDetect, v.label);
+                                  return (
                                   <a
                                     key={v.href}
                                     href={v.href}
                                     target="_blank"
                                     rel="noopener noreferrer"
                                     onClick={() => trackDownloadClick(t.id, v.label, v.href, false)}
-                                    className="group/btn flex items-center justify-between p-3.5 rounded-xl border border-slate-200 dark:border-slate-700/60 bg-slate-50/50 hover:bg-white dark:bg-slate-800/40 dark:hover:bg-slate-800 transition-all hover:shadow-sm hover:border-brand-500/30 dark:hover:border-brand-500/30"
+                                    className={`group/btn flex items-center justify-between p-3.5 rounded-xl border bg-slate-50/50 hover:bg-white dark:bg-slate-800/40 dark:hover:bg-slate-800 transition-all hover:shadow-sm
+                                      ${recRow
+                                        ? "border-brand-500/50 ring-2 ring-brand-500/35 dark:border-brand-500/40 dark:ring-brand-500/25"
+                                        : "border-slate-200 dark:border-slate-700/60 hover:border-brand-500/30 dark:hover:border-brand-500/30"}
+                                    `}
                                   >
                                     <div className="flex items-center gap-3.5">
                                       <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-white dark:bg-slate-900 shadow-sm border border-slate-200/60 dark:border-slate-700/60 text-slate-500 dark:text-slate-400 group-hover/btn:text-brand-500 dark:group-hover/btn:text-brand-400 transition-colors">
@@ -389,7 +445,8 @@ export function DownloadPage() {
                                       <Download className="w-3.5 h-3.5" />
                                     </div>
                                   </a>
-                                ))}
+                                );
+                                })}
                               </div>
                             )
                           ) : t.href ? (
@@ -460,7 +517,9 @@ export function DownloadPage() {
                 ；Core 版体积更小，适合已自行部署 OpenClaw 的环境。
               </p>
               <div className="space-y-2.5">
-                {winVariants.map((v) => (
+                {winVariants.map((v) => {
+                  const recModal = isWinVariantRecommended(clientDetect, v.label);
+                  return (
                   <a
                     key={v.href}
                     href={v.href}
@@ -470,7 +529,11 @@ export function DownloadPage() {
                       trackDownloadClick("windows", v.label, v.href, true);
                       setWinDownloadModalOpen(false);
                     }}
-                    className="group/btn flex items-center justify-between p-3.5 rounded-xl border border-slate-200 dark:border-slate-700/60 bg-slate-50/80 hover:bg-white dark:bg-slate-800/50 dark:hover:bg-slate-800 transition-all hover:shadow-sm hover:border-brand-500/35 dark:hover:border-brand-500/35"
+                    className={`group/btn flex items-center justify-between p-3.5 rounded-xl border bg-slate-50/80 hover:bg-white dark:bg-slate-800/50 dark:hover:bg-slate-800 transition-all hover:shadow-sm
+                      ${recModal
+                        ? "border-brand-500/50 ring-2 ring-brand-500/35 dark:border-brand-500/40 dark:ring-brand-500/25"
+                        : "border-slate-200 dark:border-slate-700/60 hover:border-brand-500/35 dark:hover:border-brand-500/35"}
+                    `}
                   >
                     <div className="flex items-center gap-3.5 min-w-0">
                       <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-white dark:bg-slate-900 shadow-sm border border-slate-200/60 dark:border-slate-700/60 text-slate-500 dark:text-slate-400 group-hover/btn:text-brand-500 dark:group-hover/btn:text-brand-400 transition-colors">
@@ -487,7 +550,8 @@ export function DownloadPage() {
                     </div>
                     <Download className="w-4 h-4 shrink-0 text-brand-600 dark:text-brand-400 opacity-70 group-hover/btn:opacity-100" />
                   </a>
-                ))}
+                );
+                })}
               </div>
               <p className="text-center text-[11px] font-medium text-slate-500 dark:text-slate-400 mt-4">
                 完整版与 Core 版可同时安装（不同应用标识）

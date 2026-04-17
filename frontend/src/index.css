@@ -69,6 +69,62 @@ body {
   @apply bg-slate-50 text-slate-900 antialiased dark:bg-slate-950 dark:text-slate-100;
 }
 
+/**
+ * 官网首页（/）语义色：组件用 var(--intro-*)，随 html.dark 切换，避免硬编码与「一段永远深色」条带。
+ */
+.intro-root {
+  --intro-bg: #f1f5f9;
+  --intro-bg-elevated: #ffffff;
+  --intro-header-bg: rgba(255, 255, 255, 0.82);
+  --intro-border: rgba(148, 163, 184, 0.45);
+  --intro-border-soft: rgba(148, 163, 184, 0.28);
+  --intro-text: #0f172a;
+  --intro-text-muted: #475569;
+  --intro-text-subtle: #64748b;
+  --intro-mesh-a: rgba(59, 130, 246, 0.2);
+  --intro-mesh-b: rgba(139, 92, 246, 0.14);
+  --intro-mesh-c: rgba(34, 197, 94, 0.1);
+  --intro-grid-line: rgba(226, 232, 240, 0.35);
+  --intro-band-bg: #e2e8f0;
+  --intro-band-text: #0f172a;
+  --intro-band-muted: #475569;
+  --intro-band-accent-cyan: #0e7490;
+  --intro-band-accent-violet: #5b21b6;
+  --intro-band-accent-amber: #b45309;
+  --intro-band-border: rgba(148, 163, 184, 0.5);
+  /* 首页底部 CTA 卡片：与明暗页面对齐，避免整块 slate-900 */
+  --intro-cta-surface: rgba(255, 255, 255, 0.96);
+  --intro-cta-border: rgba(59, 130, 246, 0.22);
+  --intro-cta-glow-a: rgba(59, 130, 246, 0.12);
+  --intro-cta-glow-b: rgba(139, 92, 246, 0.1);
+}
+
+.dark .intro-root {
+  --intro-bg: #030712;
+  --intro-bg-elevated: rgba(15, 23, 42, 0.92);
+  --intro-header-bg: rgba(2, 6, 23, 0.78);
+  --intro-border: rgba(51, 65, 85, 0.65);
+  --intro-border-soft: rgba(51, 65, 85, 0.4);
+  --intro-text: #f8fafc;
+  --intro-text-muted: #94a3b8;
+  --intro-text-subtle: #64748b;
+  --intro-mesh-a: rgba(59, 130, 246, 0.22);
+  --intro-mesh-b: rgba(139, 92, 246, 0.18);
+  --intro-mesh-c: rgba(34, 197, 94, 0.08);
+  --intro-grid-line: rgba(30, 41, 59, 0.45);
+  --intro-band-bg: #0f172a;
+  --intro-band-text: #f8fafc;
+  --intro-band-muted: #94a3b8;
+  --intro-band-accent-cyan: #22d3ee;
+  --intro-band-accent-violet: #c4b5fd;
+  --intro-band-accent-amber: #fcd34d;
+  --intro-band-border: rgba(51, 65, 85, 0.75);
+  --intro-cta-surface: rgba(15, 23, 42, 0.88);
+  --intro-cta-border: rgba(59, 130, 246, 0.28);
+  --intro-cta-glow-a: rgba(59, 130, 246, 0.22);
+  --intro-cta-glow-b: rgba(168, 85, 247, 0.18);
+}
+
 a {
   @apply text-brand-500 hover:text-brand-600;
 }

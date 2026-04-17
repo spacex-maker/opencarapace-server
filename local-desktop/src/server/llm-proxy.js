@@ -99,6 +99,94 @@ function extractAssistantText(responseData) {
   }
 }
 
+/**
+ * 以标准 LLM API 响应格式（HTTP 200）回复拦截信息。
+ * 外置 OpenClaw 等客户端收到后会在聊天框内显示 assistant 消息，
+ * 而非把 403 归类为 auth 错误导致 WebUI 无反应。
+ *
+ * @param {import('express').Request} req
+ * @param {import('express').Response} res
+ * @param {object} body  已解析的请求体
+ * @param {{ type: string; message: string }} blockInfo
+ */
+function replyBlockedAsLlmResponse(req, res, body, blockInfo) {
+  const reqPath = (req.path || "").toLowerCase();
+  // Anthropic Messages API：路径含 /messages
+  const isAnthropic = reqPath.includes("/messages");
+  // OpenAI completions API：路径含 /completions
+  const isOpenAI = reqPath.includes("/completions");
+  // 流式判断：
+  //   - Anthropic 交互聊天必然是 streaming，不管 body.stream 是否存在都按流式处理
+  //   - OpenAI 格式：显式 stream=true 才用 SSE，否则用普通 JSON
+  const isStream = isAnthropic ? true : (body && body.stream === true);
+  console.log(`[LLM Proxy] replyBlockedAsLlmResponse type=${blockInfo.type} path=${req.path} isAnthropic=${isAnthropic} isStream=${isStream}`);
+
+  const msgText = `⚠️ [ClawHeart 安全拦截]\n\n${blockInfo.message}`;
+  const modelHint = (body && typeof body.model === "string" ? body.model : null) || "assistant";
+  const msgId = `msg_blocked_${Date.now()}`;
+
+  if (isAnthropic) {
+    // ── Anthropic Messages API 流式 SSE ──────────────────────────────────────
+    res.setHeader("Content-Type", "text/event-stream; charset=utf-8");
+    res.setHeader("Cache-Control", "no-cache");
+    res.setHeader("Connection", "close");
+    res.setHeader("X-Accel-Buffering", "no");
+    res.flushHeaders();
+    const sendEvent = (eventType, obj) => {
+      res.write(`event: ${eventType}\ndata: ${JSON.stringify(obj)}\n\n`);
+    };
+    const outTokens = Math.ceil(msgText.length / 4);
+    sendEvent("message_start", {
+      type: "message_start",
+      message: {
+        id: msgId, type: "message", role: "assistant", content: [],
+        model: modelHint, stop_reason: null, stop_sequence: null,
+        usage: { input_tokens: 0, output_tokens: 1 },
+      },
+    });
+    sendEvent("content_block_start", { type: "content_block_start", index: 0, content_block: { type: "text", text: "" } });
+    sendEvent("ping", { type: "ping" });
+    sendEvent("content_block_delta", { type: "content_block_delta", index: 0, delta: { type: "text_delta", text: msgText } });
+    sendEvent("content_block_stop", { type: "content_block_stop", index: 0 });
+    sendEvent("message_delta", {
+      type: "message_delta",
+      delta: { stop_reason: "end_turn", stop_sequence: null },
+      usage: { output_tokens: outTokens },
+    });
+    sendEvent("message_stop", { type: "message_stop" });
+    res.end();
+    return;
+  }
+
+  // ── OpenAI Chat Completions API ───────────────────────────────────────────
+  const created = Math.floor(Date.now() / 1000);
+  if (isStream) {
+    res.setHeader("Content-Type", "text/event-stream; charset=utf-8");
+    res.setHeader("Cache-Control", "no-cache");
+    res.setHeader("Connection", "close");
+    res.setHeader("X-Accel-Buffering", "no");
+    res.flushHeaders();
+    const chunkId = `chatcmpl-blocked-${Date.now()}`;
+    const sendChunk = (delta, finish) =>
+      res.write(`data: ${JSON.stringify({ id: chunkId, object: "chat.completion.chunk", created, model: modelHint, choices: [{ index: 0, delta, finish_reason: finish ?? null }] })}\n\n`);
+    sendChunk({ role: "assistant", content: msgText }, null);
+    sendChunk({}, "stop");
+    res.write("data: [DONE]\n\n");
+    res.end();
+    return;
+  }
+
+  // 非流式 JSON（兜底）
+  res.status(200).json({
+    id: `chatcmpl-blocked-${Date.now()}`,
+    object: "chat.completion",
+    created,
+    model: modelHint,
+    choices: [{ index: 0, message: { role: "assistant", content: msgText }, finish_reason: "stop" }],
+    usage: { prompt_tokens: 0, completion_tokens: Math.ceil(msgText.length / 4), total_tokens: Math.ceil(msgText.length / 4) },
+  });
+}
+
 async function forwardChatCompletions(req, res) {
   try {
     console.log("[LLM Proxy] 收到请求:", req.method, req.path);
@@ -277,12 +365,9 @@ async function forwardChatCompletions(req, res) {
           console.log("[LLM Proxy] 拦截日志记录失败:", logErr.message);
         }
         
-        res.status(403).json({
-          error: {
-            type: "skill_disabled",
-            message: "请求中包含被禁用的技能（系统或用户设置），已在本地被拦截。",
-            skills: disabledHits,
-          },
+        replyBlockedAsLlmResponse(req, res, body, {
+          type: "skill_disabled",
+          message: `请求中包含被禁用的技能，已被本地安全规则阻断。\n\n禁用技能：${disabledHits.join("、")}\n\n如需调整，请前往 ClawHeart「技能市场」页面。`,
         });
         return;
       }
@@ -398,13 +483,9 @@ async function forwardChatCompletions(req, res) {
           console.log("[LLM Proxy] 拦截日志记录失败:", logErr.message);
         }
         
-        res.status(403).json({
-          error: {
-            type: "danger_command_blocked",
-            message: "本地危险指令规则命中，已阻断请求。",
-            ruleIds: hitRules.map((r) => r.id),
-            patterns: hitRules.map((r) => r.command_pattern),
-          },
+        replyBlockedAsLlmResponse(req, res, body, {
+          type: "danger_command_blocked",
+          message: `本次请求包含危险指令，已被本地安全规则阻断。\n\n命中规则：${hitRules.map((r) => `${r.command_pattern}（规则 #${r.id}）`).join("、")}\n\n如需调整拦截策略，请前往 ClawHeart「安全规则」页面。`,
         });
         return;
       }
@@ -460,16 +541,9 @@ async function forwardChatCompletions(req, res) {
           // ignore log failure
         }
 
-        res.status(403).json({
-          error: {
-            type: "budget_exceeded",
-            message: `已超出${periodLabel}费用预算上限，本地已拦截请求。可在「拦截监控 → 用量与预算」中调整。`,
-            period: budgetHit.period,
-            spent: budgetHit.spent,
-            limit: budgetHit.limit,
-            provider_key: budgetHit.provider_key,
-            model_id: budgetHit.model_id,
-          },
+        replyBlockedAsLlmResponse(req, res, body, {
+          type: "budget_exceeded",
+          message: `已超出${periodLabel}费用预算上限（已用 $${budgetHit.spent.toFixed(4)} / 上限 $${budgetHit.limit}），本次请求已被拦截。\n\n如需调整预算，请前往 ClawHeart「用量与预算」页面。`,
         });
         return;
       }
@@ -486,9 +560,35 @@ async function forwardChatCompletions(req, res) {
     let headers;
     let routeMode = llmRouteMode; // DIRECT / GATEWAY / MAPPING
 
-    // GATEWAY 模式：直接转发到云端，由云端查映射表
-    if (llmRouteMode === "GATEWAY" && segments.length > 0) {
-      // 任何带前缀的请求都转发到云端 /api/llm/auth/{prefix}/...
+    // ─── Step 1: 优先匹配本地映射表（安全监控写入的 ocmon-* 等前缀）────────────────────────
+    // 无论全局路由模式是 DIRECT 还是 GATEWAY，本地映射始终优先就地直转，
+    // 避免 GATEWAY 模式下把监控前缀转发到云端（云端不认识 ocmon-* → 400）。
+    if (segments.length > 0) {
+      const localMappings = await listLlmMappings();
+      console.log("[LLM Proxy] 本地映射列表:", localMappings.map(m => m.prefix));
+      const localHit = localMappings.find((m) => m.prefix === segments[0]);
+      console.log("[LLM Proxy] 本地映射匹配:", localHit ? `命中 ${localHit.prefix}` : "未命中");
+      if (localHit) {
+        routeMode = "MAPPING";
+        const base = String(localHit.target_base || "").replace(/\/+$/, "");
+        const restPath = "/" + segments.slice(1).join("/");
+        const tail = restPath === "/" ? "/" : restPath;
+        upstreamUrl = base + tail;
+        headers = { ...req.headers };
+        delete headers.host;
+        delete headers.connection;
+        delete headers["content-length"];
+        if (!headers["content-type"]) {
+          headers["content-type"] = "application/json";
+        }
+        console.log("[LLM Proxy] 本地映射直转:", upstreamUrl);
+      }
+    }
+
+    // ─── Step 2: 无本地映射命中，按全局路由模式处理 ──────────────────────────────────────
+
+    // GATEWAY 模式：转发到云端，由云端查映射表
+    if (!upstreamUrl && llmRouteMode === "GATEWAY" && segments.length > 0) {
       const auth = await getLocalAuth().catch(() => null);
       console.log("[LLM Proxy] GATEWAY 模式，auth 状态:", auth ? `已登录 (token 长度: ${auth.token?.length})` : "未登录");
       
@@ -513,30 +613,7 @@ async function forwardChatCompletions(req, res) {
         console.log("[LLM Proxy] 转发 Authorization header (LLM API Key)");
       }
     }
-    // DIRECT 模式：检查本地映射
-    else if (llmRouteMode === "DIRECT" && segments.length > 0) {
-      const mappings = await listLlmMappings();
-      console.log("[LLM Proxy] 本地映射列表:", mappings.map(m => m.prefix));
-      const hit = mappings.find((m) => m.prefix === segments[0]);
-      console.log("[LLM Proxy] 映射匹配结果:", hit ? `匹配到 ${hit.prefix}` : "未匹配");
-      
-      if (hit) {
-        routeMode = "MAPPING";
-        // DIRECT + 映射：本地直接转发到 target_base
-        const base = String(hit.target_base || "").replace(/\/+$/, "");
-        const restPath = "/" + segments.slice(1).join("/");
-        const tail = restPath === "/" ? "/" : restPath;
-        upstreamUrl = base + tail;
-        
-        headers = { ...req.headers };
-        delete headers.host;
-        delete headers.connection;
-        delete headers["content-length"];
-        if (!headers["content-type"]) {
-          headers["content-type"] = "application/json";
-        }
-      }
-    }
+    // DIRECT 模式下本地映射已在 Step 1 处理，此分支无需重复查询
 
     // 如果还没有确定 upstreamUrl，说明是无前缀的请求（如 /v1/chat/completions）
     if (!upstreamUrl) {

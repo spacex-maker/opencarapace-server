@@ -286,6 +286,8 @@ function NodeRuntimeModal({
   const bundled = profile === "bundled";
   const hasPkg = !!c.packagedNodePath;
   const hasDl = bundled ? c.hasEmbeddedNode : c.hasExternalGatewayNode;
+  /** 本模态对应那路 Gateway 是否正在运行（运行中禁用 Node 安装/卸载） */
+  const gatewayRunning = bundled ? c.isRunningBundled : c.isRunningExternal;
   const sysNode = c.clawEnvironment?.systemNodeVersion;
   const sysNpmOk = c.clawEnvironment?.hasSystemNpm;
   /** 外置 npm / 多数安装流程已可直接用 PATH，专用目录变为可选 */
@@ -505,7 +507,7 @@ function NodeRuntimeModal({
                       <button
                         type="button"
                         onClick={() => void c.installRuntimeNode("bundled", { force: true })}
-                        disabled={c.nodeInstalling || c.isRunning}
+                        disabled={c.nodeInstalling || gatewayRunning}
                         style={{
                           padding: "8px 14px",
                           borderRadius: 999,
@@ -514,7 +516,7 @@ function NodeRuntimeModal({
                           color: "var(--claw-cyan-fg)",
                           fontSize: 12,
                           fontWeight: 600,
-                          cursor: c.nodeInstalling || c.isRunning ? "not-allowed" : "pointer",
+                          cursor: c.nodeInstalling || gatewayRunning ? "not-allowed" : "pointer",
                         }}
                       >
                         升级（重装）
@@ -522,7 +524,7 @@ function NodeRuntimeModal({
                       <button
                         type="button"
                         onClick={() => void c.uninstallRuntimeNode("bundled")}
-                        disabled={c.nodeInstalling || c.isRunning}
+                        disabled={c.nodeInstalling || gatewayRunning}
                         style={{
                           padding: "8px 14px",
                           borderRadius: 999,
@@ -530,7 +532,7 @@ function NodeRuntimeModal({
                           background: "rgba(239,68,68,0.08)",
                           color: "var(--claw-danger-fg)",
                           fontSize: 12,
-                          cursor: c.nodeInstalling || c.isRunning ? "not-allowed" : "pointer",
+                          cursor: c.nodeInstalling || gatewayRunning ? "not-allowed" : "pointer",
                         }}
                       >
                         卸载
@@ -699,33 +701,33 @@ function NodeRuntimeModal({
                     <button
                       type="button"
                       onClick={() => void c.installRuntimeNode("external", { force: true })}
-                      disabled={c.nodeInstalling || c.isRunning}
-                      style={{
-                        padding: "8px 14px",
-                        borderRadius: 999,
-                        border: "1px solid rgba(56,189,248,0.45)",
-                        background: "rgba(56,189,248,0.12)",
-                        color: "var(--claw-cyan-fg)",
-                        fontSize: 12,
-                        fontWeight: 600,
-                        cursor: c.nodeInstalling || c.isRunning ? "not-allowed" : "pointer",
-                      }}
-                    >
-                      升级（重装）
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => void c.uninstallRuntimeNode("external")}
-                      disabled={c.nodeInstalling || c.isRunning}
-                      style={{
-                        padding: "8px 14px",
-                        borderRadius: 999,
-                        border: "1px solid rgba(239,68,68,0.4)",
-                        background: "rgba(239,68,68,0.08)",
-                        color: "var(--claw-danger-fg)",
-                        fontSize: 12,
-                        fontWeight: 600,
-                        cursor: c.nodeInstalling || c.isRunning ? "not-allowed" : "pointer",
+                        disabled={c.nodeInstalling || gatewayRunning}
+                        style={{
+                          padding: "8px 14px",
+                          borderRadius: 999,
+                          border: "1px solid rgba(56,189,248,0.45)",
+                          background: "rgba(56,189,248,0.12)",
+                          color: "var(--claw-cyan-fg)",
+                          fontSize: 12,
+                          fontWeight: 600,
+                          cursor: c.nodeInstalling || gatewayRunning ? "not-allowed" : "pointer",
+                        }}
+                      >
+                        升级（重装）
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => void c.uninstallRuntimeNode("external")}
+                        disabled={c.nodeInstalling || gatewayRunning}
+                        style={{
+                          padding: "8px 14px",
+                          borderRadius: 999,
+                          border: "1px solid rgba(239,68,68,0.4)",
+                          background: "rgba(239,68,68,0.08)",
+                          color: "var(--claw-danger-fg)",
+                          fontSize: 12,
+                          fontWeight: 600,
+                          cursor: c.nodeInstalling || gatewayRunning ? "not-allowed" : "pointer",
                       }}
                     >
                       卸载
@@ -918,6 +920,18 @@ function ExternalOpenClawPathsDetail() {
 }
 
 type AdvancedMenuChildren = ReactNode | ((close: () => void) => ReactNode);
+type VisualConfigMode = "bundled" | "external";
+
+type SecurityMonitorPreviewItem = {
+  provider: string;
+  currentBaseUrl: string | null;
+  relayBaseUrl: string;
+  relayPrefix: string;
+  currentRelayPrefix?: string | null;
+  isAlreadyAnyRelay?: boolean;
+  willChange: boolean;
+  hasBackup?: boolean;
+};
 
 /** 卡片左下角：高级功能菜单（向上展开，非原生下拉） */
 function CardAdvancedMenu({ accent, children }: { accent: "purple" | "cyan"; children: AdvancedMenuChildren }) {
@@ -1008,7 +1022,9 @@ function CardWebUiCorner({
   accent,
   engineReady,
   gatewayRunning,
+  uiUrl,
   advancedPanel,
+  onVisualConfig,
   gatewayShowStart,
   gatewayShowStop,
   onGatewayStart,
@@ -1020,7 +1036,10 @@ function CardWebUiCorner({
   accent: "purple" | "cyan";
   engineReady: boolean;
   gatewayRunning: boolean;
+  /** 本卡专属的带 token 的 dashboard URL */
+  uiUrl: string;
   advancedPanel: AdvancedMenuChildren;
+  onVisualConfig: () => void;
   gatewayShowStart: boolean;
   gatewayShowStop: boolean;
   onGatewayStart: () => void;
@@ -1072,8 +1091,31 @@ function CardWebUiCorner({
           flexWrap: "wrap",
         }}
       >
-        <div style={{ flex: "0 0 auto" }}>
+        <div style={{ flex: "0 0 auto", display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
           <CardAdvancedMenu accent={accent}>{advancedPanel}</CardAdvancedMenu>
+          <button
+            type="button"
+            onClick={onVisualConfig}
+            style={{
+              padding: "5px 11px",
+              borderRadius: 999,
+              border:
+                accent === "purple"
+                  ? "1px solid rgba(167,139,250,0.45)"
+                  : "1px solid rgba(56,189,248,0.45)",
+              background:
+                accent === "purple"
+                  ? "rgba(167,139,250,0.10)"
+                  : "rgba(56,189,248,0.10)",
+              color: accent === "purple" ? "var(--claw-purple-fg)" : "var(--claw-cyan-fg)",
+              fontSize: 10,
+              fontWeight: 700,
+              cursor: "pointer",
+              lineHeight: 1.35,
+            }}
+          >
+            安全监控
+          </button>
         </div>
         <div
           style={{
@@ -1127,7 +1169,7 @@ function CardWebUiCorner({
           ) : null}
           {gatewayRunning ? (
             <a
-              href={c.uiUrl}
+              href={uiUrl}
               target="_blank"
               rel="noopener noreferrer"
               style={{
@@ -1157,17 +1199,58 @@ function CardWebUiCorner({
         <div
           style={{
             marginTop: 6,
-            textAlign: "right",
-            fontSize: 9,
-            color: "var(--muted)",
-            wordBreak: "break-all",
-            lineHeight: 1.45,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "flex-end",
+            gap: 6,
+            minWidth: 0,
           }}
         >
-          <code style={{ fontSize: 9, color: "var(--claw-code-fg)" }}>{c.uiUrl}</code>
-          {c.uiUrl.includes("token=") ? (
-            <span style={{ marginLeft: 6, color: "var(--claw-success-toast)", fontWeight: 600 }}>token ✓</span>
+          <code
+            title={uiUrl}
+            style={{
+              fontSize: 9,
+              color: "var(--claw-code-fg)",
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+              whiteSpace: "nowrap",
+              minWidth: 0,
+              flex: "1 1 0",
+              textAlign: "right",
+              direction: "rtl",
+              unicodeBidi: "plaintext",
+            }}
+          >
+            {uiUrl}
+          </code>
+          {uiUrl.includes("token=") ? (
+            <span
+              style={{ color: "var(--claw-success-toast)", fontWeight: 600, userSelect: "none", flexShrink: 0, fontSize: 9 }}
+              aria-label="当前 URL 含 token"
+            >
+              · token ✓
+            </span>
           ) : null}
+          <button
+            type="button"
+            title="复制 URL"
+            onClick={() => void navigator.clipboard.writeText(uiUrl)}
+            style={{
+              flexShrink: 0,
+              height: 20,
+              padding: "0 7px",
+              borderRadius: 5,
+              border: "1px solid var(--panel-border)",
+              background: "var(--panel-bg2)",
+              color: "var(--claw-code-fg)",
+              fontSize: 9,
+              fontWeight: 600,
+              cursor: "pointer",
+              lineHeight: 1,
+            }}
+          >
+            复制
+          </button>
         </div>
       ) : null}
       {gatewayActionHint ? (
@@ -1471,6 +1554,7 @@ export function ClawHeartBuiltInTab() {
   const externalActive = c.builtInBinaryTab === "external";
   const [nodeModalProfile, setNodeModalProfile] = useState<NodeRuntimeProfile | null>(null);
   const [configModalOpen, setConfigModalOpen] = useState(false);
+  const [visualConfigMode, setVisualConfigMode] = useState<VisualConfigMode | null>(null);
   const [npmUpgradeModalKind, setNpmUpgradeModalKind] = useState<NpmOpenClawUpgradeKind | null>(null);
   const [bundledNpmHint, setBundledNpmHint] = useState<{ latest: string; cmp: OpenClawVersionCompare } | null>(null);
   const [extNpmHint, setExtNpmHint] = useState<{ latest: string; cmp: OpenClawVersionCompare } | null>(null);
@@ -1489,11 +1573,12 @@ export function ClawHeartBuiltInTab() {
       cmp: compareOpenClawLocalToNpmLatest(c.externalOpenClawVersion, extNpmHint.latest),
     };
   }, [extNpmHint, c.externalOpenClawVersion]);
-  /** 进程级 isRunning 与 DB 记录的启动侧一致时，才视为该卡在跑（切换「查看中」卡片不会改 gatewayOpenclawBinary） */
+  /** 双路独立运行态：直接来自服务端各路 TCP/进程检测，无需与 gatewayOpenclawBinary 对齐 */
+  const bundledGatewayRunning = c.isRunningBundled;
+  const externalGatewayRunning = c.isRunningExternal;
+  // 保留向后兼容：用于仍引用旧字段的代码路径
   const gwBundled = c.gatewayOpenclawBinary === "bundled";
   const gwExternal = c.gatewayOpenclawBinary === "external";
-  const bundledGatewayRunning = c.isRunning && gwBundled;
-  const externalGatewayRunning = c.isRunning && gwExternal;
   const externalGatewayCliReady = Boolean(c.externalOpenClawBinPath);
 
   const cardShell = (active: boolean, accent: "purple" | "cyan"): CSSProperties => ({
@@ -1602,6 +1687,11 @@ export function ClawHeartBuiltInTab() {
   return (
     <div>
       <ConfigEditorModal open={configModalOpen} onClose={() => setConfigModalOpen(false)} />
+      <VisualConfigModal
+        mode={visualConfigMode ?? "bundled"}
+        open={visualConfigMode != null}
+        onClose={() => setVisualConfigMode(null)}
+      />
       <NpmOpenClawUpgradeModal
         kind={npmUpgradeModalKind}
         open={npmUpgradeModalKind != null}
@@ -1651,7 +1741,9 @@ export function ClawHeartBuiltInTab() {
               accent="purple"
               engineReady={c.hasBundledOpenClaw}
               gatewayRunning={bundledGatewayRunning}
-              gatewayShowStart={c.hasBundledOpenClaw && !c.isRunning}
+              uiUrl={c.uiUrlBundled}
+              onVisualConfig={() => setVisualConfigMode("bundled")}
+              gatewayShowStart={c.hasBundledOpenClaw && !bundledGatewayRunning}
               gatewayShowStop={c.hasBundledOpenClaw && bundledGatewayRunning}
               onGatewayStart={() => void c.startGateway("bundled")}
               onGatewayStop={() => void c.stopGateway("bundled")}
@@ -1714,7 +1806,7 @@ export function ClawHeartBuiltInTab() {
                         close();
                         void c.uninstallNpmClaw("openclaw", "OpenClaw");
                       }}
-                      disabled={c.uninstalling || c.installing || c.isRunning}
+                      disabled={c.uninstalling || c.installing || bundledGatewayRunning}
                       style={{
                         width: "100%",
                         padding: "8px 12px",
@@ -1815,7 +1907,9 @@ export function ClawHeartBuiltInTab() {
               accent="cyan"
               engineReady={externalGatewayCliReady}
               gatewayRunning={externalGatewayRunning}
-              gatewayShowStart={externalGatewayCliReady && !c.isRunning}
+              uiUrl={c.uiUrlExternal}
+              onVisualConfig={() => setVisualConfigMode("external")}
+              gatewayShowStart={externalGatewayCliReady && !externalGatewayRunning}
               gatewayShowStop={externalGatewayCliReady && externalGatewayRunning}
               onGatewayStart={() => void c.startGateway("external")}
               onGatewayStop={() => void c.stopGateway("external")}
@@ -1939,7 +2033,7 @@ export function ClawHeartBuiltInTab() {
                         close();
                         void c.uninstallNpmClaw("openclaw", "OpenClaw 外置", { uninstallTarget: "clawheart-external" });
                       }}
-                      disabled={c.uninstalling || c.installing || c.isRunning}
+                      disabled={c.uninstalling || c.installing || externalGatewayRunning}
                       style={{
                         width: "100%",
                         padding: "8px 12px",
@@ -2011,6 +2105,491 @@ export function ClawHeartBuiltInTab() {
         </div>
       </div>
     </div>
+  );
+}
+
+function VisualConfigModal({ open, mode, onClose }: { open: boolean; mode: VisualConfigMode; onClose: () => void }) {
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [message, setMessage] = useState<string | null>(null);
+  const [configPath, setConfigPath] = useState("");
+  const [configExists, setConfigExists] = useState(false);
+  const [enabled, setEnabled] = useState(false);
+  const [preview, setPreview] = useState<SecurityMonitorPreviewItem[]>([]);
+  const [busyAction, setBusyAction] = useState<"enable" | "disable" | null>(null);
+  // 多选状态
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  // 单独操作中的 provider
+  const [providerBusy, setProviderBusy] = useState<Record<string, "enable" | "disable">>({});
+
+  const target = mode === "bundled" ? "clawheart-managed" : "user-profile";
+
+  const loadStatus = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const q = new URLSearchParams({ target });
+      const res = await fetch(`http://127.0.0.1:19111/api/openclaw/security-monitor/status?${q.toString()}`);
+      const data = (await res.json().catch(() => ({}))) as {
+        ok?: boolean;
+        enabled?: boolean;
+        configPath?: string;
+        exists?: boolean;
+        preview?: SecurityMonitorPreviewItem[];
+        error?: { message?: string };
+      };
+      if (!res.ok || data?.ok !== true) {
+        setError(data?.error?.message || `读取失败（HTTP ${res.status}）`);
+        setEnabled(false);
+        setConfigPath("");
+        setConfigExists(false);
+        setPreview([]);
+        return;
+      }
+      setEnabled(Boolean(data.enabled));
+      setConfigPath(typeof data.configPath === "string" ? data.configPath : "");
+      setConfigExists(Boolean(data.exists));
+      const newPreview = Array.isArray(data.preview) ? data.preview : [];
+      setPreview(newPreview);
+      // 刷新后把不再存在的 provider 从选中中清除
+      setSelected((prev) => {
+        const validSet = new Set(newPreview.map((p) => p.provider));
+        const next = new Set([...prev].filter((p) => validSet.has(p)));
+        return next;
+      });
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : "读取失败");
+      setEnabled(false);
+      setConfigPath("");
+      setConfigExists(false);
+      setPreview([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [open, onClose]);
+
+  useEffect(() => {
+    if (!open) return;
+    setMessage(null);
+    setSelected(new Set());
+    void loadStatus();
+  }, [open, mode]);
+
+  const monitoredCount = preview.filter((x) => !!x.isAlreadyAnyRelay).length;
+  const pendingCount = preview.filter((x) => x.willChange).length;
+
+  /** 通用：对指定 providers 执行 enable 或 disable */
+  const runAction = async (action: "enable" | "disable", providers: string[] | null) => {
+    setError(null);
+    setMessage(null);
+    const body: Record<string, unknown> = { target };
+    if (providers) body.providers = providers;
+
+    if (!providers) {
+      // 全局操作
+      setBusyAction(action);
+    } else {
+      setProviderBusy((prev) => {
+        const next = { ...prev };
+        providers.forEach((p) => { next[p] = action; });
+        return next;
+      });
+    }
+
+    try {
+      const res = await fetch(`http://127.0.0.1:19111/api/openclaw/security-monitor/${action}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      const data = (await res.json().catch(() => ({}))) as {
+        ok?: boolean;
+        message?: string;
+        error?: { message?: string };
+      };
+      if (!res.ok || data?.ok !== true) {
+        setError(data?.error?.message || `操作失败（HTTP ${res.status}）`);
+        return;
+      }
+      setMessage(data?.message || (action === "enable" ? "监控已开启" : "监控已关闭"));
+      if (providers) setSelected((prev) => { const next = new Set(prev); providers.forEach((p) => next.delete(p)); return next; });
+      await loadStatus();
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : "操作失败");
+    } finally {
+      if (!providers) {
+        setBusyAction(null);
+      } else {
+        setProviderBusy((prev) => {
+          const next = { ...prev };
+          providers.forEach((p) => { delete next[p]; });
+          return next;
+        });
+      }
+    }
+  };
+
+  if (!open) return null;
+
+  const isBusy = busyAction != null || Object.keys(providerBusy).length > 0;
+  const selectedArr = [...selected];
+  const selectedMonitored = selectedArr.filter((p) => preview.find((x) => x.provider === p)?.isAlreadyAnyRelay);
+  const selectedPending = selectedArr.filter((p) => preview.find((x) => x.provider === p)?.willChange);
+
+  // 全选仅针对有 baseUrl 的 provider
+  const checkableProviders = preview.filter((x) => !!x.currentBaseUrl);
+  const allChecked = checkableProviders.length > 0 && checkableProviders.every((x) => selected.has(x.provider));
+  const someChecked = checkableProviders.some((x) => selected.has(x.provider));
+
+  const toggleAll = () => {
+    if (allChecked) {
+      setSelected(new Set());
+    } else {
+      setSelected(new Set(checkableProviders.map((x) => x.provider)));
+    }
+  };
+
+  return (
+    <>
+      <button
+        type="button"
+        aria-label="关闭安全监控配置"
+        onClick={onClose}
+        style={{ position: "fixed", inset: 0, zIndex: 1080, border: "none", background: "rgba(0,0,0,0.45)", cursor: "default" }}
+      />
+      <div
+        role="dialog"
+        aria-modal
+        aria-labelledby="openclaw-security-monitor-title"
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          position: "fixed",
+          left: "50%",
+          top: "50%",
+          transform: "translate(-50%, -50%)",
+          zIndex: 1090,
+          width: "min(920px, 96vw)",
+          maxHeight: "min(92vh, 860px)",
+          overflow: "auto",
+          padding: "18px 20px 20px",
+          borderRadius: 14,
+          border: "1px solid var(--panel-border)",
+          background: "var(--panel-bg)",
+          color: "var(--fg)",
+          boxShadow: "0 16px 48px rgba(0,0,0,0.45)",
+        }}
+      >
+        {/* 标题行 */}
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, marginBottom: 10, flexWrap: "wrap" }}>
+          <div id="openclaw-security-monitor-title" style={{ fontSize: 15, fontWeight: 700, color: "var(--fg)" }}>
+            安全监控（{mode === "bundled" ? "内置 OpenClaw" : "外置 OpenClaw"}）
+          </div>
+          <div style={{ display: "flex", gap: 6 }}>
+            <button
+              type="button"
+              onClick={() => void loadStatus()}
+              disabled={isBusy || loading}
+              style={{
+                padding: "5px 12px", borderRadius: 999,
+                border: "1px solid var(--btn-border)", background: "transparent",
+                color: "var(--muted)", fontSize: 11, fontWeight: 600,
+                cursor: isBusy || loading ? "not-allowed" : "pointer",
+                opacity: isBusy || loading ? 0.5 : 1,
+              }}
+            >
+              刷新
+            </button>
+            <button
+              type="button"
+              onClick={onClose}
+              style={{
+                padding: "5px 14px", borderRadius: 999,
+                border: "1px solid var(--btn-border)", background: "var(--panel-bg2)",
+                color: "var(--muted)", fontSize: 11, fontWeight: 600, cursor: "pointer",
+              }}
+            >
+              关闭
+            </button>
+          </div>
+        </div>
+
+        {/* 说明 */}
+        <div style={{ fontSize: 11, color: "var(--muted)", marginBottom: 8, lineHeight: 1.6 }}>
+          将 provider 的 <code style={{ fontSize: 10 }}>baseUrl</code> 切到本地中转即可开启监控；关闭时自动恢复原配置与映射。支持单个操作或多选批量操作。
+        </div>
+
+        {/* 配置路径 */}
+        <div style={{ fontSize: 11, color: "var(--muted)", marginBottom: 10 }}>
+          配置文件：
+          <code style={{ fontSize: 10, marginLeft: 6, color: "var(--claw-link-blue)" }}>{configPath || "未解析到配置路径"}</code>
+          {!configExists ? <span style={{ marginLeft: 8, color: "var(--claw-amber-fg)" }}>（文件不存在或尚未生成）</span> : null}
+        </div>
+
+        {/* 状态摘要 */}
+        <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", marginBottom: 10 }}>
+          <span style={{
+            fontSize: 10, fontWeight: 700, padding: "2px 8px", borderRadius: 999,
+            border: enabled ? "1px solid rgba(34,197,94,0.35)" : "1px solid rgba(120,120,120,0.3)",
+            background: enabled ? "rgba(34,197,94,0.10)" : "rgba(120,120,120,0.08)",
+            color: enabled ? "var(--claw-success-toast)" : "var(--muted2)",
+          }}>
+            {enabled ? "监控已开启" : "监控未开启"}
+          </span>
+          <span style={{ fontSize: 10, color: "var(--muted2)" }}>
+            {monitoredCount > 0 ? `已监控 ${monitoredCount} 项` : ""}
+            {monitoredCount > 0 && pendingCount > 0 ? " · " : ""}
+            {pendingCount > 0 ? `未监控 ${pendingCount} 项` : ""}
+            {monitoredCount === 0 && pendingCount === 0 && preview.length > 0 ? "全部已监控" : ""}
+          </span>
+        </div>
+
+        {message ? <div style={{ fontSize: 11, color: "var(--claw-success-toast)", marginBottom: 10 }}>{message}</div> : null}
+        {!loading && error ? <div style={{ fontSize: 11, color: "var(--claw-danger-fg)", marginBottom: 8 }}>{error}</div> : null}
+
+        {/* 列表区 */}
+        <div style={{ border: "1px solid var(--panel-border)", borderRadius: 10, overflow: "hidden", background: "var(--panel-bg2)" }}>
+          {/* 列表头：全选 + 批量操作 */}
+          {!loading && preview.length > 0 && (
+            <div style={{
+              display: "flex", alignItems: "center", gap: 8, padding: "8px 12px",
+              borderBottom: "1px solid var(--panel-border)", flexWrap: "wrap",
+            }}>
+              {/* 全选 checkbox */}
+              <button
+                type="button"
+                onClick={toggleAll}
+                disabled={isBusy}
+                aria-label={allChecked ? "取消全选" : "全选"}
+                style={{
+                  width: 16, height: 16, borderRadius: 4, flexShrink: 0,
+                  border: `1.5px solid ${allChecked || someChecked ? "var(--claw-link-blue)" : "var(--btn-border)"}`,
+                  background: allChecked ? "var(--claw-link-blue)" : someChecked ? "rgba(56,189,248,0.25)" : "transparent",
+                  cursor: isBusy ? "not-allowed" : "pointer",
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                }}
+              >
+                {allChecked && <span style={{ color: "#fff", fontSize: 10, lineHeight: 1 }}>✓</span>}
+                {!allChecked && someChecked && <span style={{ color: "var(--claw-link-blue)", fontSize: 10, lineHeight: 1 }}>–</span>}
+              </button>
+              <span style={{ fontSize: 11, color: "var(--muted)", flex: 1 }}>
+                {selected.size > 0 ? `已选 ${selected.size} 项` : "全选"}
+              </span>
+              {/* 批量操作按钮（仅在有选中时显示） */}
+              {selected.size > 0 && (
+                <>
+                  {selectedPending.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => void runAction("enable", selectedArr)}
+                      disabled={isBusy}
+                      style={{
+                        padding: "4px 12px", borderRadius: 999, fontSize: 11, fontWeight: 600, cursor: isBusy ? "not-allowed" : "pointer",
+                        border: "1px solid rgba(34,197,94,0.4)", background: "rgba(34,197,94,0.12)", color: "var(--claw-success-toast)",
+                        opacity: isBusy ? 0.6 : 1,
+                      }}
+                    >
+                      批量开启监控（{selectedPending.length}）
+                    </button>
+                  )}
+                  {selectedMonitored.filter((p) => preview.find((x) => x.provider === p)?.hasBackup).length > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => void runAction("disable", selectedArr.filter((p) => preview.find((x) => x.provider === p)?.hasBackup))}
+                      disabled={isBusy}
+                      style={{
+                        padding: "4px 12px", borderRadius: 999, fontSize: 11, fontWeight: 600, cursor: isBusy ? "not-allowed" : "pointer",
+                        border: "1px solid rgba(239,68,68,0.4)", background: "rgba(239,68,68,0.10)", color: "var(--claw-danger-fg)",
+                        opacity: isBusy ? 0.6 : 1,
+                      }}
+                    >
+                      批量关闭恢复（{selectedMonitored.filter((p) => preview.find((x) => x.provider === p)?.hasBackup).length}）
+                    </button>
+                  )}
+                </>
+              )}
+            </div>
+          )}
+
+          {loading && <div style={{ padding: "14px 12px", fontSize: 11, color: "var(--muted)" }}>扫描配置中…</div>}
+          {!loading && !error && preview.length === 0 && (
+            <div style={{ padding: "14px 12px", fontSize: 11, color: "var(--muted)" }}>未发现可处理的 provider baseUrl。</div>
+          )}
+
+          {!loading && preview.length > 0 && (
+            <div style={{ display: "flex", flexDirection: "column", gap: 0 }}>
+              {preview.map((item, idx) => {
+                const isMonitored = !!item.isAlreadyAnyRelay;
+                const isPending = !isMonitored && item.willChange;
+                const hasBackup = !!item.hasBackup;
+                const isSelected = selected.has(item.provider);
+                const pBusy = providerBusy[item.provider];
+                const itemBusy = pBusy != null || busyAction != null;
+
+                const badgeBg = isMonitored ? "rgba(34,197,94,0.15)" : isPending ? "rgba(251,191,36,0.12)" : "rgba(120,120,120,0.10)";
+                const badgeBorder = isMonitored ? "rgba(34,197,94,0.3)" : isPending ? "rgba(251,191,36,0.3)" : "rgba(120,120,120,0.2)";
+                const badgeColor = isMonitored ? "var(--claw-success-toast)" : isPending ? "var(--claw-amber-fg)" : "var(--muted2)";
+                const badgeText = isMonitored ? "已监控" : isPending ? "未监控" : "未配置";
+
+                return (
+                  <div
+                    key={item.provider}
+                    style={{
+                      display: "flex", alignItems: "flex-start", gap: 10,
+                      padding: "10px 12px",
+                      borderBottom: idx < preview.length - 1 ? "1px solid var(--panel-border)" : "none",
+                      background: isSelected
+                        ? "rgba(56,189,248,0.05)"
+                        : isMonitored
+                        ? "rgba(34,197,94,0.03)"
+                        : "transparent",
+                      transition: "background 0.12s",
+                    }}
+                  >
+                    {/* Checkbox */}
+                    {item.currentBaseUrl ? (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSelected((prev) => {
+                            const next = new Set(prev);
+                            if (next.has(item.provider)) next.delete(item.provider);
+                            else next.add(item.provider);
+                            return next;
+                          });
+                        }}
+                        disabled={itemBusy}
+                        aria-label={isSelected ? "取消选择" : "选择"}
+                        style={{
+                          marginTop: 2, width: 15, height: 15, borderRadius: 3, flexShrink: 0,
+                          border: `1.5px solid ${isSelected ? "var(--claw-link-blue)" : "var(--btn-border)"}`,
+                          background: isSelected ? "var(--claw-link-blue)" : "transparent",
+                          cursor: itemBusy ? "not-allowed" : "pointer",
+                          display: "flex", alignItems: "center", justifyContent: "center",
+                        }}
+                      >
+                        {isSelected && <span style={{ color: "#fff", fontSize: 9, lineHeight: 1 }}>✓</span>}
+                      </button>
+                    ) : (
+                      <div style={{ width: 15, flexShrink: 0 }} />
+                    )}
+
+                    {/* 内容区 */}
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+                        <span style={{ fontSize: 12, fontWeight: 700, color: "var(--fg)" }}>{item.provider}</span>
+                        <span style={{
+                          fontSize: 9, fontWeight: 600, padding: "1px 6px", borderRadius: 999,
+                          background: badgeBg, border: `1px solid ${badgeBorder}`, color: badgeColor, letterSpacing: "0.03em",
+                        }}>
+                          {badgeText}
+                        </span>
+                      </div>
+
+                      <div style={{ fontSize: 10, color: "var(--muted)", marginTop: 4, wordBreak: "break-all" }}>
+                        当前：
+                        <code style={{ color: isMonitored ? "var(--claw-success-toast)" : "var(--claw-link-blue)" }}>
+                          {item.currentBaseUrl || "（未配置）"}
+                        </code>
+                      </div>
+
+                      {isMonitored && item.currentRelayPrefix && (
+                        <div style={{ fontSize: 10, color: "rgba(34,197,94,0.7)", marginTop: 2 }}>
+                          中转前缀：<code style={{ color: "var(--claw-success-toast)" }}>/{item.currentRelayPrefix}</code>
+                        </div>
+                      )}
+
+                      {isPending && (
+                        <div style={{ fontSize: 10, color: "var(--muted2)", marginTop: 2, wordBreak: "break-all" }}>
+                          开启后替换为：<code style={{ color: "var(--claw-code-fg)" }}>{item.relayBaseUrl}</code>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* 单独操作按钮 */}
+                    <div style={{ flexShrink: 0, display: "flex", gap: 6, alignItems: "center", marginTop: 1 }}>
+                      {isPending && (
+                        <button
+                          type="button"
+                          onClick={() => void runAction("enable", [item.provider])}
+                          disabled={itemBusy}
+                          style={{
+                            padding: "4px 10px", borderRadius: 999, fontSize: 10, fontWeight: 600,
+                            border: "1px solid rgba(34,197,94,0.4)", background: "rgba(34,197,94,0.12)", color: "var(--claw-success-toast)",
+                            cursor: itemBusy ? "not-allowed" : "pointer", opacity: itemBusy ? 0.5 : 1,
+                          }}
+                        >
+                          {pBusy === "enable" ? "开启中…" : "开启监控"}
+                        </button>
+                      )}
+                      {isMonitored && hasBackup && (
+                        <button
+                          type="button"
+                          onClick={() => void runAction("disable", [item.provider])}
+                          disabled={itemBusy}
+                          style={{
+                            padding: "4px 10px", borderRadius: 999, fontSize: 10, fontWeight: 600,
+                            border: "1px solid rgba(239,68,68,0.35)", background: "rgba(239,68,68,0.08)", color: "var(--claw-danger-fg)",
+                            cursor: itemBusy ? "not-allowed" : "pointer", opacity: itemBusy ? 0.5 : 1,
+                          }}
+                        >
+                          {pBusy === "disable" ? "恢复中…" : "关闭恢复"}
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
+        {/* 底部全局操作 */}
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, marginTop: 12, flexWrap: "wrap" }}>
+          <span style={{ fontSize: 10, color: "var(--muted2)" }}>
+            {selected.size > 0 ? `已选 ${selected.size} 项` : "单击行左侧复选框可多选"}
+          </span>
+          <div style={{ display: "flex", gap: 8 }}>
+            {pendingCount > 0 && (
+              <button
+                type="button"
+                onClick={() => void runAction("enable", null)}
+                disabled={isBusy}
+                style={{
+                  padding: "6px 14px", borderRadius: 999, fontSize: 11, fontWeight: 700,
+                  border: "1px solid rgba(34,197,94,0.4)", background: "rgba(34,197,94,0.14)", color: "var(--claw-success-toast)",
+                  cursor: isBusy ? "not-allowed" : "pointer", opacity: isBusy ? 0.6 : 1,
+                }}
+              >
+                {busyAction === "enable" ? "开启中…" : `全部开启（${pendingCount} 项）`}
+              </button>
+            )}
+            {enabled && (
+              <button
+                type="button"
+                onClick={() => void runAction("disable", null)}
+                disabled={isBusy}
+                style={{
+                  padding: "6px 14px", borderRadius: 999, fontSize: 11, fontWeight: 700,
+                  border: "1px solid rgba(239,68,68,0.35)", background: "rgba(239,68,68,0.10)", color: "var(--claw-danger-fg)",
+                  cursor: isBusy ? "not-allowed" : "pointer", opacity: isBusy ? 0.6 : 1,
+                }}
+              >
+                {busyAction === "disable" ? "恢复中…" : "关闭全部监控并恢复"}
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
+    </>
   );
 }
 
@@ -2118,6 +2697,22 @@ function BuiltInConfigSubTab({ variant = "panel" }: { variant?: "panel" | "modal
         <div style={{ fontSize: 11, color: "var(--muted)", marginBottom: 8, wordBreak: "break-all" }}>
           <code style={{ fontSize: 10, color: "var(--claw-link-blue)" }}>{c.configPath}</code>
         </div>
+        {c.builtInBinaryTab === "bundled" && c.managedRuntimeResolution?.driftDetected ? (
+          <div
+            style={{
+              marginBottom: 8,
+              fontSize: 11,
+              color: "var(--claw-danger-fg)",
+              lineHeight: 1.5,
+            }}
+          >
+            检测到历史目录分叉：当前生效配置为
+            <code style={{ fontSize: 10, marginLeft: 4 }}>{c.managedRuntimeResolution.managedConfigPath}</code>。
+            旧目录
+            <code style={{ fontSize: 10, marginLeft: 4 }}>{c.managedRuntimeResolution.legacyManagedConfigPath}</code>
+            仅保留兼容，请以后只编辑当前生效路径。
+          </div>
+        ) : null}
         <div style={{ display: "flex", gap: 8, marginBottom: 10, alignItems: "center", flexWrap: "wrap" }}>
           <button
             type="button"
@@ -2138,7 +2733,7 @@ function BuiltInConfigSubTab({ variant = "panel" }: { variant?: "panel" | "modal
           </button>
           <button
             type="button"
-            onClick={() => c.restartGateway()}
+            onClick={() => c.restartGateway(c.builtInBinaryTab)}
             disabled={c.configSaving}
             style={{
               padding: "6px 14px",

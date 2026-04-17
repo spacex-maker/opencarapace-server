@@ -21,6 +21,20 @@ import type {
   GatewayPortConflict,
 } from "./types";
 
+export interface ManagedRuntimeResolutionInfo {
+  root: string;
+  source: string;
+  electronReportedPath?: string | null;
+  runtimeRoot: string;
+  managedConfigPath: string;
+  legacyRuntimeRoot?: string | null;
+  legacyManagedConfigPath?: string | null;
+  migrated?: boolean;
+  migrationFrom?: string | null;
+  driftDetected?: boolean;
+  notes?: string[];
+}
+
 function gatewayPortConflictFromServer(raw: unknown): GatewayPortConflict | null {
   if (raw === null) return null;
   if (!raw || typeof raw !== "object") return null;
@@ -79,6 +93,9 @@ export interface ClawMgmtCoreValue {
   /** 与服务端 DB 一致：最近一次成功 start-gateway 所用的侧；用于判断本卡是否真有 Gateway 在跑 */
   gatewayOpenclawBinary: GatewayOpenclawBinary;
   isRunning: boolean;
+  /** 双路独立运行态 */
+  isRunningBundled: boolean;
+  isRunningExternal: boolean;
   localInstalled: boolean | null;
   localBinaryPath: string | null;
   openClawDiscovery: OpenClawDiscovery | null;
@@ -93,6 +110,10 @@ export interface ClawMgmtCoreValue {
   cliSource: OpenClawCliSource;
   cliSourceLabel: string;
   uiUrl: string;
+  /** 各路独立带 token 的 dashboard URL */
+  uiUrlBundled: string;
+  uiUrlExternal: string;
+  managedRuntimeResolution: ManagedRuntimeResolutionInfo | null;
   /** 哪一侧正在启动 Gateway；null 表示未在启动 */
   startingGatewayMode: GatewayOpenclawBinary | null;
   /** 哪一侧正在停止 Gateway；null 表示未在停止 */
@@ -128,7 +149,7 @@ export interface ClawMgmtCoreValue {
   copyGatewayLog: () => Promise<void>;
   loadConfig: () => Promise<void>;
   saveConfig: () => Promise<void>;
-  restartGateway: () => Promise<void>;
+  restartGateway: (mode?: GatewayOpenclawBinary) => Promise<void>;
   formatJson: () => void;
   reloadConfig: () => Promise<void>;
   installOpenClaw: () => Promise<void>;
@@ -145,7 +166,7 @@ export interface ClawMgmtCoreValue {
   gatewayPortConflictBundled: GatewayPortConflict | null;
   gatewayPortConflictExternal: GatewayPortConflict | null;
   killingGatewayPortPid: number | null;
-  killGatewayPortListener: (pid: number, conflictPort: number) => Promise<void>;
+  killGatewayPortListener: (pid: number, conflictPort: number, mode?: GatewayOpenclawBinary) => Promise<void>;
   uninstallNpmClaw: (
     npmPackage: string,
     label?: string,
@@ -181,6 +202,8 @@ export function useClawMgmtCore(): ClawMgmtCoreValue {
   const [gatewayOpenclawBinary, setGatewayOpenclawBinary] = useState<GatewayOpenclawBinary>("bundled");
   const builtInTabInitRef = useRef(false);
   const [isRunning, setIsRunning] = useState(false);
+  const [isRunningBundled, setIsRunningBundled] = useState(false);
+  const [isRunningExternal, setIsRunningExternal] = useState(false);
   const [localInstalled, setLocalInstalled] = useState<boolean | null>(null);
   const [localBinaryPath, setLocalBinaryPath] = useState<string | null>(null);
   const [openClawDiscovery, setOpenClawDiscovery] = useState<OpenClawDiscovery | null>(null);
@@ -192,6 +215,9 @@ export function useClawMgmtCore(): ClawMgmtCoreValue {
     useState<ExternalWorkspaceTarget>("user-profile");
   const [cliSource, setCliSource] = useState<OpenClawCliSource>("none");
   const [uiUrl, setUiUrl] = useState("http://localhost:18789");
+  const [uiUrlBundled, setUiUrlBundled] = useState("http://localhost:19278");
+  const [uiUrlExternal, setUiUrlExternal] = useState("http://localhost:18789");
+  const [managedRuntimeResolution, setManagedRuntimeResolution] = useState<ManagedRuntimeResolutionInfo | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
 
@@ -391,6 +417,11 @@ export function useClawMgmtCore(): ClawMgmtCoreValue {
     gatewayPortConflictExternal?: unknown;
     externalOpenClawInstallTag?: string | null;
     hasUserEnvironmentOpenClawAside?: boolean;
+    managedRuntimeResolution?: ManagedRuntimeResolutionInfo | null;
+    isRunningBundled?: boolean;
+    isRunningExternal?: boolean;
+    uiUrlBundled?: string;
+    uiUrlExternal?: string;
   }) => {
     setHasEmbedded(!!data?.hasEmbedded);
     if (typeof data?.hasBundledOpenClaw === "boolean") {
@@ -495,9 +526,21 @@ export function useClawMgmtCore(): ClawMgmtCoreValue {
       setHasSystemNpm(data.hasSystemNpm);
     }
     setIsRunning(!!data?.isRunning);
+    if (typeof data?.isRunningBundled === "boolean") setIsRunningBundled(data.isRunningBundled);
+    if (typeof data?.isRunningExternal === "boolean") setIsRunningExternal(data.isRunningExternal);
+    if (typeof data?.uiUrlBundled === "string" && data.uiUrlBundled) setUiUrlBundled(data.uiUrlBundled);
+    if (typeof data?.uiUrlExternal === "string" && data.uiUrlExternal) setUiUrlExternal(data.uiUrlExternal);
     setLocalInstalled(typeof data?.localInstall?.installed === "boolean" ? data.localInstall.installed : null);
     setLocalBinaryPath(data?.localInstall?.binaryPath || data?.localInstall?.appPath || null);
     setUiUrl(data?.uiUrl || "http://localhost:18789");
+    if (Object.prototype.hasOwnProperty.call(data || {}, "managedRuntimeResolution")) {
+      const mr = data?.managedRuntimeResolution;
+      if (mr && typeof mr === "object" && typeof mr.root === "string" && typeof mr.managedConfigPath === "string") {
+        setManagedRuntimeResolution(mr);
+      } else {
+        setManagedRuntimeResolution(null);
+      }
+    }
 
     if (Object.prototype.hasOwnProperty.call(data, "gatewayPortConflictBundled")) {
       setGatewayPortConflictBundled(gatewayPortConflictFromServer(data.gatewayPortConflictBundled));
@@ -684,7 +727,9 @@ export function useClawMgmtCore(): ClawMgmtCoreValue {
     }
   }, [activeOpenClawConfigTarget, configJson]);
 
-  const restartGateway = useCallback(async () => {
+  /** mode 省略时用 builtInBinaryTab（当前正在查看的卡片，也是正在编辑配置的那路） */
+  const restartGateway = useCallback(async (mode?: GatewayOpenclawBinary) => {
+    const bin = mode ?? builtInBinaryTab;
     setConfigSaving(true);
     setMessage(null);
     setError(null);
@@ -693,7 +738,7 @@ export function useClawMgmtCore(): ClawMgmtCoreValue {
       const res = await fetch("http://127.0.0.1:19111/api/openclaw/restart-gateway", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ gatewayOpenclawBinary: gatewayOpenclawBinary }),
+        body: JSON.stringify({ gatewayOpenclawBinary: bin }),
       });
 
       const data = await res.json();
@@ -703,7 +748,7 @@ export function useClawMgmtCore(): ClawMgmtCoreValue {
         return;
       }
 
-      setMessage("Gateway 正在重启，请稍候...");
+      setMessage(`${bin} Gateway 正在重启，请稍候...`);
 
       setTimeout(() => {
         refresh();
@@ -713,7 +758,7 @@ export function useClawMgmtCore(): ClawMgmtCoreValue {
     } finally {
       setConfigSaving(false);
     }
-  }, [gatewayOpenclawBinary, refresh]);
+  }, [builtInBinaryTab, refresh]);
 
   const formatJson = useCallback(() => {
     try {
@@ -1048,9 +1093,14 @@ export function useClawMgmtCore(): ClawMgmtCoreValue {
     try {
       const res = await fetch("http://127.0.0.1:19111/api/openclaw/stop-gateway", {
         method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ gatewayOpenclawBinary: side }),
       });
 
       const data = await res.json();
+
+      ingestGatewayDiagnosticFields(data);
+      mergePanelGatewayLog();
 
       if (!res.ok || !data?.ok) {
         setError(data?.error?.message || data?.message || "停止失败");
@@ -1064,10 +1114,10 @@ export function useClawMgmtCore(): ClawMgmtCoreValue {
       setStoppingGatewayMode(null);
       void refresh();
     }
-  }, [dismissGatewayCardMessage, gatewayOpenclawBinary, refresh, showGatewayCardMessage]);
+  }, [dismissGatewayCardMessage, gatewayOpenclawBinary, ingestGatewayDiagnosticFields, mergePanelGatewayLog, refresh, showGatewayCardMessage]);
 
   const killGatewayPortListener = useCallback(
-    async (pid: number, conflictPort: number) => {
+    async (pid: number, conflictPort: number, mode?: GatewayOpenclawBinary) => {
       setKillingGatewayPortPid(pid);
       setError(null);
       setMessage(null);
@@ -1075,7 +1125,7 @@ export function useClawMgmtCore(): ClawMgmtCoreValue {
         const res = await fetch("http://127.0.0.1:19111/api/openclaw/kill-gateway-port-listener", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ pid, conflictPort }),
+          body: JSON.stringify({ pid, conflictPort, ...(mode ? { gatewayOpenclawBinary: mode } : {}) }),
         });
         const data = await res.json().catch(() => ({}));
         ingestGatewayDiagnosticFields(data);
@@ -1271,6 +1321,10 @@ export function useClawMgmtCore(): ClawMgmtCoreValue {
     setBuiltInBinaryTab,
     gatewayOpenclawBinary,
     isRunning,
+    isRunningBundled,
+    isRunningExternal,
+    uiUrlBundled,
+    uiUrlExternal,
     localInstalled,
     localBinaryPath,
     openClawDiscovery,
@@ -1284,6 +1338,7 @@ export function useClawMgmtCore(): ClawMgmtCoreValue {
     cliSource,
     cliSourceLabel,
     uiUrl,
+    managedRuntimeResolution,
     startingGatewayMode,
     stoppingGatewayMode,
     gatewayCardMessage,

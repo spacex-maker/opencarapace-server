@@ -90,6 +90,32 @@ function getDb() {
       )`
     );
     db.run(
+      `CREATE TABLE IF NOT EXISTS openclaw_security_monitor_session (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        target TEXT NOT NULL UNIQUE,
+        enabled INTEGER NOT NULL DEFAULT 0,
+        config_path TEXT,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      )`
+    );
+    db.run(
+      `CREATE TABLE IF NOT EXISTS openclaw_security_monitor_backup (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        target TEXT NOT NULL,
+        provider TEXT NOT NULL,
+        original_base_url TEXT NOT NULL,
+        relay_prefix TEXT NOT NULL,
+        mapping_existed_before INTEGER NOT NULL DEFAULT 0,
+        mapping_target_before TEXT,
+        created_at TEXT NOT NULL
+      )`
+    );
+    db.run(
+      "CREATE INDEX IF NOT EXISTS idx_openclaw_security_monitor_backup_target ON openclaw_security_monitor_backup (target)",
+      () => {}
+    );
+    db.run(
       `CREATE TABLE IF NOT EXISTS user_skills (
         slug TEXT PRIMARY KEY,
         enabled INTEGER NOT NULL
@@ -578,6 +604,60 @@ function updateUserDangerCommand(id, enabled) {
   });
 }
 
+function updateUserDangerCommandsBatch(ids, enabled) {
+  const database = getDb();
+  const uniqIds = Array.from(
+    new Set(
+      (Array.isArray(ids) ? ids : [])
+        .map((x) => Number(x))
+        .filter((x) => Number.isInteger(x) && x > 0)
+    )
+  );
+  const enabledNum = enabled ? 1 : 0;
+  if (uniqIds.length === 0) {
+    return Promise.resolve({ updatedCount: 0 });
+  }
+
+  return new Promise((resolve, reject) => {
+    database.serialize(() => {
+      let done = false;
+      const fail = (err) => {
+        if (done) return;
+        done = true;
+        database.run("ROLLBACK", () => reject(err));
+      };
+      const ok = () => {
+        if (done) return;
+        done = true;
+        resolve({ updatedCount: uniqIds.length });
+      };
+
+      database.run("BEGIN IMMEDIATE TRANSACTION", (beginErr) => {
+        if (beginErr) {
+          fail(beginErr);
+          return;
+        }
+        const stmt = database.prepare("UPDATE danger_commands SET user_enabled = ? WHERE id = ?");
+        for (const id of uniqIds) {
+          stmt.run([enabledNum, id], (runErr) => {
+            if (runErr) fail(runErr);
+          });
+        }
+        stmt.finalize((finalizeErr) => {
+          if (finalizeErr) {
+            fail(finalizeErr);
+            return;
+          }
+          database.run("COMMIT", (commitErr) => {
+            if (commitErr) fail(commitErr);
+            else ok();
+          });
+        });
+      });
+    });
+  });
+}
+
 function getSyncUserDangersToCloud() {
   const database = getDb();
   return new Promise((resolve) => {
@@ -1003,6 +1083,62 @@ function upsertUserSkill(slug, enabled) {
   });
 }
 
+function upsertUserSkillsBatch(slugs, enabled) {
+  const database = getDb();
+  const uniqSlugs = Array.from(
+    new Set(
+      (Array.isArray(slugs) ? slugs : [])
+        .map((s) => String(s || "").trim())
+        .filter(Boolean)
+    )
+  );
+  const enabledNum = enabled ? 1 : 0;
+  if (uniqSlugs.length === 0) return Promise.resolve({ updatedCount: 0 });
+
+  return new Promise((resolve, reject) => {
+    database.serialize(() => {
+      let done = false;
+      const fail = (err) => {
+        if (done) return;
+        done = true;
+        database.run("ROLLBACK", () => reject(err));
+      };
+      const ok = () => {
+        if (done) return;
+        done = true;
+        resolve({ updatedCount: uniqSlugs.length });
+      };
+
+      database.run("BEGIN IMMEDIATE TRANSACTION", (beginErr) => {
+        if (beginErr) {
+          fail(beginErr);
+          return;
+        }
+        const stmt = database.prepare(
+          `INSERT INTO user_skills (slug, enabled)
+           VALUES (?, ?)
+           ON CONFLICT(slug) DO UPDATE SET enabled = excluded.enabled`
+        );
+        for (const slug of uniqSlugs) {
+          stmt.run([slug, enabledNum], (runErr) => {
+            if (runErr) fail(runErr);
+          });
+        }
+        stmt.finalize((finalizeErr) => {
+          if (finalizeErr) {
+            fail(finalizeErr);
+            return;
+          }
+          database.run("COMMIT", (commitErr) => {
+            if (commitErr) fail(commitErr);
+            else ok();
+          });
+        });
+      });
+    });
+  });
+}
+
 function upsertUserSkillSafetyLabel(slug, label) {
   const database = getDb();
   return new Promise((resolve, reject) => {
@@ -1096,6 +1232,144 @@ function deleteLlmMapping(id) {
   const database = getDb();
   return new Promise((resolve, reject) => {
     database.run("DELETE FROM local_llm_mappings WHERE id = ?", [id], (err) => {
+      if (err) reject(err);
+      else resolve();
+    });
+  });
+}
+
+function deleteLlmMappingByPrefix(prefix) {
+  const database = getDb();
+  return new Promise((resolve, reject) => {
+    database.run("DELETE FROM local_llm_mappings WHERE prefix = ?", [String(prefix || "").trim()], (err) => {
+      if (err) reject(err);
+      else resolve();
+    });
+  });
+}
+
+function getOpenClawSecurityMonitorSession(target) {
+  const database = getDb();
+  const t = String(target || "").trim();
+  return new Promise((resolve, reject) => {
+    database.get(
+      "SELECT target, enabled, config_path, created_at, updated_at FROM openclaw_security_monitor_session WHERE target = ?",
+      [t],
+      (err, row) => {
+        if (err) reject(err);
+        else
+          resolve(
+            row
+              ? {
+                  target: row.target,
+                  enabled: Number(row.enabled) === 1,
+                  configPath: row.config_path || "",
+                  createdAt: row.created_at || null,
+                  updatedAt: row.updated_at || null,
+                }
+              : null
+          );
+      }
+    );
+  });
+}
+
+function upsertOpenClawSecurityMonitorSession(payload) {
+  const database = getDb();
+  const now = new Date().toISOString();
+  const target = String(payload?.target || "").trim();
+  const enabled = payload?.enabled ? 1 : 0;
+  const configPath = String(payload?.configPath || "");
+  return new Promise((resolve, reject) => {
+    database.run(
+      `INSERT INTO openclaw_security_monitor_session (target, enabled, config_path, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?)
+       ON CONFLICT(target) DO UPDATE SET enabled = excluded.enabled, config_path = excluded.config_path, updated_at = excluded.updated_at`,
+      [target, enabled, configPath, now, now],
+      (err) => {
+        if (err) reject(err);
+        else resolve();
+      }
+    );
+  });
+}
+
+function listOpenClawSecurityMonitorBackups(target) {
+  const database = getDb();
+  const t = String(target || "").trim();
+  return new Promise((resolve, reject) => {
+    database.all(
+      `SELECT target, provider, original_base_url, relay_prefix, mapping_existed_before, mapping_target_before, created_at
+       FROM openclaw_security_monitor_backup
+       WHERE target = ?
+       ORDER BY id ASC`,
+      [t],
+      (err, rows = []) => {
+        if (err) reject(err);
+        else {
+          resolve(
+            rows.map((r) => ({
+              target: r.target,
+              provider: r.provider,
+              originalBaseUrl: r.original_base_url,
+              relayPrefix: r.relay_prefix,
+              mappingExistedBefore: Number(r.mapping_existed_before) === 1,
+              mappingTargetBefore: r.mapping_target_before || null,
+              createdAt: r.created_at || null,
+            }))
+          );
+        }
+      }
+    );
+  });
+}
+
+function replaceOpenClawSecurityMonitorBackups(target, backups) {
+  const database = getDb();
+  const t = String(target || "").trim();
+  const rows = Array.isArray(backups) ? backups : [];
+  const now = new Date().toISOString();
+  return new Promise((resolve, reject) => {
+    database.serialize(() => {
+      database.run("DELETE FROM openclaw_security_monitor_backup WHERE target = ?", [t], (delErr) => {
+        if (delErr) {
+          reject(delErr);
+          return;
+        }
+        if (rows.length === 0) {
+          resolve();
+          return;
+        }
+        const stmt = database.prepare(
+          `INSERT INTO openclaw_security_monitor_backup
+           (target, provider, original_base_url, relay_prefix, mapping_existed_before, mapping_target_before, created_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?)`
+        );
+        for (const b of rows) {
+          stmt.run(
+            t,
+            String(b.provider || ""),
+            String(b.originalBaseUrl || ""),
+            String(b.relayPrefix || ""),
+            b.mappingExistedBefore ? 1 : 0,
+            b.mappingTargetBefore != null ? String(b.mappingTargetBefore) : null,
+            now
+          );
+        }
+        stmt.finalize((e) => {
+          if (e) reject(e);
+          else resolve();
+        });
+      });
+    });
+  });
+}
+
+function clearOpenClawSecurityMonitorBackups(target) {
+  const database = getDb();
+  const t = String(target || "").trim();
+  return new Promise((resolve, reject) => {
+    database.run("DELETE FROM openclaw_security_monitor_backup WHERE target = ?", [t], (err) => {
       if (err) reject(err);
       else resolve();
     });
@@ -1592,9 +1866,16 @@ module.exports = {
   listLlmMappings,
   upsertLlmMapping,
   deleteLlmMapping,
+  deleteLlmMappingByPrefix,
+  getOpenClawSecurityMonitorSession,
+  upsertOpenClawSecurityMonitorSession,
+  listOpenClawSecurityMonitorBackups,
+  replaceOpenClawSecurityMonitorBackups,
+  clearOpenClawSecurityMonitorBackups,
   ensureDefaultLlmMappings,
   replaceUserSkills,
   upsertUserSkill,
+  upsertUserSkillsBatch,
   upsertUserSkillSafetyLabel,
   getSyncUserSkillsToCloud,
   saveSyncUserSkillsToCloud,
@@ -1604,6 +1885,7 @@ module.exports = {
   clearLocalUserScopedState,
   applyUserDangerPrefs,
   updateUserDangerCommand,
+  updateUserDangerCommandsBatch,
   getSyncUserDangersToCloud,
   saveSyncUserDangersToCloud,
   getLastKnownVersion,

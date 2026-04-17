@@ -29,6 +29,133 @@ let gatewayWorkspaceState = {
   externalTarget: "user-profile",
 };
 
+const MANAGED_RUNTIME_DIR = "clawheart-openclaw-runtime";
+const DARWIN_PRODUCT_USERDATA_DIR = path.join(
+  os.homedir(),
+  "Library",
+  "Application Support",
+  "@clawheart",
+  "local-desktop"
+);
+const DARWIN_LEGACY_ELECTRON_USERDATA_DIR = path.join(os.homedir(), "Library", "Application Support", "Electron");
+
+let managedRuntimeResolutionCache = null;
+
+function resolveRawElectronUserDataPath() {
+  if (process.env.CLAWHEART_USER_DATA) {
+    return { path: process.env.CLAWHEART_USER_DATA, source: "env" };
+  }
+  try {
+    const electron = require("electron");
+    const app = electron?.app;
+    if (app && typeof app.getPath === "function") {
+      const p = app.getPath("userData");
+      if (p && String(p).trim()) return { path: String(p), source: "electron" };
+    }
+  } catch {
+    /* ignore */
+  }
+  return null;
+}
+
+function chooseCanonicalManagedUserDataRoot() {
+  const raw = resolveRawElectronUserDataPath();
+  if (raw) {
+    if (
+      process.platform === "darwin" &&
+      raw.source === "electron" &&
+      /\/Library\/Application Support\/Electron$/.test(raw.path)
+    ) {
+      return {
+        root: DARWIN_PRODUCT_USERDATA_DIR,
+        source: "darwin-product",
+        electronReportedPath: raw.path,
+      };
+    }
+    return { root: raw.path, source: raw.source, electronReportedPath: raw.path };
+  }
+  if (process.platform === "darwin") {
+    return {
+      root: DARWIN_PRODUCT_USERDATA_DIR,
+      source: "darwin-product-fallback",
+      electronReportedPath: null,
+    };
+  }
+  return {
+    root: path.join(os.homedir(), ".clawheart-desktop-userdata"),
+    source: "fallback",
+    electronReportedPath: null,
+  };
+}
+
+function ensureManagedRuntimeResolution() {
+  if (managedRuntimeResolutionCache) return managedRuntimeResolutionCache;
+
+  const base = chooseCanonicalManagedUserDataRoot();
+  const canonicalRoot = base.root;
+  const canonicalRuntimeRoot = path.join(canonicalRoot, MANAGED_RUNTIME_DIR);
+  const legacyRuntimeRoot =
+    process.platform === "darwin" ? path.join(DARWIN_LEGACY_ELECTRON_USERDATA_DIR, MANAGED_RUNTIME_DIR) : null;
+  const canonicalConfigPath = path.join(canonicalRuntimeRoot, "openclaw.json");
+  const legacyConfigPath = legacyRuntimeRoot ? path.join(legacyRuntimeRoot, "openclaw.json") : null;
+
+  let migrated = false;
+  let migrationFrom = null;
+  let legacyArchivedTo = null;
+  const notes = [];
+  try {
+    if (
+      process.platform === "darwin" &&
+      legacyRuntimeRoot &&
+      legacyRuntimeRoot !== canonicalRuntimeRoot &&
+      fs.existsSync(legacyRuntimeRoot)
+    ) {
+      if (!fs.existsSync(canonicalRuntimeRoot)) {
+        fs.mkdirSync(path.dirname(canonicalRuntimeRoot), { recursive: true });
+        try {
+          fs.renameSync(legacyRuntimeRoot, canonicalRuntimeRoot);
+        } catch {
+          fs.cpSync(legacyRuntimeRoot, canonicalRuntimeRoot, { recursive: true });
+        }
+        migrated = true;
+        migrationFrom = legacyRuntimeRoot;
+        notes.push("migrated_legacy_runtime_to_canonical");
+      } else {
+        // 规范化到单源：canonical 已存在时将 legacy 目录归档，避免继续分叉。
+        const ts = new Date().toISOString().replace(/[:.]/g, "-");
+        const archivedPath = `${legacyRuntimeRoot}.legacy-archived-${ts}`;
+        try {
+          fs.renameSync(legacyRuntimeRoot, archivedPath);
+          legacyArchivedTo = archivedPath;
+          notes.push("archived_legacy_runtime_dir");
+        } catch (e) {
+          notes.push(`archive_legacy_failed:${e?.message || String(e)}`);
+        }
+      }
+    }
+  } catch (e) {
+    notes.push(`migration_failed:${e?.message || String(e)}`);
+  }
+  // 单源策略下，legacy 仅迁移/归档，不再作为可写路径参与分叉判定。
+  const driftDetected = false;
+
+  managedRuntimeResolutionCache = {
+    root: canonicalRoot,
+    source: base.source,
+    electronReportedPath: base.electronReportedPath,
+    runtimeRoot: canonicalRuntimeRoot,
+    managedConfigPath: canonicalConfigPath,
+    legacyRuntimeRoot,
+    legacyManagedConfigPath: legacyConfigPath,
+    legacyArchivedTo,
+    migrated,
+    migrationFrom,
+    driftDetected,
+    notes,
+  };
+  return managedRuntimeResolutionCache;
+}
+
 function normalizeGatewayWorkspaceTarget(t) {
   const s = String(t || "").trim();
   if (s === "clawheart-managed" || s === "managed" || s === "clawheart") {
@@ -94,24 +221,12 @@ function getGatewayWorkspaceStateSync() {
 
 /** Electron 主进程的 userData；开发或测试环境回退到固定目录 */
 function getElectronUserDataPath() {
-  try {
-    const electron = require("electron");
-    const app = electron?.app;
-    if (app && typeof app.getPath === "function") {
-      return app.getPath("userData");
-    }
-  } catch {
-    /* 非 Electron 或模块不可用 */
-  }
-  if (process.env.CLAWHEART_USER_DATA) {
-    return process.env.CLAWHEART_USER_DATA;
-  }
-  return path.join(os.homedir(), ".clawheart-desktop-userdata");
+  return ensureManagedRuntimeResolution().root;
 }
 
 /** 可选：应用内 OPENCLAW 状态目录（与 ~/.openclaw 并列的「另一份」openclaw.json，格式相同） */
 function getManagedOpenClawRoot() {
-  return path.join(getElectronUserDataPath(), "clawheart-openclaw-runtime");
+  return ensureManagedRuntimeResolution().runtimeRoot;
 }
 
 function getManagedOpenClawEnv() {
@@ -167,6 +282,11 @@ function ensureManagedOpenClawRoot() {
   return root;
 }
 
+function getManagedRuntimeResolutionInfo() {
+  const s = ensureManagedRuntimeResolution();
+  return { ...s };
+}
+
 module.exports = {
   normalizeGatewayWorkspaceTarget,
   normalizeExternalWorkspaceTarget,
@@ -184,4 +304,5 @@ module.exports = {
   getOpenClawEnvForExternalWorkspaceTarget,
   applyGatewayWorkspaceOpenClawEnv,
   ensureManagedOpenClawRoot,
+  getManagedRuntimeResolutionInfo,
 };

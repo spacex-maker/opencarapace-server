@@ -1,4 +1,16 @@
-const { getOpenClawSettings, saveOpenClawSettings, patchExternalOpenClawInstallSource } = require("../db.js");
+const {
+  getOpenClawSettings,
+  saveOpenClawSettings,
+  patchExternalOpenClawInstallSource,
+  upsertLlmMapping,
+  listLlmMappings,
+  deleteLlmMappingByPrefix,
+  getOpenClawSecurityMonitorSession,
+  upsertOpenClawSecurityMonitorSession,
+  listOpenClawSecurityMonitorBackups,
+  replaceOpenClawSecurityMonitorBackups,
+  clearOpenClawSecurityMonitorBackups,
+} = require("../db.js");
 const {
   detectPlatform,
   execWithOutput,
@@ -44,10 +56,79 @@ function jsonGatewayDiagnosticFields() {
     ...getGatewayPortConflictsPayload(),
   };
 }
+
+const CLIENT_RELAY_ORIGIN = "http://127.0.0.1:19111";
+
+function normalizeProviderPrefix(provider) {
+  const raw = String(provider || "").trim().toLowerCase();
+  const normalized = raw.replace(/[^a-z0-9_-]+/g, "-").replace(/-+/g, "-").replace(/^-+|-+$/g, "");
+  return normalized || "provider";
+}
+
+function getClientRelayPrefixFromBaseUrl(baseUrl) {
+  const s = String(baseUrl || "").trim();
+  if (!s) return null;
+  try {
+    const u = new URL(s);
+    if (u.protocol !== "http:" || u.hostname !== "127.0.0.1" || String(u.port || "") !== "19111") return null;
+    const seg = u.pathname
+      .split("/")
+      .map((x) => x.trim())
+      .filter(Boolean);
+    return seg.length > 0 ? seg[0] : null;
+  } catch {
+    return null;
+  }
+}
+
+function normalizeSecurityMonitorPrefix(target, provider) {
+  const side = String(target || "").trim() === "clawheart-managed" ? "bi" : "ext";
+  return `ocmon-${side}-${normalizeProviderPrefix(provider)}`;
+}
+
+function extractProvidersFromConfig(config) {
+  if (
+    !config ||
+    typeof config !== "object" ||
+    !config.models ||
+    typeof config.models !== "object" ||
+    !config.models.providers ||
+    typeof config.models.providers !== "object"
+  ) {
+    return {};
+  }
+  return config.models.providers;
+}
+
+function buildSecurityMonitorPreviewRows(target, config) {
+  const providersRoot = extractProvidersFromConfig(config);
+  return Object.entries(providersRoot).map(([provider, entry]) => {
+    const record = entry && typeof entry === "object" ? entry : {};
+    const currentBaseUrl =
+      typeof record.baseUrl === "string" && record.baseUrl.trim() ? record.baseUrl.trim() : null;
+    const prefix = normalizeSecurityMonitorPrefix(target, provider);
+    const relayBaseUrl = `${CLIENT_RELAY_ORIGIN}/${prefix}`;
+    const currentRelayPrefix = currentBaseUrl ? getClientRelayPrefixFromBaseUrl(currentBaseUrl) : null;
+    // 只要当前已指向 127.0.0.1:19111 的任意前缀，视为已中转，不做替换
+    const isAlreadyAnyRelay = !!currentRelayPrefix;
+    return {
+      provider,
+      currentBaseUrl,
+      relayBaseUrl,
+      relayPrefix: prefix,
+      currentRelayPrefix,
+      isAlreadyAnyRelay,
+      // 已是任意中转地址就不需要再替换
+      willChange: !!currentBaseUrl && !isAlreadyAnyRelay,
+      hasBaseUrl: !!currentBaseUrl,
+    };
+  });
+}
 const {
   configureProvider,
   resetOpenClawConfig,
   restartGateway,
+  rotateGatewayAuthToken,
   readOpenClawConfigFromPath,
   writeOpenClawConfigToPath,
   resolveConfigEditTarget,
@@ -55,7 +136,7 @@ const {
   PROVIDER_PRESETS,
 } = require("./openclaw-config.js");
 const { discoverOpenClawInstallations, discoverClawInventory } = require("./openclaw-discovery.js");
-const { syncGatewayWorkspaceFromSettings } = require("./openclaw-workspace.js");
+const { syncGatewayWorkspaceFromSettings, getManagedRuntimeResolutionInfo } = require("./openclaw-workspace.js");
 const {
   hasExternalManagedOpenClaw,
   getExternalOpenClawNpmPrefix,
@@ -927,23 +1008,341 @@ function registerOpenClawRoutes(app) {
     res.status(200).json({ providers: PROVIDER_PRESETS });
   });
 
-  // 启动 Gateway
+  // 扫描目标 openclaw.json 中的 providers（仅返回安全字段）
+  app.get("/api/openclaw/providers-scan", (req, res) => {
+    try {
+      const target = typeof req.query?.target === "string" ? req.query.target : "user-profile";
+      const configPath = resolveConfigEditTarget(target);
+      const config = readOpenClawConfigFromPath(configPath);
+      const providersRoot =
+        config &&
+        typeof config === "object" &&
+        config.models &&
+        typeof config.models === "object" &&
+        config.models.providers &&
+        typeof config.models.providers === "object"
+          ? config.models.providers
+          : {};
+
+      const providers = Object.entries(providersRoot).map(([provider, entry]) => {
+        const record = entry && typeof entry === "object" ? entry : {};
+        const models = Array.isArray(record.models) ? record.models : [];
+        const baseUrl =
+          typeof record.baseUrl === "string" && record.baseUrl.trim()
+            ? record.baseUrl.trim()
+            : null;
+        const relayPrefix = baseUrl ? getClientRelayPrefixFromBaseUrl(baseUrl) : null;
+        return {
+          provider,
+          baseUrl,
+          api: typeof record.api === "string" && record.api.trim() ? record.api.trim() : null,
+          auth: typeof record.auth === "string" && record.auth.trim() ? record.auth.trim() : null,
+          modelCount: models.length,
+          relayPrefix,
+          isClientRelay: !!relayPrefix,
+        };
+      });
+
+      res.status(200).json({
+        ok: true,
+        target,
+        configPath,
+        exists: !!config,
+        providers,
+      });
+    } catch (e) {
+      res.status(500).json({ ok: false, error: { message: e?.message ?? "扫描 providers 失败" } });
+    }
+  });
+
+  app.get("/api/openclaw/security-monitor/preview", (req, res) => {
+    try {
+      const target = typeof req.query?.target === "string" ? req.query.target : "user-profile";
+      const configPath = resolveConfigEditTarget(target);
+      const config = readOpenClawConfigFromPath(configPath);
+      const rows = buildSecurityMonitorPreviewRows(target, config || {});
+      const actionableRows = rows.filter((r) => r.hasBaseUrl);
+      res.status(200).json({
+        ok: true,
+        target,
+        configPath,
+        exists: !!config,
+        preview: actionableRows,
+        summary: {
+          totalProviders: rows.length,
+          actionableProviders: actionableRows.length,
+          willChangeProviders: actionableRows.filter((r) => r.willChange).length,
+        },
+      });
+    } catch (e) {
+      res.status(500).json({ ok: false, error: { message: e?.message ?? "生成预览失败" } });
+    }
+  });
+
+  app.get("/api/openclaw/security-monitor/status", async (req, res) => {
+    try {
+      const target = typeof req.query?.target === "string" ? req.query.target : "user-profile";
+      const configPath = resolveConfigEditTarget(target);
+      const config = readOpenClawConfigFromPath(configPath);
+      const rows = buildSecurityMonitorPreviewRows(target, config || {});
+      const actionableRows = rows.filter((r) => r.hasBaseUrl);
+      const session = await getOpenClawSecurityMonitorSession(target);
+      const backups = await listOpenClawSecurityMonitorBackups(target);
+      const enabled = !!session?.enabled && backups.length > 0;
+      const backupProviderSet = new Set(backups.map((b) => String(b.provider)));
+      res.status(200).json({
+        ok: true,
+        target,
+        enabled,
+        configPath,
+        exists: !!config,
+        preview: actionableRows.map((r) => ({ ...r, hasBackup: backupProviderSet.has(r.provider) })),
+        session: session || null,
+        backupCount: backups.length,
+        summary: {
+          totalProviders: rows.length,
+          actionableProviders: actionableRows.length,
+          willChangeProviders: actionableRows.filter((r) => r.willChange).length,
+        },
+      });
+    } catch (e) {
+      res.status(500).json({ ok: false, error: { message: e?.message ?? "读取监控状态失败" } });
+    }
+  });
+
+  app.post("/api/openclaw/security-monitor/enable", async (req, res) => {
+    try {
+      const target = typeof req.body?.target === "string" ? req.body.target : "user-profile";
+      // 可选：仅处理指定的 provider 列表（单独或批量操作）
+      const providersFilter =
+        Array.isArray(req.body?.providers) && req.body.providers.length > 0
+          ? new Set(req.body.providers.map(String))
+          : null;
+
+      const configPath = resolveConfigEditTarget(target);
+      const config = readOpenClawConfigFromPath(configPath) || {};
+      const providersRoot = extractProvidersFromConfig(config);
+      let rows = buildSecurityMonitorPreviewRows(target, config).filter((r) => r.hasBaseUrl);
+      if (providersFilter) rows = rows.filter((r) => providersFilter.has(r.provider));
+      if (rows.length === 0) {
+        return res.status(400).json({ ok: false, error: { message: "未找到可处理的 provider baseUrl" } });
+      }
+
+      const mappings = await listLlmMappings();
+      const mappingByPrefix = new Map(
+        (Array.isArray(mappings) ? mappings : []).map((m) => [String(m.prefix || "").trim(), String(m.target_base || "")])
+      );
+
+      // 合并已有备份，避免覆盖其他 provider 的备份
+      const existingBackups = await listOpenClawSecurityMonitorBackups(target);
+      const existingProviderSet = new Set(existingBackups.map((b) => String(b.provider)));
+      const newBackups = [];
+      let changedProviders = 0;
+
+      for (const row of rows) {
+        // 已是任意 127.0.0.1:19111 中转地址，跳过——不备份、不改配置
+        if (row.isAlreadyAnyRelay) continue;
+
+        const currentBaseUrl = row.currentBaseUrl;
+        const prefix = row.relayPrefix;
+        const mappingBefore = mappingByPrefix.get(prefix);
+        if (!existingProviderSet.has(row.provider)) {
+          newBackups.push({
+            provider: row.provider,
+            originalBaseUrl: currentBaseUrl,
+            relayPrefix: prefix,
+            mappingExistedBefore: mappingByPrefix.has(prefix),
+            mappingTargetBefore: mappingByPrefix.has(prefix) ? mappingBefore || null : null,
+          });
+        }
+        await upsertLlmMapping({ prefix, target_base: currentBaseUrl });
+        const cur = providersRoot[row.provider];
+        providersRoot[row.provider] = { ...cur, baseUrl: row.relayBaseUrl };
+        changedProviders += 1;
+      }
+
+      writeOpenClawConfigToPath(configPath, config);
+      await replaceOpenClawSecurityMonitorBackups(target, [...existingBackups, ...newBackups]);
+      await upsertOpenClawSecurityMonitorSession({ target, enabled: true, configPath });
+      res.status(200).json({
+        ok: true,
+        target,
+        configPath,
+        changedProviders,
+        totalProviders: rows.length,
+        message:
+          changedProviders > 0
+            ? `已为 ${changedProviders} 个 provider 开启监控，关闭时可自动恢复`
+            : "所选 provider 均已在中转状态，无需修改",
+      });
+    } catch (e) {
+      res.status(500).json({ ok: false, error: { message: e?.message ?? "开启安全监控失败" } });
+    }
+  });
+
+  app.post("/api/openclaw/security-monitor/disable", async (req, res) => {
+    try {
+      const target = typeof req.body?.target === "string" ? req.body.target : "user-profile";
+      // 可选：仅恢复指定的 provider 列表（单独或批量操作）
+      const providersFilter =
+        Array.isArray(req.body?.providers) && req.body.providers.length > 0
+          ? new Set(req.body.providers.map(String))
+          : null;
+
+      const configPath = resolveConfigEditTarget(target);
+      const config = readOpenClawConfigFromPath(configPath) || {};
+      const providersRoot = extractProvidersFromConfig(config);
+      const allBackups = await listOpenClawSecurityMonitorBackups(target);
+
+      const toRestore = providersFilter ? allBackups.filter((b) => providersFilter.has(String(b.provider))) : allBackups;
+      const remaining = providersFilter ? allBackups.filter((b) => !providersFilter.has(String(b.provider))) : [];
+
+      if (toRestore.length === 0) {
+        if (!providersFilter) {
+          await upsertOpenClawSecurityMonitorSession({ target, enabled: false, configPath });
+        }
+        return res.status(200).json({
+          ok: true,
+          target,
+          configPath,
+          restoredProviders: 0,
+          message: "无对应备份项，未做恢复",
+        });
+      }
+
+      let restoredProviders = 0;
+      for (const item of toRestore) {
+        const cur = providersRoot[item.provider];
+        if (cur && typeof cur === "object") {
+          providersRoot[item.provider] = { ...cur, baseUrl: item.originalBaseUrl };
+          restoredProviders += 1;
+        }
+        if (item.mappingExistedBefore) {
+          if (item.mappingTargetBefore && String(item.mappingTargetBefore).trim()) {
+            await upsertLlmMapping({
+              prefix: item.relayPrefix,
+              target_base: String(item.mappingTargetBefore).trim(),
+            });
+          }
+        } else {
+          await deleteLlmMappingByPrefix(item.relayPrefix);
+        }
+      }
+
+      writeOpenClawConfigToPath(configPath, config);
+      if (remaining.length > 0) {
+        await replaceOpenClawSecurityMonitorBackups(target, remaining);
+        await upsertOpenClawSecurityMonitorSession({ target, enabled: true, configPath });
+      } else {
+        await clearOpenClawSecurityMonitorBackups(target);
+        await upsertOpenClawSecurityMonitorSession({ target, enabled: false, configPath });
+      }
+      res.status(200).json({
+        ok: true,
+        target,
+        configPath,
+        restoredProviders,
+        message:
+          remaining.length > 0
+            ? `已恢复 ${restoredProviders} 个 provider，其余 ${remaining.length} 个仍在监控中`
+            : `已关闭监控并恢复 ${restoredProviders} 个 provider 的原始配置`,
+      });
+    } catch (e) {
+      res.status(500).json({ ok: false, error: { message: e?.message ?? "关闭安全监控失败" } });
+    }
+  });
+
+  // 一键中转：把 provider baseUrl 切到本地网关，并自动写入网络映射（prefix -> 原始 baseUrl）
+  app.post("/api/openclaw/provider-relay", async (req, res) => {
+    try {
+      const target = typeof req.body?.target === "string" ? req.body.target : "user-profile";
+      const provider = typeof req.body?.provider === "string" ? req.body.provider.trim() : "";
+      if (!provider) {
+        return res.status(400).json({ ok: false, error: { message: "provider 不能为空" } });
+      }
+
+      const configPath = resolveConfigEditTarget(target);
+      const config = readOpenClawConfigFromPath(configPath) || {};
+      const providersRoot =
+        config &&
+        typeof config === "object" &&
+        config.models &&
+        typeof config.models === "object" &&
+        config.models.providers &&
+        typeof config.models.providers === "object"
+          ? config.models.providers
+          : null;
+      if (!providersRoot) {
+        return res.status(400).json({ ok: false, error: { message: "配置中不存在 models.providers" } });
+      }
+
+      const entry = providersRoot[provider];
+      if (!entry || typeof entry !== "object") {
+        return res.status(404).json({ ok: false, error: { message: `未找到 provider: ${provider}` } });
+      }
+
+      const currentBaseUrl =
+        typeof entry.baseUrl === "string" && entry.baseUrl.trim() ? entry.baseUrl.trim() : null;
+      if (!currentBaseUrl) {
+        return res.status(400).json({ ok: false, error: { message: "当前 provider 未配置 baseUrl，无法自动中转" } });
+      }
+
+      const existingRelayPrefix = getClientRelayPrefixFromBaseUrl(currentBaseUrl);
+      const prefix = normalizeProviderPrefix(provider);
+      const relayBaseUrl = `${CLIENT_RELAY_ORIGIN}/${prefix}`;
+      if (existingRelayPrefix === prefix) {
+        return res.status(200).json({
+          ok: true,
+          target,
+          provider,
+          configPath,
+          relayBaseUrl,
+          mapping: { prefix, targetBase: null, reused: true },
+          message: "当前 provider 已是本地中转地址",
+        });
+      }
+      if (existingRelayPrefix && existingRelayPrefix !== prefix) {
+        return res.status(409).json({
+          ok: false,
+          error: { message: `当前 baseUrl 已是中转地址（/${existingRelayPrefix}），请先手动确认后再替换` },
+        });
+      }
+
+      await upsertLlmMapping({ prefix, target_base: currentBaseUrl });
+      providersRoot[provider] = { ...entry, baseUrl: relayBaseUrl };
+      writeOpenClawConfigToPath(configPath, config);
+
+      res.status(200).json({
+        ok: true,
+        target,
+        provider,
+        configPath,
+        relayBaseUrl,
+        mapping: { prefix, targetBase: currentBaseUrl, reused: false },
+        message: "已完成一键中转：映射已写入，provider baseUrl 已替换为本地网关地址",
+      });
+    } catch (e) {
+      res.status(500).json({ ok: false, error: { message: e?.message ?? "一键中转失败" } });
+    }
+  });
+
+  // 启动 Gateway（双路独立：body.gatewayOpenclawBinary 决定启哪路）
   app.post("/api/openclaw/start-gateway", async (req, res) => {
     try {
       const rawBin = req.body?.gatewayOpenclawBinary;
+      const { normalizeGatewayOpenclawBinary } = require("./openclaw-external.js");
+      const mode = normalizeGatewayOpenclawBinary(rawBin);
+      // 保存「最后激活模式」到 DB（仅供 UI 记忆上次选择，不影响双路启动逻辑）
       if (rawBin != null) {
         const cur = await getOpenClawSettings();
-        await saveOpenClawSettings({
-          ...cur,
-          gatewayOpenclawBinary: String(rawBin),
-        });
+        await saveOpenClawSettings({ ...cur, gatewayOpenclawBinary: mode });
       }
-      // 子进程 OPENCLAW_* 来自进程内 gatewayWorkspaceState；与 DB 对齐后再 spawn，避免「外置 CLI 却注入内置工作区」
-      syncGatewayWorkspaceFromSettings(await getOpenClawSettings());
-      const result = await startEmbeddedOpenClaw();
+      // 直接传 mode 给 startEmbeddedOpenClaw，绕过全局工作区状态竞争
+      const result = await startEmbeddedOpenClaw(mode);
       res.status(200).json({
         ok: result,
-        message: result ? "Gateway 已启动" : "Gateway 启动失败或超时，诊断见 gatewayDiagnosticLog",
+        mode,
+        message: result ? `${mode} Gateway 已启动` : `${mode} Gateway 启动失败或超时，见诊断日志`,
         ...jsonGatewayDiagnosticFields(),
       });
     } catch (e) {
@@ -954,15 +1353,19 @@ function registerOpenClawRoutes(app) {
     }
   });
 
-  // 停止 Gateway
-  app.post("/api/openclaw/stop-gateway", async (_req, res) => {
+  // 停止 Gateway（双路独立：body.gatewayOpenclawBinary 决定停哪路）
+  app.post("/api/openclaw/stop-gateway", async (req, res) => {
     try {
-      const stopped = await stopEmbeddedOpenClaw();
+      const rawBin = req.body?.gatewayOpenclawBinary;
+      const { normalizeGatewayOpenclawBinary } = require("./openclaw-external.js");
+      const mode = normalizeGatewayOpenclawBinary(rawBin);
+      const stopped = await stopEmbeddedOpenClaw(mode);
       res.status(200).json({
         ok: stopped,
+        mode,
         message: stopped
-          ? "Gateway 已停止"
-          : "Gateway 可能仍在运行（仍能扫到 gateway run 进程），请查看诊断日志或手动结束相关进程",
+          ? `${mode} Gateway 已停止`
+          : `${mode} Gateway 可能仍在运行，请查看诊断日志或手动结束相关进程`,
         ...jsonGatewayDiagnosticFields(),
       });
     } catch (e) {
@@ -983,8 +1386,12 @@ function registerOpenClawRoutes(app) {
         req.body?.conflictPort != null && req.body.conflictPort !== ""
           ? Number(req.body.conflictPort)
           : undefined;
+      const rawBin = req.body?.gatewayOpenclawBinary;
+      const { normalizeGatewayOpenclawBinary } = require("./openclaw-external.js");
+      const mode = rawBin != null ? normalizeGatewayOpenclawBinary(rawBin) : undefined;
       const result = await killVerifiedGatewayPortListener(pid, {
         conflictPort: Number.isFinite(conflictPort) ? conflictPort : undefined,
+        mode,
       });
       if (!result.ok) {
         return res.status(400).json({
@@ -1003,8 +1410,13 @@ function registerOpenClawRoutes(app) {
   });
 
   // 重置配置（清理错误配置）
-  app.post("/api/openclaw/reset-config", async (_req, res) => {
+  // 重置指定模式的配置（body.gatewayOpenclawBinary 决定哪路）
+  app.post("/api/openclaw/reset-config", async (req, res) => {
     try {
+      const rawBin = req.body?.gatewayOpenclawBinary;
+      const { normalizeGatewayOpenclawBinary } = require("./openclaw-external.js");
+      const mode = normalizeGatewayOpenclawBinary(rawBin);
+      syncGatewayWorkspaceFromSettings({ gatewayOpenclawBinary: mode });
       const result = resetOpenClawConfig();
       res.status(200).json(result);
     } catch (e) {
@@ -1012,55 +1424,80 @@ function registerOpenClawRoutes(app) {
     }
   });
 
-  // 重启 Gateway
+  // 轮换 Gateway token（认证失败锁定时一键恢复；body.gatewayOpenclawBinary 决定哪路）
+  app.post("/api/openclaw/rotate-gateway-token", async (req, res) => {
+    try {
+      const rawBin = req.body?.gatewayOpenclawBinary;
+      const { normalizeGatewayOpenclawBinary } = require("./openclaw-external.js");
+      const mode = normalizeGatewayOpenclawBinary(rawBin);
+      syncGatewayWorkspaceFromSettings({ gatewayOpenclawBinary: mode });
+      initOpenClawConfig();
+      const rotated = rotateGatewayAuthToken();
+      await restartGateway(mode);
+      const status = await getOpenClawStatus();
+      res.status(200).json({
+        ok: true,
+        mode,
+        message: `${mode} Gateway token 已重置并重启`,
+        uiUrl: mode === "external" ? status?.uiUrlExternal : status?.uiUrlBundled,
+        token: rotated?.token || null,
+      });
+    } catch (e) {
+      res.status(500).json({ error: { message: e?.message ?? "重置 Gateway token 失败" } });
+    }
+  });
+
+  // 重启 Gateway（body.gatewayOpenclawBinary 决定哪路）
   app.post("/api/openclaw/restart-gateway", async (req, res) => {
     try {
       const rawBin = req.body?.gatewayOpenclawBinary;
+      const { normalizeGatewayOpenclawBinary } = require("./openclaw-external.js");
+      const mode = normalizeGatewayOpenclawBinary(rawBin);
       if (rawBin != null) {
         const cur = await getOpenClawSettings();
-        await saveOpenClawSettings({
-          ...cur,
-          gatewayOpenclawBinary: String(rawBin),
-        });
+        await saveOpenClawSettings({ ...cur, gatewayOpenclawBinary: mode });
       }
-      syncGatewayWorkspaceFromSettings(await getOpenClawSettings());
-      await restartGateway();
-      res.status(200).json({ ok: true, message: "Gateway 正在重启" });
+      syncGatewayWorkspaceFromSettings({ gatewayOpenclawBinary: mode });
+      await restartGateway(mode);
+      res.status(200).json({ ok: true, mode, message: `${mode} Gateway 正在重启` });
     } catch (e) {
       res.status(500).json({ error: { message: e?.message ?? "重启失败" } });
     }
   });
 
-  // 配置模型提供商
+  // 配置模型提供商（body.gatewayOpenclawBinary 决定写哪路配置；之后只重启该路）
   app.post("/api/openclaw/configure-provider", async (req, res) => {
     try {
-      const { provider, apiKey, model, baseUrl, setAsDefault } = req.body || {};
-      
+      const { provider, apiKey, model, baseUrl, setAsDefault, gatewayOpenclawBinary: rawBin } = req.body || {};
+
       if (!provider || !PROVIDER_PRESETS[provider]) {
         return res.status(400).json({ error: { message: "无效的提供商" } });
       }
-      
+
       const preset = PROVIDER_PRESETS[provider];
-      
+
       if (preset.requiresApiKey && !apiKey) {
         return res.status(400).json({ error: { message: "此提供商需要 API Key" } });
       }
-      
+
+      const { normalizeGatewayOpenclawBinary } = require("./openclaw-external.js");
+      const mode = normalizeGatewayOpenclawBinary(rawBin);
+      syncGatewayWorkspaceFromSettings({ gatewayOpenclawBinary: mode });
+
       const config = {
         apiKey: apiKey || undefined,
         model: model || preset.defaultModel,
         baseUrl: baseUrl || preset.baseUrl,
         setAsDefault: setAsDefault !== false,
       };
-      
+
       const result = await configureProvider(provider, config);
-      
-      // 配置完成后重启 Gateway
-      await restartGateway();
-      
-      res.status(200).json({ 
-        ok: true, 
-        message: `${preset.name} 配置成功，Gateway 已重启`,
+      await restartGateway(mode);
+
+      res.status(200).json({
+        ok: true,
+        mode,
+        message: `${preset.name} 配置成功，${mode} Gateway 已重启`,
         results: result.results,
       });
     } catch (e) {
@@ -1131,6 +1568,7 @@ function registerOpenClawRoutes(app) {
       const hasUserEnvironmentOpenClawAside = !!userEnvironmentOpenClaw?.binPath;
       const extPrefixPath = getExternalOpenClawNpmPrefix();
       const extRuntimePath = getExternalOpenClawRuntimeStateDir();
+      const managedRuntimeResolution = getManagedRuntimeResolutionInfo();
       res.status(200).json({
         ...status,
         hasEmbeddedNode: nodeRuntimeReady,
@@ -1150,6 +1588,7 @@ function registerOpenClawRoutes(app) {
         userEnvironmentOpenClaw,
         externalOpenClawInstallTag,
         hasUserEnvironmentOpenClawAside,
+        managedRuntimeResolution,
         localInstall,
         openClawDiscovery,
         clawInventory,

@@ -1,5 +1,12 @@
 const axios = require("axios");
-const { getDb, getLocalSettings, updateUserDangerCommand, getLocalAuth, getSyncUserDangersToCloud } = require("../db.js");
+const {
+  getDb,
+  getLocalSettings,
+  updateUserDangerCommand,
+  updateUserDangerCommandsBatch,
+  getLocalAuth,
+  getSyncUserDangersToCloud,
+} = require("../db.js");
 
 async function requireLoginForCloudSync(res) {
   const auth = await getLocalAuth();
@@ -128,6 +135,64 @@ function registerDangerRoutes(app) {
       res.status(202).json({ accepted: true });
     } catch (e) {
       res.status(500).json({ error: { message: e?.message ?? "触发危险指令同步失败" } });
+    }
+  });
+
+  app.put("/api/user-danger-commands/batch", async (req, res) => {
+    try {
+      const { ids, enabled } = req.body || {};
+      if (!Array.isArray(ids) || ids.length === 0) {
+        res.status(400).json({ error: { message: "ids 必须是非空数组" } });
+        return;
+      }
+      if (typeof enabled !== "boolean") {
+        res.status(400).json({ error: { message: "enabled 必须是 boolean" } });
+        return;
+      }
+      const normIds = Array.from(
+        new Set(
+          ids
+            .map((x) => Number(x))
+            .filter((x) => Number.isInteger(x) && x > 0)
+        )
+      );
+      if (normIds.length === 0) {
+        res.status(400).json({ error: { message: "ids 无有效项" } });
+        return;
+      }
+
+      const ret = await updateUserDangerCommandsBatch(normIds, enabled);
+
+      let cloudSynced = 0;
+      const syncToCloud = await getSyncUserDangersToCloud();
+      if (syncToCloud === 1) {
+        try {
+          const settings = await getLocalSettings();
+          const auth = await getLocalAuth();
+          const apiBase = (settings && settings.apiBase) || "https://api.clawheart.live";
+          if (auth && auth.token) {
+            const settled = await Promise.allSettled(
+              normIds.map((id) =>
+                axios.put(
+                  `${apiBase}/api/user-danger-commands/me/${id}`,
+                  { enabled },
+                  {
+                    headers: { Authorization: `Bearer ${auth.token}` },
+                    validateStatus: () => true,
+                  }
+                )
+              )
+            );
+            cloudSynced = settled.filter((x) => x.status === "fulfilled").length;
+          }
+        } catch {
+          // ignore cloud sync failure
+        }
+      }
+
+      res.status(200).json({ ok: true, updatedCount: ret.updatedCount, cloudSynced });
+    } catch (e) {
+      res.status(500).json({ error: { message: e?.message ?? "批量更新用户危险指令失败" } });
     }
   });
 

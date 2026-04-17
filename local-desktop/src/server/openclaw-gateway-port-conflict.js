@@ -222,7 +222,8 @@ function killPidCrossPlatform(pid) {
 
 /**
  * @param {number} pid
- * @param {{ uiUrl?: string; conflictPort?: number }} opts
+ * @param {{ uiUrl?: string; conflictPort?: number; mode?: string }} opts
+ *   mode: "bundled" | "external"；传入时仅清该路的冲突记录；省略则清全部（向后兼容）
  */
 async function killVerifiedGatewayPortListener(pid, opts = {}) {
   const { getOpenClawSettings } = require("../db.js");
@@ -237,7 +238,12 @@ async function killVerifiedGatewayPortListener(pid, opts = {}) {
   }
   try {
     killPidCrossPlatform(pid);
-    clearAllGatewayPortConflicts();
+    const m = opts.mode === "bundled" || opts.mode === "external" ? opts.mode : null;
+    if (m) {
+      clearGatewayPortConflictMode(m);
+    } else {
+      clearAllGatewayPortConflicts();
+    }
     return { ok: true };
   } catch (e) {
     return { ok: false, error: e?.message || String(e) };

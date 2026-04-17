@@ -451,6 +451,10 @@ export function SecurityScanItemsTab({
             justifyContent: "space-between",
             gap: 16,
             marginBottom: 20,
+            padding: "12px 14px",
+            borderRadius: 12,
+            border: "1px solid var(--panel-border)",
+            background: "var(--panel-bg2)",
           }}
         >
           <div style={{ flex: "1 1 240px", minWidth: 0 }}>
@@ -470,15 +474,15 @@ export function SecurityScanItemsTab({
                 padding: "8px 16px",
                 borderRadius: 10,
                 border: "1px solid var(--panel-border)",
-                background: "transparent",
+                background: "var(--panel-bg)",
                 color: "var(--fg)",
                 fontSize: 12,
                 fontWeight: 600,
                 cursor: "pointer",
                 transition: "all 0.2s",
               }}
-              onMouseOver={(e) => (e.currentTarget.style.background = "rgba(255,255,255,0.06)")}
-              onMouseOut={(e) => (e.currentTarget.style.background = "transparent")}
+              onMouseOver={(e) => (e.currentTarget.style.background = "var(--panel-bg2)")}
+              onMouseOut={(e) => (e.currentTarget.style.background = "var(--panel-bg)")}
             >
               {t("securityScanPage.items.selectAll")}
             </button>
@@ -489,15 +493,15 @@ export function SecurityScanItemsTab({
                 padding: "8px 16px",
                 borderRadius: 10,
                 border: "1px solid var(--panel-border)",
-                background: "transparent",
+                background: "var(--panel-bg)",
                 color: "var(--fg)",
                 fontSize: 12,
                 fontWeight: 600,
                 cursor: "pointer",
                 transition: "all 0.2s",
               }}
-              onMouseOver={(e) => (e.currentTarget.style.background = "rgba(255,255,255,0.06)")}
-              onMouseOut={(e) => (e.currentTarget.style.background = "transparent")}
+              onMouseOver={(e) => (e.currentTarget.style.background = "var(--panel-bg2)")}
+              onMouseOut={(e) => (e.currentTarget.style.background = "var(--panel-bg)")}
             >
               {t("securityScanPage.items.selectNone")}
             </button>

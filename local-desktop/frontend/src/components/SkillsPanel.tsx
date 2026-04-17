@@ -179,11 +179,19 @@ export function SkillsPanel({ showAccountSwitchPlaceholder = false }: { showAcco
   const [detail, setDetail] = useState<any | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
   const [detailError, setDetailError] = useState<string | null>(null);
+  const [installModal, setInstallModal] = useState<{ open: boolean; skill: SkillRow | null }>({ open: false, skill: null });
 
   const [keyword, setKeyword] = useState("");
   const [systemStatus, setSystemStatus] = useState("");
-  const [userEnabled, setUserEnabled] = useState("");
+  /** UI 语义：是否启用拦截（1=拦截，0=不拦截）；后端仍沿用 userEnabled 参数 */
+  const [interceptEnabled, setInterceptEnabled] = useState("");
   const [updatingSlug, setUpdatingSlug] = useState<string | null>(null);
+  const [batchUpdating, setBatchUpdating] = useState(false);
+  const [selectedSlugs, setSelectedSlugs] = useState<string[]>([]);
+  const tableScrollRef = useRef<HTMLDivElement | null>(null);
+  const bottomScrollRef = useRef<HTMLDivElement | null>(null);
+  const syncingScrollRef = useRef<"table" | "bottom" | null>(null);
+  const [tableScrollSize, setTableScrollSize] = useState({ scrollWidth: 0, clientWidth: 0 });
 
   const displaySkills = useMemo(() => applyMarketTab(skills, marketTab), [skills, marketTab]);
   const showFeaturedFallbackHint =
@@ -191,7 +199,7 @@ export function SkillsPanel({ showAccountSwitchPlaceholder = false }: { showAcco
 
   useEffect(() => {
     setMarketPage(1);
-  }, [marketTab, keyword, systemStatus, userEnabled]);
+  }, [marketTab, keyword, systemStatus, interceptEnabled]);
 
   const marketTotalPages = useMemo(
     () => Math.max(1, Math.ceil(displaySkills.length / marketPageSize)),
@@ -203,6 +211,64 @@ export function SkillsPanel({ showAccountSwitchPlaceholder = false }: { showAcco
     const start = (marketPageSafe - 1) * marketPageSize;
     return displaySkills.slice(start, start + marketPageSize);
   }, [displaySkills, marketPageSafe]);
+  const isRowBatchActionable = (s: SkillRow) => s.systemStatus === "NORMAL" && s.userEnabled !== null;
+  const pageActionableSlugs = useMemo(
+    () => pagedSkills.filter(isRowBatchActionable).map((s) => s.slug),
+    [pagedSkills]
+  );
+  const selectedActionableSlugs = selectedSlugs.filter((slug) => pageActionableSlugs.includes(slug));
+  const allPageSelected = pageActionableSlugs.length > 0 && selectedActionableSlugs.length === pageActionableSlugs.length;
+
+  useEffect(() => {
+    const el = tableScrollRef.current;
+    if (!el) return;
+    const syncMetrics = () => {
+      setTableScrollSize({ scrollWidth: el.scrollWidth, clientWidth: el.clientWidth });
+    };
+    syncMetrics();
+    let ro: ResizeObserver | null = null;
+    if (typeof ResizeObserver !== "undefined") {
+      ro = new ResizeObserver(syncMetrics);
+      ro.observe(el);
+      if (el.firstElementChild) ro.observe(el.firstElementChild as Element);
+    }
+    window.addEventListener("resize", syncMetrics);
+    return () => {
+      if (ro) ro.disconnect();
+      window.removeEventListener("resize", syncMetrics);
+    };
+  }, [pagedSkills.length, loading]);
+
+  const onTableScroll = () => {
+    const table = tableScrollRef.current;
+    const bottom = bottomScrollRef.current;
+    if (!table || !bottom) return;
+    if (syncingScrollRef.current === "bottom") return;
+    syncingScrollRef.current = "table";
+    bottom.scrollLeft = table.scrollLeft;
+    syncingScrollRef.current = null;
+  };
+
+  const onBottomScroll = () => {
+    const table = tableScrollRef.current;
+    const bottom = bottomScrollRef.current;
+    if (!table || !bottom) return;
+    if (syncingScrollRef.current === "table") return;
+    syncingScrollRef.current = "bottom";
+    table.scrollLeft = bottom.scrollLeft;
+    syncingScrollRef.current = null;
+  };
+
+  const toggleSelectAllPageActionable = () => {
+    setSelectedSlugs((prev) => {
+      if (allPageSelected) return prev.filter((slug) => !pageActionableSlugs.includes(slug));
+      return Array.from(new Set([...prev, ...pageActionableSlugs]));
+    });
+  };
+
+  const toggleSelectRow = (slug: string) => {
+    setSelectedSlugs((prev) => (prev.includes(slug) ? prev.filter((x) => x !== slug) : [...prev, slug]));
+  };
 
   const loadData = async (withFilters = false) => {
     try {
@@ -212,7 +278,10 @@ export function SkillsPanel({ showAccountSwitchPlaceholder = false }: { showAcco
       if (withFilters) {
         if (keyword.trim()) qs.set("keyword", keyword.trim());
         if (systemStatus) qs.set("systemStatus", systemStatus);
-        if (userEnabled) qs.set("userEnabled", userEnabled);
+        if (interceptEnabled) {
+          // 兼容后端旧语义：userEnabled=1 表示不拦截；interceptEnabled=1 表示拦截
+          qs.set("userEnabled", interceptEnabled === "1" ? "0" : "1");
+        }
       }
       const url = `http://127.0.0.1:19111/api/skills${qs.toString() ? `?${qs.toString()}` : ""}`;
       const [skillsRes, syncRes] = await Promise.all([
@@ -259,6 +328,10 @@ export function SkillsPanel({ showAccountSwitchPlaceholder = false }: { showAcco
   useEffect(() => {
     loadData(false);
   }, []);
+
+  useEffect(() => {
+    setSelectedSlugs((prev) => prev.filter((slug) => skills.some((s) => s.slug === slug)));
+  }, [skills]);
 
   useEffect(() => {
     if (!sync.running) return;
@@ -309,9 +382,12 @@ export function SkillsPanel({ showAccountSwitchPlaceholder = false }: { showAcco
   const runQuery = () => loadData(true);
 
   const toggleUserEnabled = async (slug: string, currentEnabled: number | null) => {
-    if (updatingSlug !== null) return;
+    if (updatingSlug !== null || batchUpdating) return;
 
-    const nextEnabled = currentEnabled === 1 ? false : true;
+    const currentlyIntercepting = currentEnabled === 0;
+    const nextIntercepting = !currentlyIntercepting;
+    // 后端字段 enabled=true 表示技能启用（不拦截）
+    const nextEnabled = !nextIntercepting;
     setUpdatingSlug(slug);
     setError(null);
     setMessage(null);
@@ -330,13 +406,45 @@ export function SkillsPanel({ showAccountSwitchPlaceholder = false }: { showAcco
       setSkills((prev) =>
         prev.map((s) => (s.slug === slug ? { ...s, userEnabled: nextEnabled ? 1 : 0 } : s))
       );
-      setMessage(nextEnabled ? smp("toastSkillOn") : smp("toastSkillOff"));
+      setMessage(nextIntercepting ? smp("toastSkillOff") : smp("toastSkillOn"));
       setTimeout(() => setMessage(null), 2000);
     } catch (e: any) {
       setError(e?.message ?? smp("errUpdateUser"));
       setTimeout(() => setError(null), 3000);
     } finally {
       setUpdatingSlug(null);
+    }
+  };
+
+  const batchSetIntercept = async (intercept: boolean) => {
+    const targetSlugs = selectedActionableSlugs;
+    if (targetSlugs.length === 0 || updatingSlug !== null || batchUpdating) return;
+    setBatchUpdating(true);
+    setError(null);
+    setMessage(null);
+    const enabled = !intercept; // 旧协议：enabled=true 表示不拦截
+    try {
+      const res = await fetch("http://127.0.0.1:19111/api/user-skills-batch", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ slugs: targetSlugs, enabled }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data?.ok) {
+        setError(data?.error?.message || "批量更新失败");
+        return;
+      }
+      setSkills((prev) =>
+        prev.map((s) => (targetSlugs.includes(s.slug) ? { ...s, userEnabled: enabled ? 1 : 0 } : s))
+      );
+      setSelectedSlugs((prev) => prev.filter((slug) => !targetSlugs.includes(slug)));
+      const n = Number(data?.updatedCount) > 0 ? Number(data.updatedCount) : targetSlugs.length;
+      setMessage(intercept ? `已批量启用拦截（${n} 条）` : `已批量取消拦截（${n} 条）`);
+      setTimeout(() => setMessage(null), 2200);
+    } catch (e: any) {
+      setError(e?.message ?? smp("errUpdateUser"));
+    } finally {
+      setBatchUpdating(false);
     }
   };
 
@@ -460,11 +568,7 @@ export function SkillsPanel({ showAccountSwitchPlaceholder = false }: { showAcco
         width: "100%",
         maxWidth: 1280,
         margin: "0 auto",
-        background: "var(--panel-bg)",
-        borderRadius: 16,
         padding: "clamp(12px, 2vw, 24px)",
-        border: "1px solid var(--panel-border)",
-        boxShadow: "0 20px 40px rgba(0,0,0,0.16)",
         fontSize: 12,
         boxSizing: "border-box",
       }}
@@ -696,40 +800,78 @@ export function SkillsPanel({ showAccountSwitchPlaceholder = false }: { showAcco
           ]}
         />
         <FilterSelect
-          value={userEnabled}
-          onChange={setUserEnabled}
-          placeholder={smp("filterUserAll")}
+          value={interceptEnabled}
+          onChange={setInterceptEnabled}
+          placeholder="全部拦截状态"
           options={[
-            { label: smp("filterUserAll"), value: "" },
-            { label: smp("userOn"), value: "1" },
-            { label: smp("userOff"), value: "0" },
+            { label: "全部拦截状态", value: "" },
+            { label: "已启用拦截", value: "1" },
+            { label: "未启用拦截", value: "0" },
           ]}
         />
 
-        <button
-          type="button"
-          onClick={runQuery}
-          disabled={loading}
-          style={{
-            height: 36,
-            padding: "0 16px",
-            borderRadius: 999,
-            border: "1px solid var(--btn-border)",
-            background: loading
-              ? "var(--panel-bg2)"
-              : "linear-gradient(135deg, #2563eb, #1d4ed8)",
-            color: "#f8fafc",
-            fontSize: 12,
-            fontWeight: 700,
-            boxSizing: "border-box",
-            cursor: loading ? "not-allowed" : "pointer",
-            letterSpacing: "0.01em",
-            boxShadow: loading ? "none" : "0 8px 18px rgba(37,99,235,0.35)",
-            transition: "all 0.2s ease",
-          }}
-        >
-          {loading ? smp("queryRunning") : smp("query")}
-        </button>
+        <div style={{ marginLeft: "auto", display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+          <button
+            type="button"
+            onClick={() => void batchSetIntercept(true)}
+            disabled={batchUpdating || updatingSlug !== null || selectedActionableSlugs.length === 0}
+            style={{
+              height: 36,
+              padding: "0 14px",
+              borderRadius: 999,
+              border: "1px solid rgba(239,68,68,0.45)",
+              background: "rgba(239,68,68,0.10)",
+              color: "var(--claw-danger-fg)",
+              fontSize: 12,
+              fontWeight: 700,
+              cursor: batchUpdating || updatingSlug !== null || selectedActionableSlugs.length === 0 ? "not-allowed" : "pointer",
+              opacity: batchUpdating || updatingSlug !== null || selectedActionableSlugs.length === 0 ? 0.55 : 1,
+            }}
+          >
+            {batchUpdating ? "批量处理中…" : `批量启用拦截 (${selectedActionableSlugs.length})`}
+          </button>
+          <button
+            type="button"
+            onClick={() => void batchSetIntercept(false)}
+            disabled={batchUpdating || updatingSlug !== null || selectedActionableSlugs.length === 0}
+            style={{
+              height: 36,
+              padding: "0 14px",
+              borderRadius: 999,
+              border: "1px solid rgba(34,197,94,0.50)",
+              background: "rgba(34,197,94,0.12)",
+              color: "var(--claw-green-fg)",
+              fontSize: 12,
+              fontWeight: 700,
+              cursor: batchUpdating || updatingSlug !== null || selectedActionableSlugs.length === 0 ? "not-allowed" : "pointer",
+              opacity: batchUpdating || updatingSlug !== null || selectedActionableSlugs.length === 0 ? 0.55 : 1,
+            }}
+          >
+            {batchUpdating ? "批量处理中…" : `批量取消拦截 (${selectedActionableSlugs.length})`}
+          </button>
+          <button
+            type="button"
+            onClick={runQuery}
+            disabled={loading}
+            style={{
+              height: 36,
+              padding: "0 16px",
+              borderRadius: 999,
+              border: "1px solid var(--btn-border)",
+              background: loading ? "var(--panel-bg2)" : "linear-gradient(135deg, #2563eb, #1d4ed8)",
+              color: "#f8fafc",
+              fontSize: 12,
+              fontWeight: 700,
+              boxSizing: "border-box",
+              cursor: loading ? "not-allowed" : "pointer",
+              letterSpacing: "0.01em",
+              boxShadow: loading ? "none" : "0 8px 18px rgba(37,99,235,0.35)",
+              transition: "all 0.2s ease",
+            }}
+          >
+            {loading ? smp("queryRunning") : smp("query")}
+          </button>
+        </div>
       </div>
 
       <div
@@ -739,25 +881,117 @@ export function SkillsPanel({ showAccountSwitchPlaceholder = false }: { showAcco
           overflow: "hidden",
         }}
       >
+        {/* clip 包装器：截断原生横向滚动条，仅保留底部自定义滚动条 */}
+        <div style={{ overflow: "hidden", height: "calc(100vh - 290px)", minHeight: 320 }}>
         <div
           className="skills-table-scroll"
+          ref={tableScrollRef}
+          onScroll={onTableScroll}
           style={{
-            height: "calc(100vh - 290px)",
-            minHeight: 320,
+            height: "calc(100vh - 270px)", /* 比 clip 容器高 20px，原生横向滚动条落在被裁区域 */
+            minHeight: 340,
             overflowY: "auto",
             overflowX: "auto",
             scrollbarWidth: "thin",
             scrollbarColor: "var(--muted2) var(--panel-bg)",
           }}
         >
-        <table style={{ width: "100%", minWidth: 1320, borderCollapse: "collapse" }}>
-          <thead style={{ background: "var(--panel-bg)", position: "sticky", top: 0, zIndex: 1 }}>
+        <table style={{ width: "100%", minWidth: 1320, borderCollapse: "separate", borderSpacing: 0 }}>
+          <thead style={{ background: "var(--panel-solid)", position: "sticky", top: 0, zIndex: 10 }}>
             <tr>
-              <th style={{ padding: "6px 8px", borderBottom: "1px solid var(--panel-border)", textAlign: "left", color: "var(--muted)" }}>{smp("colName")}</th>
-              <th style={{ padding: "6px 8px", borderBottom: "1px solid var(--panel-border)", textAlign: "left", color: "var(--muted)" }}>{smp("colProvider")}</th>
-              <th style={{ padding: "6px 8px", borderBottom: "1px solid var(--panel-border)", textAlign: "center", width: 72, color: "var(--muted)" }}>{smp("colGrade")}</th>
-              <th style={{ padding: "6px 8px", borderBottom: "1px solid var(--panel-border)", textAlign: "left", color: "var(--muted)" }}>{smp("colStatus")}</th>
-              <th style={{ padding: "6px 8px", borderBottom: "1px solid var(--panel-border)", textAlign: "left", color: "var(--muted)" }}>{smp("colDesc")}</th>
+              <th
+                style={{
+                  padding: "6px 8px",
+                  borderBottom: "1px solid var(--panel-border)",
+                  textAlign: "center",
+                  width: 34,
+                  position: "sticky",
+                  top: 0,
+                  left: 0,
+                  zIndex: 7,
+                  background: "var(--panel-solid)",
+                  boxShadow: "1px 0 0 var(--panel-border), 10px 0 18px rgba(0,0,0,0.16)",
+                }}
+              >
+                <input
+                  type="checkbox"
+                  checked={allPageSelected}
+                  onChange={toggleSelectAllPageActionable}
+                  title="全选当前页可批量项"
+                  style={{ cursor: "pointer" }}
+                />
+              </th>
+              <th
+                style={{
+                  padding: "6px 8px",
+                  borderBottom: "1px solid var(--panel-border)",
+                  textAlign: "left",
+                  color: "var(--muted)",
+                  position: "sticky",
+                  top: 0,
+                  zIndex: 4,
+                  background: "var(--panel-solid)",
+                }}
+              >
+                {smp("colName")}
+              </th>
+              <th
+                style={{
+                  padding: "6px 8px",
+                  borderBottom: "1px solid var(--panel-border)",
+                  textAlign: "left",
+                  color: "var(--muted)",
+                  position: "sticky",
+                  top: 0,
+                  zIndex: 4,
+                  background: "var(--panel-solid)",
+                }}
+              >
+                {smp("colProvider")}
+              </th>
+              <th
+                style={{
+                  padding: "6px 8px",
+                  borderBottom: "1px solid var(--panel-border)",
+                  textAlign: "center",
+                  width: 72,
+                  color: "var(--muted)",
+                  position: "sticky",
+                  top: 0,
+                  zIndex: 4,
+                  background: "var(--panel-solid)",
+                }}
+              >
+                {smp("colGrade")}
+              </th>
+              <th
+                style={{
+                  padding: "6px 8px",
+                  borderBottom: "1px solid var(--panel-border)",
+                  textAlign: "left",
+                  color: "var(--muted)",
+                  position: "sticky",
+                  top: 0,
+                  zIndex: 4,
+                  background: "var(--panel-solid)",
+                }}
+              >
+                {smp("colStatus")}
+              </th>
+              <th
+                style={{
+                  padding: "6px 8px",
+                  borderBottom: "1px solid var(--panel-border)",
+                  textAlign: "left",
+                  color: "var(--muted)",
+                  position: "sticky",
+                  top: 0,
+                  zIndex: 3,
+                  background: "var(--panel-solid)",
+                }}
+              >
+                {smp("colDesc")}
+              </th>
               <th
                 style={{
                   padding: "6px 8px",
@@ -767,20 +1001,40 @@ export function SkillsPanel({ showAccountSwitchPlaceholder = false }: { showAcco
                   minWidth: 200,
                   boxSizing: "border-box",
                   position: "sticky",
+                  top: 0,
                   right: 0,
-                  zIndex: 3,
-                  background: "var(--panel-bg)",
-                  boxShadow: "-1px 0 0 var(--panel-border), -8px 0 16px rgba(0,0,0,0.10)",
+                  zIndex: 6,
+                  background: "var(--panel-solid)",
+                  boxShadow: "-1px 0 0 var(--panel-border), -10px 0 18px rgba(0,0,0,0.16)",
                   color: "var(--muted)",
                 }}
               >
-                {smp("colEnable")}
+                拦截
               </th>
             </tr>
           </thead>
           <tbody>
             {pagedSkills.map((s) => (
               <tr key={s.slug} style={{ background: "var(--panel-bg)" }}>
+                <td style={{
+                  padding: "6px 8px",
+                  borderBottom: "1px solid var(--panel-border)",
+                  textAlign: "center",
+                  position: "sticky",
+                  left: 0,
+                  zIndex: 2,
+                  background: "var(--panel-solid)",
+                  boxShadow: "1px 0 0 var(--panel-border), 10px 0 18px rgba(0,0,0,0.16)",
+                }}>
+                  <input
+                    type="checkbox"
+                    checked={selectedSlugs.includes(s.slug)}
+                    onChange={() => toggleSelectRow(s.slug)}
+                    disabled={!isRowBatchActionable(s) || batchUpdating}
+                    title={!isRowBatchActionable(s) ? "仅 NORMAL 且已配置项可批量修改" : "选择此项"}
+                    style={{ cursor: !isRowBatchActionable(s) || batchUpdating ? "not-allowed" : "pointer" }}
+                  />
+                </td>
                 <td style={{ padding: "6px 8px", borderBottom: "1px solid var(--panel-border)", maxWidth: 280 }}>
                   <div
                     style={{
@@ -1022,9 +1276,9 @@ export function SkillsPanel({ showAccountSwitchPlaceholder = false }: { showAcco
                     textAlign: "center",
                     position: "sticky",
                     right: 0,
-                    zIndex: 3,
-                    background: "var(--panel-bg)",
-                    boxShadow: "-1px 0 0 var(--panel-border), -8px 0 16px rgba(0,0,0,0.10)",
+                    zIndex: 2,
+                    background: "var(--panel-solid)",
+                    boxShadow: "-1px 0 0 var(--panel-border), -10px 0 18px rgba(0,0,0,0.16)",
                     width: 200,
                     minWidth: 200,
                     boxSizing: "border-box",
@@ -1039,25 +1293,25 @@ export function SkillsPanel({ showAccountSwitchPlaceholder = false }: { showAcco
                       <button
                         type="button"
                         onClick={() => toggleUserEnabled(s.slug, s.userEnabled)}
-                        disabled={updatingSlug === s.slug}
+                        disabled={updatingSlug === s.slug || batchUpdating}
                         style={{
                           position: "relative",
                           width: 42,
                           height: 22,
                           borderRadius: 999,
                           border: "none",
-                          background: s.userEnabled === 1 ? "#22c55e" : "#374151",
-                          cursor: updatingSlug === s.slug ? "not-allowed" : "pointer",
-                          opacity: updatingSlug === s.slug ? 0.6 : 1,
+                          background: s.userEnabled === 0 ? "#22c55e" : "#374151",
+                          cursor: updatingSlug === s.slug || batchUpdating ? "not-allowed" : "pointer",
+                          opacity: updatingSlug === s.slug || batchUpdating ? 0.6 : 1,
                           transition: "background 0.2s, opacity 0.2s",
                         }}
-                        title={s.userEnabled === 1 ? smp("toggleEnabledTitle") : smp("toggleDisabledTitle")}
+                        title={s.userEnabled === 0 ? "已启用拦截" : "未启用拦截"}
                       >
                         <span
                           style={{
                             position: "absolute",
                             top: 2,
-                            left: s.userEnabled === 1 ? 24 : 2,
+                            left: s.userEnabled === 0 ? 24 : 2,
                             width: 18,
                             height: 18,
                             borderRadius: "50%",
@@ -1089,39 +1343,30 @@ export function SkillsPanel({ showAccountSwitchPlaceholder = false }: { showAcco
                       >
                         {smp("auditReport")}
                       </button>
-                      <button
-                        type="button"
-                        onClick={() => void toggleUserEnabled(s.slug, s.userEnabled)}
-                        disabled={
-                          updatingSlug === s.slug || s.userEnabled === null || s.userEnabled === 1 || s.systemStatus !== "NORMAL"
-                        }
-                        title={
-                          s.systemStatus !== "NORMAL"
-                            ? smp("installTitleSysDisabled")
-                            : s.userEnabled === 1 || s.userEnabled === null
-                              ? smp("installTitleAlreadyOn")
-                              : smp("installTitleEnable")
-                        }
-                        style={{
-                          height: 26,
-                          padding: "0 8px",
-                          borderRadius: 8,
-                          border: "none",
-                          background:
-                            s.userEnabled === 0 && s.systemStatus === "NORMAL" ? "#2563eb" : "rgba(30,41,59,0.9)",
-                          color: s.userEnabled === 0 && s.systemStatus === "NORMAL" ? "#fff" : "var(--muted2)",
-                          fontSize: 10,
-                          fontWeight: 700,
-                          cursor:
-                            updatingSlug === s.slug || s.userEnabled !== 0 || s.systemStatus !== "NORMAL"
-                              ? "not-allowed"
-                              : "pointer",
-                          opacity: s.userEnabled === 0 && s.systemStatus === "NORMAL" ? 1 : 0.65,
-                          flex: "0 0 auto",
-                        }}
-                      >
-                        {s.userEnabled === 0 ? smp("safeInstall") : smp("alreadyEnabledBtn")}
-                      </button>
+                      {/* 仅当拦截关闭（userEnabled===1）时才显示安全安装按钮 */}
+                      {s.userEnabled === 1 && s.systemStatus === "NORMAL" && (
+                        <button
+                          type="button"
+                          onClick={() => setInstallModal({ open: true, skill: s })}
+                          disabled={updatingSlug === s.slug}
+                          title={smp("installTitleEnable")}
+                          style={{
+                            height: 26,
+                            padding: "0 8px",
+                            borderRadius: 8,
+                            border: "none",
+                            background: "#2563eb",
+                            color: "#fff",
+                            fontSize: 10,
+                            fontWeight: 700,
+                            cursor: updatingSlug === s.slug ? "not-allowed" : "pointer",
+                            opacity: updatingSlug === s.slug ? 0.6 : 1,
+                            flex: "0 0 auto",
+                          }}
+                        >
+                          {smp("safeInstall")}
+                        </button>
+                      )}
                       <button
                         type="button"
                         onClick={() => openDetail(s.slug)}
@@ -1157,7 +1402,37 @@ export function SkillsPanel({ showAccountSwitchPlaceholder = false }: { showAcco
             )}
           </tbody>
         </table>
-        {/* 分页条 */}
+        </div>
+        </div>{/* /clip 包装器 */}
+
+        {/* 固定底部横向滚动条：拖动时同步主表横向位置 */}
+        {!loading && tableScrollSize.scrollWidth > tableScrollSize.clientWidth + 1 && (
+          <div
+            style={{
+              position: "sticky",
+              bottom: 54,
+              zIndex: 7,
+              borderTop: "1px solid var(--panel-border)",
+              background: "var(--panel-solid)",
+              padding: "6px 10px",
+            }}
+          >
+            <div
+              ref={bottomScrollRef}
+              onScroll={onBottomScroll}
+              style={{
+                overflowX: "auto",
+                overflowY: "hidden",
+                height: 12,
+                scrollbarWidth: "thin",
+              }}
+            >
+              <div style={{ width: tableScrollSize.scrollWidth, height: 1 }} />
+            </div>
+          </div>
+        )}
+
+        {/* 分页条：固定在视口底部 */}
         {!loading && displaySkills.length > 0 && (
           <div
             style={{
@@ -1167,7 +1442,10 @@ export function SkillsPanel({ showAccountSwitchPlaceholder = false }: { showAcco
               gap: 10,
               padding: "10px 12px",
               borderTop: "1px solid var(--panel-border)",
-              background: "var(--panel-bg)",
+              background: "var(--panel-solid)",
+              position: "sticky",
+              bottom: 0,
+              zIndex: 8,
             }}
           >
             <div style={{ fontSize: 12, color: "var(--muted)" }}>
@@ -1250,8 +1528,244 @@ export function SkillsPanel({ showAccountSwitchPlaceholder = false }: { showAcco
             </div>
           </div>
         )}
-        </div>
       </div>
+
+      {/* 安全安装弹窗 */}
+      {installModal.open && installModal.skill && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(2,6,23,0.62)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 60,
+            backdropFilter: "blur(3px)",
+            WebkitBackdropFilter: "blur(3px)",
+          }}
+          onClick={() => setInstallModal({ open: false, skill: null })}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              width: 520,
+              borderRadius: 18,
+              border: "1px solid var(--panel-border)",
+              background: "var(--panel-bg)",
+              boxShadow: "0 32px 80px rgba(0,0,0,0.45), 0 0 0 1px rgba(255,255,255,0.04) inset",
+              display: "flex",
+              flexDirection: "column",
+              overflow: "hidden",
+              position: "relative",
+            }}
+          >
+            {/* 弹窗头部 */}
+            <div
+              style={{
+                padding: "18px 22px 16px",
+                borderBottom: "1px solid var(--panel-border)",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                gap: 12,
+                flexShrink: 0,
+              }}
+            >
+              <div style={{ display: "flex", alignItems: "center", gap: 12, minWidth: 0 }}>
+                <div
+                  style={{
+                    width: 38,
+                    height: 38,
+                    borderRadius: 10,
+                    background: "linear-gradient(135deg, rgba(37,99,235,0.15), rgba(29,78,216,0.2))",
+                    border: "1px solid rgba(37,99,235,0.3)",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    fontSize: 18,
+                    flexShrink: 0,
+                  }}
+                >
+                  📦
+                </div>
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ fontSize: 15, fontWeight: 700, color: "var(--fg)", marginBottom: 3 }}>
+                    {smp("safeInstall")}
+                  </div>
+                  <div
+                    style={{
+                      fontSize: 11,
+                      color: "var(--muted2)",
+                      fontFamily: "ui-monospace, monospace",
+                      whiteSpace: "nowrap",
+                      overflow: "hidden",
+                      textOverflow: "ellipsis",
+                    }}
+                  >
+                    {installModal.skill.slug}
+                  </div>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setInstallModal({ open: false, skill: null })}
+                style={{
+                  width: 30,
+                  height: 30,
+                  borderRadius: 8,
+                  border: "1px solid var(--panel-border)",
+                  background: "transparent",
+                  color: "var(--muted)",
+                  fontSize: 16,
+                  cursor: "pointer",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  flexShrink: 0,
+                }}
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* 弹窗内容区（模糊降级） */}
+            <div
+              style={{
+                padding: "22px",
+                display: "flex",
+                flexDirection: "column",
+                gap: 16,
+                filter: "blur(2px)",
+                pointerEvents: "none",
+                userSelect: "none",
+              }}
+            >
+              {/* skill 基础信息 */}
+              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                <div style={{ fontSize: 12, fontWeight: 600, color: "var(--fg)" }}>
+                  {installModal.skill.name || installModal.skill.slug}
+                </div>
+                {installModal.skill.shortDesc && (
+                  <div style={{ fontSize: 11, color: "var(--muted)", lineHeight: 1.5 }}>
+                    {installModal.skill.shortDesc}
+                  </div>
+                )}
+              </div>
+
+              {/* 安装命令占位 */}
+              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                <div style={{ fontSize: 11, fontWeight: 600, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.06em" }}>
+                  安装命令
+                </div>
+                <div
+                  style={{
+                    padding: "12px 14px",
+                    borderRadius: 10,
+                    border: "1px solid var(--panel-border)",
+                    background: "rgba(0,0,0,0.15)",
+                    fontSize: 12,
+                    fontFamily: "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace",
+                    color: "var(--muted)",
+                    lineHeight: 1.6,
+                    wordBreak: "break-all",
+                  }}
+                >
+                  npm install {installModal.skill.slug}
+                </div>
+              </div>
+
+              {/* 执行环境选项占位 */}
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+                {["当前工作区", "全局环境"].map((label) => (
+                  <div
+                    key={label}
+                    style={{
+                      padding: "10px 14px",
+                      borderRadius: 10,
+                      border: "1px solid var(--panel-border)",
+                      background: "var(--panel-bg2)",
+                      fontSize: 12,
+                      color: "var(--muted)",
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 8,
+                    }}
+                  >
+                    <span style={{ width: 8, height: 8, borderRadius: "50%", background: "var(--muted2)", flexShrink: 0 }} />
+                    {label}
+                  </div>
+                ))}
+              </div>
+
+              {/* 操作按钮占位 */}
+              <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, paddingTop: 4 }}>
+                <div style={{ height: 34, width: 64, borderRadius: 8, background: "var(--panel-border)" }} />
+                <div style={{ height: 34, width: 100, borderRadius: 8, background: "rgba(37,99,235,0.3)" }} />
+              </div>
+            </div>
+
+            {/* 建设中蒙版 */}
+            <div
+              style={{
+                position: "absolute",
+                left: 0,
+                right: 0,
+                bottom: 0,
+                top: 64,
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: 14,
+                background: "rgba(2,6,23,0.72)",
+                backdropFilter: "blur(6px)",
+                WebkitBackdropFilter: "blur(6px)",
+                borderRadius: "0 0 18px 18px",
+              }}
+            >
+              <div
+                style={{
+                  width: 60,
+                  height: 60,
+                  borderRadius: 16,
+                  background: "linear-gradient(135deg, rgba(251,191,36,0.18), rgba(245,158,11,0.28))",
+                  border: "1px solid rgba(251,191,36,0.35)",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  fontSize: 28,
+                }}
+              >
+                🚧
+              </div>
+              <div style={{ textAlign: "center" }}>
+                <div style={{ fontSize: 16, fontWeight: 800, color: "#fbbf24", marginBottom: 6 }}>
+                  功能建设中
+                </div>
+                <div style={{ fontSize: 12, color: "rgba(148,163,184,0.85)", lineHeight: 1.6, maxWidth: 260 }}>
+                  自动安装功能正在开发中，敬请期待。
+                </div>
+              </div>
+              <div
+                style={{
+                  padding: "5px 14px",
+                  borderRadius: 999,
+                  background: "rgba(251,191,36,0.10)",
+                  border: "1px solid rgba(251,191,36,0.22)",
+                  fontSize: 10,
+                  fontWeight: 700,
+                  color: "rgba(251,191,36,0.7)",
+                  letterSpacing: "0.08em",
+                  textTransform: "uppercase",
+                }}
+              >
+                Coming Soon
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* 详情弹窗 */}
       {(detailLoading || detail || detailError) && (

@@ -12,6 +12,13 @@ const { getManagedOpenClawEnv, getActiveOpenClawEnv } = require("./openclaw-work
 const { getUserProfileOpenClawPaths } = require("./openclaw-discovery.js");
 
 /**
+ * 内置（Bundled）Gateway 专属固定端口。
+ * 与外置 openclaw 标准默认端口 18789 错开，避免共存时端口争抢与进程误识别。
+ * 修改此值需同步更新 openclaw-manager.js 中的同名常量。
+ */
+const BUNDLED_GATEWAY_PORT = 19278;
+
+/**
  * 获取 OpenClaw 可执行文件路径
  */
 function getOpenClawBinPath() {
@@ -185,6 +192,42 @@ function generateToken() {
 }
 
 /**
+ * 轮换 Gateway 鉴权 token（用于认证失败锁定后的快速恢复）
+ */
+function rotateGatewayAuthToken() {
+  const configPath = getOpenClawConfigPath();
+  const configDir = path.dirname(configPath);
+  if (!fs.existsSync(configDir)) {
+    fs.mkdirSync(configDir, { recursive: true });
+  }
+
+  let cfg = {};
+  if (fs.existsSync(configPath)) {
+    try {
+      cfg = JSON.parse(fs.readFileSync(configPath, "utf-8"));
+    } catch (e) {
+      console.warn("[OpenClaw Config] 读取现有配置失败，将以空配置重建 gateway.auth:", e?.message || e);
+      cfg = {};
+    }
+  }
+
+  if (!cfg.gateway || typeof cfg.gateway !== "object") {
+    cfg.gateway = {};
+  }
+  if (!cfg.gateway.auth || typeof cfg.gateway.auth !== "object") {
+    cfg.gateway.auth = {};
+  }
+  if (!cfg.gateway.mode || String(cfg.gateway.mode).trim() === "") {
+    cfg.gateway.mode = "local";
+  }
+  cfg.gateway.auth.mode = "token";
+  cfg.gateway.auth.token = generateToken();
+
+  fs.writeFileSync(configPath, JSON.stringify(cfg, null, 2), "utf-8");
+  return { token: cfg.gateway.auth.token, configPath };
+}
+
+/**
  * OpenClaw 2026.3+：`gateway run` 要求 `gateway.mode=local` 或传 `--allow-unconfigured`。
  * 旧版/手写的 openclaw.json 可能没有 mode，仅补全为 local，不覆盖已有非空 mode。
  */
@@ -292,7 +335,7 @@ function initOpenClawConfig() {
       ownerDisplay: "raw",
     },
     gateway: {
-      port: 18789,
+      port: BUNDLED_GATEWAY_PORT,
       mode: "local",
       auth: {
         mode: "token",
@@ -477,27 +520,22 @@ function resetOpenClawConfig() {
 /**
  * 重启 OpenClaw Gateway
  */
-async function restartGateway() {
-  console.log("[OpenClaw Config] 重启 Gateway...");
-  
+/**
+ * 重启指定模式的 Gateway。
+ * @param {string} [mode] "bundled" | "external"；省略时由 stop/start 内部读 DB 决定（向后兼容）
+ */
+async function restartGateway(mode) {
+  console.log(`[OpenClaw Config] 重启 ${mode || "default"} Gateway...`);
   try {
-    // 先停止
-    const { stopEmbeddedOpenClaw } = require("./openclaw-manager.js");
-    await stopEmbeddedOpenClaw();
-    
-    console.log("[OpenClaw Config] 等待 Gateway 停止...");
+    const { stopEmbeddedOpenClaw, startEmbeddedOpenClaw } = require("./openclaw-manager.js");
+    await stopEmbeddedOpenClaw(mode);
     await new Promise((resolve) => setTimeout(resolve, 2000));
-    
-    // 再启动
-    const { startEmbeddedOpenClaw } = require("./openclaw-manager.js");
-    const started = await startEmbeddedOpenClaw();
-    
+    const started = await startEmbeddedOpenClaw(mode);
     if (started) {
-      console.log("[OpenClaw Config] Gateway 重启成功");
+      console.log(`[OpenClaw Config] ${mode || ""} Gateway 重启成功`);
     } else {
-      console.log("[OpenClaw Config] Gateway 重启超时，但可能正在后台启动");
+      console.log(`[OpenClaw Config] ${mode || ""} Gateway 重启超时，但可能正在后台启动`);
     }
-    
     return true;
   } catch (err) {
     console.error("[OpenClaw Config] 重启失败:", err);
@@ -589,6 +627,40 @@ function writeOpenClawConfigToPath(configPath, config) {
   }
 }
 
+/**
+ * 迁移旧托管配置：将 gateway.port 从 18789（openclaw 标准默认端口）修正为
+ * BUNDLED_GATEWAY_PORT（内置专属端口），避免与用户自行安装的外置 openclaw 争抢端口。
+ *
+ * 调用时机：每次 startEmbeddedOpenClaw 初始化阶段（initOpenClawConfig 之后）。
+ * 仅操作 ClawHeart 托管目录（clawheart-openclaw-runtime），不触碰 ~/.openclaw。
+ *
+ * @returns {boolean} true = 发生了写入（端口已更新）；false = 无需更改
+ */
+function ensureManagedGatewayPort() {
+  const configPath = getManagedOpenClawEnv().OPENCLAW_CONFIG_PATH;
+  if (!fs.existsSync(configPath)) return false;
+  let cfg;
+  try {
+    cfg = JSON.parse(fs.readFileSync(configPath, "utf-8"));
+  } catch (e) {
+    console.warn("[OpenClaw Config] ensureManagedGatewayPort 解析失败:", e?.message || e);
+    return false;
+  }
+  if (!cfg.gateway || typeof cfg.gateway !== "object") cfg.gateway = {};
+  const curPort = Number(cfg.gateway.port);
+  if (curPort === BUNDLED_GATEWAY_PORT) return false;
+  const prevPort = Number.isFinite(curPort) && curPort > 0 ? curPort : "(未设置)";
+  cfg.gateway.port = BUNDLED_GATEWAY_PORT;
+  try {
+    fs.writeFileSync(configPath, JSON.stringify(cfg, null, 2), "utf-8");
+    console.log(`[OpenClaw Config] 内置 Gateway 端口已迁移: ${prevPort} → ${BUNDLED_GATEWAY_PORT}`);
+    return true;
+  } catch (e) {
+    console.warn("[OpenClaw Config] ensureManagedGatewayPort 写入失败:", e?.message || e);
+    return false;
+  }
+}
+
 module.exports = {
   setOpenClawConfig,
   getOpenClawConfig,
@@ -603,5 +675,8 @@ module.exports = {
   resolveConfigEditTarget,
   initOpenClawConfig,
   ensureGatewayModeLocal,
+  ensureManagedGatewayPort,
+  rotateGatewayAuthToken,
   PROVIDER_PRESETS,
+  BUNDLED_GATEWAY_PORT,
 };

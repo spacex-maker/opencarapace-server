@@ -137,6 +137,7 @@ export function AgentMgmtPanel() {
   const subTitle = `${items.length} 条数据接入`;
 
   return (
+    <div style={{ position: "relative", width: "100%", maxWidth: 1400, margin: "0 auto" }}>
     <div
       style={{
         width: "100%",
@@ -152,6 +153,9 @@ export function AgentMgmtPanel() {
         flexDirection: "column",
         overflow: "hidden", // 防止子元素溢出圆角
         color: "var(--fg)",
+        filter: "blur(2px)",
+        pointerEvents: "none",
+        userSelect: "none",
       }}
     >
       {/* 注入全局小动画与网格卡片悬浮样式 */}
@@ -586,6 +590,80 @@ export function AgentMgmtPanel() {
           )}
         </div>
       </div>
+    </div>
+
+    {/* 建设中蒙版 */}
+    <div
+      style={{
+        position: "absolute",
+        inset: 0,
+        borderRadius: 16,
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        justifyContent: "center",
+        gap: 16,
+        background: "rgba(2,6,23,0.72)",
+        backdropFilter: "blur(6px)",
+        WebkitBackdropFilter: "blur(6px)",
+        zIndex: 10,
+      }}
+    >
+      <div
+        style={{
+          width: 72,
+          height: 72,
+          borderRadius: 20,
+          background: "linear-gradient(135deg, rgba(251,191,36,0.18) 0%, rgba(245,158,11,0.28) 100%)",
+          border: "1px solid rgba(251,191,36,0.35)",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          fontSize: 36,
+        }}
+      >
+        🚧
+      </div>
+      <div style={{ textAlign: "center" }}>
+        <div
+          style={{
+            fontSize: 20,
+            fontWeight: 800,
+            color: "#fbbf24",
+            letterSpacing: "-0.01em",
+            marginBottom: 8,
+          }}
+        >
+          功能建设中
+        </div>
+        <div
+          style={{
+            fontSize: 13,
+            color: "rgba(148,163,184,0.85)",
+            lineHeight: 1.6,
+            maxWidth: 320,
+          }}
+        >
+          Agent 资源管理器正在开发中，敬请期待。
+        </div>
+      </div>
+      <div
+        style={{
+          marginTop: 4,
+          padding: "6px 16px",
+          borderRadius: 999,
+          background: "rgba(251,191,36,0.10)",
+          border: "1px solid rgba(251,191,36,0.22)",
+          fontSize: 11,
+          fontWeight: 700,
+          color: "rgba(251,191,36,0.7)",
+          letterSpacing: "0.08em",
+          textTransform: "uppercase",
+        }}
+      >
+        Coming Soon
+      </div>
+    </div>
     </div>
   );
 }

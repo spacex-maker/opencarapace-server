@@ -53,6 +53,7 @@ export function App() {
   const [logoutSubmitting, setLogoutSubmitting] = useState(false);
   const [authSubView, setAuthSubView] = useState<"login" | "register">("login");
   const [securityScanEverOpened, setSecurityScanEverOpened] = useState(false);
+  const [connectionBadgeHover, setConnectionBadgeHover] = useState(false);
   const [theme, setTheme] = useState<"dark" | "light">(() => {
     try {
       const v = localStorage.getItem("oc_theme");
@@ -296,6 +297,7 @@ export function App() {
         ["--topbar-bg" as any]: theme === "light" ? "rgba(248,250,252,0.92)" : "rgba(2,6,23,0.92)",
         ["--panel-bg" as any]: theme === "light" ? "rgba(255,255,255,0.9)" : "rgba(15,23,42,0.85)",
         ["--panel-bg2" as any]: theme === "light" ? "rgba(248,250,252,0.9)" : "rgba(15,23,42,0.55)",
+        ["--panel-solid" as any]: theme === "light" ? "#ffffff" : "#0f172a",
         ["--panel-border" as any]: theme === "light" ? "rgba(15,23,42,0.12)" : "rgba(51,65,85,0.9)",
         ["--chip-bg" as any]: theme === "light" ? "rgba(15,23,42,0.04)" : "rgba(51,65,85,0.6)",
         ["--chip-fg" as any]: theme === "light" ? "#475569" : "#94a3b8",
@@ -785,20 +787,28 @@ export function App() {
 
       {/* 右下角服务器连接状态 */}
       <div
+        onMouseEnter={() => setConnectionBadgeHover(true)}
+        onMouseLeave={() => setConnectionBadgeHover(false)}
         style={{
           position: "fixed",
           right: 18,
           bottom: 16,
-          padding: "6px 10px",
+          padding: connectionBadgeHover ? "6px 10px" : "8px",
           borderRadius: 999,
           background: theme === "light" ? "rgba(255,255,255,0.9)" : "rgba(15,23,42,0.96)",
           border: "1px solid var(--border)",
           display: "inline-flex",
           alignItems: "center",
-          gap: 6,
+          gap: connectionBadgeHover ? 6 : 0,
           fontSize: 11,
           color: theme === "light" ? "#334155" : "#9ca3af",
-          pointerEvents: "none",
+          pointerEvents: "auto",
+          zIndex: 9999,
+          maxWidth: connectionBadgeHover ? 560 : 24,
+          overflow: "hidden",
+          whiteSpace: "nowrap",
+          transition: "all 0.18s ease",
+          cursor: "default",
         }}
       >
         <span
@@ -810,25 +820,29 @@ export function App() {
             boxShadow: isConnected ? "0 0 0 4px rgba(34,197,94,0.18)" : "none",
           }}
         />
-        <span>{connectionLabel}</span>
-        {latency !== null && isConnected && (
-          <span style={{ color: "#6b7280", fontSize: 10 }}>
-            {latency}ms
-          </span>
-        )}
-        {status?.settings?.apiBase && (
-          <span
-            style={{
-              maxWidth: 180,
-              whiteSpace: "nowrap",
-              textOverflow: "ellipsis",
-              overflow: "hidden",
-              color: "#6b7280",
-            }}
-            title={status.settings.apiBase}
-          >
-            {status.settings.apiBase}
-          </span>
+        {connectionBadgeHover && (
+          <>
+            <span>{connectionLabel}</span>
+            {latency !== null && isConnected && (
+              <span style={{ color: "#6b7280", fontSize: 10 }}>
+                {latency}ms
+              </span>
+            )}
+            {status?.settings?.apiBase && (
+              <span
+                style={{
+                  maxWidth: 180,
+                  whiteSpace: "nowrap",
+                  textOverflow: "ellipsis",
+                  overflow: "hidden",
+                  color: "#6b7280",
+                }}
+                title={status.settings.apiBase}
+              >
+                {status.settings.apiBase}
+              </span>
+            )}
+          </>
         )}
       </div>
 

@@ -1,5 +1,13 @@
 const axios = require("axios");
-const { getDb, getLocalSettings, getLocalAuth, upsertUserSkill, upsertUserSkillSafetyLabel, getSyncUserSkillsToCloud } = require("../db.js");
+const {
+  getDb,
+  getLocalSettings,
+  getLocalAuth,
+  upsertUserSkill,
+  upsertUserSkillsBatch,
+  upsertUserSkillSafetyLabel,
+  getSyncUserSkillsToCloud,
+} = require("../db.js");
 
 async function requireLoginForCloudSync(res) {
   const auth = await getLocalAuth();
@@ -202,6 +210,64 @@ function registerSkillsRoutes(app) {
       res.status(200).json({ ok: true });
     } catch (e) {
       res.status(500).json({ error: { message: e?.message ?? "更新用户技能失败" } });
+    }
+  });
+
+  app.put("/api/user-skills-batch", async (req, res) => {
+    try {
+      const { slugs, enabled } = req.body || {};
+      if (!Array.isArray(slugs) || slugs.length === 0) {
+        res.status(400).json({ error: { message: "slugs 必须是非空数组" } });
+        return;
+      }
+      if (typeof enabled !== "boolean") {
+        res.status(400).json({ error: { message: "enabled 必须是 boolean" } });
+        return;
+      }
+      const normSlugs = Array.from(
+        new Set(
+          slugs
+            .map((x) => String(x || "").trim())
+            .filter(Boolean)
+        )
+      );
+      if (normSlugs.length === 0) {
+        res.status(400).json({ error: { message: "slugs 无有效项" } });
+        return;
+      }
+
+      const ret = await upsertUserSkillsBatch(normSlugs, enabled);
+
+      let cloudSynced = 0;
+      const syncToCloud = await getSyncUserSkillsToCloud();
+      if (syncToCloud === 1) {
+        try {
+          const settings = await getLocalSettings();
+          const auth = await getLocalAuth();
+          const apiBase = (settings && settings.apiBase) || "https://api.clawheart.live";
+          if (auth && auth.token) {
+            const settled = await Promise.allSettled(
+              normSlugs.map((slug) =>
+                axios.put(
+                  `${apiBase}/api/user-skills/me/${encodeURIComponent(slug)}`,
+                  { enabled },
+                  {
+                    headers: { Authorization: `Bearer ${auth.token}` },
+                    validateStatus: () => true,
+                  }
+                )
+              )
+            );
+            cloudSynced = settled.filter((x) => x.status === "fulfilled").length;
+          }
+        } catch {
+          // ignore cloud sync failure
+        }
+      }
+
+      res.status(200).json({ ok: true, updatedCount: ret.updatedCount, cloudSynced });
+    } catch (e) {
+      res.status(500).json({ error: { message: e?.message ?? "批量更新用户技能失败" } });
     }
   });
 

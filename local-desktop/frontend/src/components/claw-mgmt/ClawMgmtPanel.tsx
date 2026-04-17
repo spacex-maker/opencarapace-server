@@ -34,11 +34,7 @@ export function ClawMgmtPanel() {
         style={{
           maxWidth: 1100,
           margin: "0 auto",
-          background: "var(--panel-bg)",
-          borderRadius: 16,
-          padding: "24px 28px",
-          border: "1px solid var(--panel-border)",
-          boxShadow: "none",
+          padding: "0 0 24px",
           fontSize: 12,
         }}
       >
@@ -144,7 +140,7 @@ export function ClawMgmtPanel() {
                           ) {
                             return;
                           }
-                          void core.killGatewayPortListener(gc.pid!, gc.port);
+                          void core.killGatewayPortListener(gc.pid!, gc.port, core.builtInBinaryTab);
                         }}
                         style={{
                           padding: "8px 14px",

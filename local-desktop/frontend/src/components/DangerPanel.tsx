@@ -129,8 +129,11 @@ export function DangerPanel({
   const [category, setCategory] = useState("");
   const [riskLevel, setRiskLevel] = useState("");
   const [systemEnabled, setSystemEnabled] = useState("");
-  const [userEnabled, setUserEnabled] = useState("");
+  /** UI 语义：是否启用拦截（1=拦截，0=不拦截）；后端参数仍沿用 userEnabled */
+  const [interceptEnabled, setInterceptEnabled] = useState("");
   const [updatingId, setUpdatingId] = useState<number | null>(null);
+  const [batchUpdating, setBatchUpdating] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<number[]>([]);
 
   const [meta, setMeta] = useState<{ systemTypes: string[]; categories: string[]; riskLevels: string[] }>({
     systemTypes: [],
@@ -165,7 +168,10 @@ export function DangerPanel({
         if (category) qs.set("category", category);
         if (riskLevel) qs.set("riskLevel", riskLevel);
         if (systemEnabled) qs.set("systemEnabled", systemEnabled);
-        if (userEnabled) qs.set("userEnabled", userEnabled);
+        if (interceptEnabled) {
+          // 后端旧语义：userEnabled=1 表示用户启用（不拦截）；UI 语义取反
+          qs.set("userEnabled", interceptEnabled === "1" ? "0" : "1");
+        }
       }
       const url = `http://127.0.0.1:19111/api/danger-commands${qs.toString() ? `?${qs.toString()}` : ""}`;
       const [dataRes, syncRes] = await Promise.all([
@@ -185,13 +191,29 @@ export function DangerPanel({
 
   const runQuery = () => loadData(true);
 
+  const isRowBatchActionable = (row: { enabled: number }) => row.enabled !== 0;
+  const actionableIds = dangerCommands.filter(isRowBatchActionable).map((r) => r.id);
+  const selectedActionableIds = selectedIds.filter((id) => actionableIds.includes(id));
+  const allSelected = actionableIds.length > 0 && selectedActionableIds.length === actionableIds.length;
+
+  const toggleSelectAllActionable = () => {
+    setSelectedIds((prev) => {
+      if (allSelected) return prev.filter((id) => !actionableIds.includes(id));
+      return Array.from(new Set([...prev, ...actionableIds]));
+    });
+  };
+
+  const toggleSelectRow = (id: number) => {
+    setSelectedIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
+  };
+
   const toggleUserEnabled = async (id: number, currentUserEnabled: number | null, systemEnabled: number) => {
     if (systemEnabled === 0) {
       setError(ir("errSystemDisabled"));
       setTimeout(() => setError(null), 3000);
       return;
     }
-    if (updatingId !== null) return;
+    if (updatingId !== null || batchUpdating) return;
 
     const nextEnabled = currentUserEnabled === 0 ? true : false;
     setUpdatingId(id);
@@ -212,7 +234,8 @@ export function DangerPanel({
       setDangerCommands((prev) =>
         prev.map((d) => (d.id === id ? { ...d, user_enabled: nextEnabled ? 1 : 0 } : d))
       );
-      setMessage(nextEnabled ? ir("toastEnabled") : ir("toastDisabled"));
+      // nextEnabled=true 表示不拦截；拦截状态提示需反向
+      setMessage(nextEnabled ? ir("toastDisabled") : ir("toastEnabled"));
       setTimeout(() => setMessage(null), 2000);
     } catch (e: any) {
       setError(e?.message ?? ir("errUpdateUser"));
@@ -222,10 +245,46 @@ export function DangerPanel({
     }
   };
 
+  const batchSetIntercept = async (intercept: boolean) => {
+    const targetIds = selectedActionableIds;
+    if (targetIds.length === 0 || updatingId !== null || batchUpdating) return;
+    setBatchUpdating(true);
+    setError(null);
+    setMessage(null);
+    const enabled = !intercept; // 旧协议：enabled=true 表示不拦截
+    try {
+      const res = await fetch("http://127.0.0.1:19111/api/user-danger-commands/batch", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ids: targetIds, enabled }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data?.ok) {
+        setError(data?.error?.message || "批量更新失败");
+        return;
+      }
+      setDangerCommands((prev) =>
+        prev.map((d) => (targetIds.includes(d.id) ? { ...d, user_enabled: enabled ? 1 : 0 } : d))
+      );
+      setSelectedIds((prev) => prev.filter((id) => !targetIds.includes(id)));
+      const n = Number(data?.updatedCount) > 0 ? Number(data.updatedCount) : targetIds.length;
+      setMessage(intercept ? `已批量启用拦截（${n} 条）` : `已批量取消拦截（${n} 条）`);
+      setTimeout(() => setMessage(null), 2200);
+    } catch (e: any) {
+      setError(e?.message ?? ir("errUpdateUser"));
+    } finally {
+      setBatchUpdating(false);
+    }
+  };
+
   useEffect(() => {
     loadMeta();
     loadData(false);
   }, []);
+
+  useEffect(() => {
+    setSelectedIds((prev) => prev.filter((id) => dangerCommands.some((r) => r.id === id)));
+  }, [dangerCommands]);
 
   // 轮询同步进度
   useEffect(() => {
@@ -308,6 +367,57 @@ export function DangerPanel({
         boxShadow: "0 20px 40px rgba(15,23,42,0.6)",
         fontSize: 12,
       };
+  const stickyHeadCellStyle: CSSProperties = {
+    padding: "6px 8px",
+    borderBottom: "1px solid var(--panel-border)",
+    background: "var(--panel-solid)",
+    position: "sticky",
+    top: 0,
+    zIndex: 3,
+  };
+
+  /** 多选列：横向滚动时固定在左侧，不与内容一起滑动 */
+  const stickySelectColumnHeadStyle: CSSProperties = {
+    ...stickyHeadCellStyle,
+    left: 0,
+    zIndex: 4,
+    width: 34,
+    minWidth: 34,
+    maxWidth: 34,
+    borderRight: "1px solid var(--panel-border)",
+    boxSizing: "border-box",
+  };
+
+  const stickySelectColumnCellStyle: CSSProperties = {
+    position: "sticky",
+    left: 0,
+    zIndex: 2,
+    background: "var(--panel-bg)",
+    borderRight: "1px solid var(--panel-border)",
+    boxSizing: "border-box",
+  };
+
+  /** 拦截操作列：横向滚动时固定在右侧 */
+  const stickyActionColumnHeadStyle: CSSProperties = {
+    ...stickyHeadCellStyle,
+    right: 0,
+    zIndex: 4,
+    whiteSpace: "nowrap",
+    minWidth: 72,
+    borderLeft: "1px solid var(--panel-border)",
+    boxSizing: "border-box",
+  };
+
+  const stickyActionColumnCellStyle: CSSProperties = {
+    position: "sticky",
+    right: 0,
+    zIndex: 2,
+    background: "var(--panel-bg)",
+    whiteSpace: "nowrap",
+    minWidth: 72,
+    borderLeft: "1px solid var(--panel-border)",
+    boxSizing: "border-box",
+  };
 
   return (
     <div style={shellStyle}>
@@ -501,34 +611,71 @@ export function DangerPanel({
           ]}
         />
         <FilterSelect
-          value={userEnabled}
-          onChange={setUserEnabled}
-          placeholder={ir("filterUserAll")}
+          value={interceptEnabled}
+          onChange={setInterceptEnabled}
+          placeholder="全部拦截状态"
           options={[
-            { label: ir("filterUserAll"), value: "" },
-            { label: ir("filterUserOn"), value: "1" },
-            { label: ir("filterUserOff"), value: "0" },
+            { label: "全部拦截状态", value: "" },
+            { label: "已启用拦截", value: "1" },
+            { label: "未启用拦截", value: "0" },
           ]}
         />
 
-        <button
-          type="button"
-          onClick={runQuery}
-          disabled={loading}
-          style={{
-            marginLeft: "auto",
-            padding: "6px 12px",
-            borderRadius: 999,
-            border: "1px solid var(--panel-border)",
-            background: loading ? "var(--panel-bg2)" : "var(--panel-bg)",
-            color: "var(--fg)",
-            fontSize: 11,
-            fontWeight: 600,
-            cursor: loading ? "not-allowed" : "pointer",
-          }}
-        >
-          {loading ? ir("queryRunning") : ir("query")}
-        </button>
+        <div style={{ marginLeft: "auto", display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+          <button
+            type="button"
+            onClick={() => void batchSetIntercept(true)}
+            disabled={batchUpdating || updatingId !== null || selectedActionableIds.length === 0}
+            style={{
+              padding: "6px 12px",
+              borderRadius: 999,
+              border: "1px solid rgba(239,68,68,0.38)",
+              background: "rgba(239,68,68,0.10)",
+              color: "#fca5a5",
+              fontSize: 11,
+              fontWeight: 700,
+              cursor: batchUpdating || updatingId !== null || selectedActionableIds.length === 0 ? "not-allowed" : "pointer",
+              opacity: batchUpdating || updatingId !== null || selectedActionableIds.length === 0 ? 0.55 : 1,
+            }}
+          >
+            {batchUpdating ? "批量处理中…" : `批量启用拦截 (${selectedActionableIds.length})`}
+          </button>
+          <button
+            type="button"
+            onClick={() => void batchSetIntercept(false)}
+            disabled={batchUpdating || updatingId !== null || selectedActionableIds.length === 0}
+            style={{
+              padding: "6px 12px",
+              borderRadius: 999,
+              border: "1px solid rgba(34,197,94,0.40)",
+              background: "rgba(34,197,94,0.12)",
+              color: "#bbf7d0",
+              fontSize: 11,
+              fontWeight: 700,
+              cursor: batchUpdating || updatingId !== null || selectedActionableIds.length === 0 ? "not-allowed" : "pointer",
+              opacity: batchUpdating || updatingId !== null || selectedActionableIds.length === 0 ? 0.55 : 1,
+            }}
+          >
+            {batchUpdating ? "批量处理中…" : `批量取消拦截 (${selectedActionableIds.length})`}
+          </button>
+          <button
+            type="button"
+            onClick={runQuery}
+            disabled={loading}
+            style={{
+              padding: "6px 12px",
+              borderRadius: 999,
+              border: "1px solid var(--panel-border)",
+              background: loading ? "var(--panel-bg2)" : "var(--panel-bg)",
+              color: "var(--fg)",
+              fontSize: 11,
+              fontWeight: 600,
+              cursor: loading ? "not-allowed" : "pointer",
+            }}
+          >
+            {loading ? ir("queryRunning") : ir("query")}
+          </button>
+        </div>
       </div>
 
       <div
@@ -538,21 +685,55 @@ export function DangerPanel({
           overflow: "hidden",
         }}
       >
-        <table style={{ width: "100%", borderCollapse: "collapse" }}>
-          <thead style={{ background: "var(--panel-bg)" }}>
+        <div
+          style={{
+            maxHeight: "calc(100vh - 300px)",
+            minHeight: 320,
+            overflowY: "auto",
+            overflowX: "auto",
+          }}
+        >
+        <table style={{ width: "100%", borderCollapse: "separate", borderSpacing: 0, minWidth: 980 }}>
+          <thead>
             <tr>
-              <th style={{ padding: "6px 8px", borderBottom: "1px solid var(--panel-border)", textAlign: "left", color: "var(--muted)" }}>{ir("colId")}</th>
-              <th style={{ padding: "6px 8px", borderBottom: "1px solid var(--panel-border)", textAlign: "left", color: "var(--muted)" }}>{ir("colPattern")}</th>
-              <th style={{ padding: "6px 8px", borderBottom: "1px solid var(--panel-border)", textAlign: "left", color: "var(--muted)" }}>{ir("colSystem")}</th>
-              <th style={{ padding: "6px 8px", borderBottom: "1px solid var(--panel-border)", textAlign: "left", color: "var(--muted)" }}>{ir("colCategory")}</th>
-              <th style={{ padding: "6px 8px", borderBottom: "1px solid var(--panel-border)", textAlign: "left", color: "var(--muted)" }}>{ir("colRisk")}</th>
-              <th style={{ padding: "6px 8px", borderBottom: "1px solid var(--panel-border)", textAlign: "left", color: "var(--muted)" }}>{ir("colOfficial")}</th>
-              <th style={{ padding: "6px 8px", borderBottom: "1px solid var(--panel-border)", textAlign: "left", color: "var(--muted)" }}>{ir("colUserEnabled")}</th>
+              <th style={{ ...stickySelectColumnHeadStyle, textAlign: "center" }}>
+                <input
+                  type="checkbox"
+                  checked={allSelected}
+                  onChange={toggleSelectAllActionable}
+                  title="全选当前可批量项"
+                  style={{ cursor: "pointer" }}
+                />
+              </th>
+              <th style={{ ...stickyHeadCellStyle, textAlign: "left", color: "var(--muted)" }}>{ir("colId")}</th>
+              <th style={{ ...stickyHeadCellStyle, textAlign: "left", color: "var(--muted)" }}>{ir("colPattern")}</th>
+              <th style={{ ...stickyHeadCellStyle, textAlign: "left", color: "var(--muted)" }}>{ir("colSystem")}</th>
+              <th style={{ ...stickyHeadCellStyle, textAlign: "left", color: "var(--muted)" }}>{ir("colCategory")}</th>
+              <th style={{ ...stickyHeadCellStyle, textAlign: "left", color: "var(--muted)" }}>{ir("colRisk")}</th>
+              <th style={{ ...stickyHeadCellStyle, textAlign: "left", color: "var(--muted)" }}>{ir("colOfficial")}</th>
+              <th style={{ ...stickyActionColumnHeadStyle, textAlign: "left", color: "var(--muted)" }}>拦截</th>
             </tr>
           </thead>
           <tbody>
             {dangerCommands.map((r) => (
               <tr key={r.id} style={{ background: "var(--panel-bg)" }}>
+                <td
+                  style={{
+                    ...stickySelectColumnCellStyle,
+                    padding: "6px 8px",
+                    borderBottom: "1px solid var(--panel-border)",
+                    textAlign: "center",
+                  }}
+                >
+                  <input
+                    type="checkbox"
+                    checked={selectedIds.includes(r.id)}
+                    onChange={() => toggleSelectRow(r.id)}
+                    disabled={!isRowBatchActionable(r) || batchUpdating}
+                    title={!isRowBatchActionable(r) ? "系统禁用项不可批量修改" : "选择此项"}
+                    style={{ cursor: !isRowBatchActionable(r) || batchUpdating ? "not-allowed" : "pointer" }}
+                  />
+                </td>
                 <td style={{ padding: "6px 8px", borderBottom: "1px solid var(--panel-border)", color: "var(--muted)" }}>{r.id}</td>
                 <td
                   style={{
@@ -570,15 +751,9 @@ export function DangerPanel({
                 >
                   {r.command_pattern}
                 </td>
-                <td style={{ padding: "6px 8px", borderBottom: "1px solid var(--panel-border)", color: "var(--muted)" }}>
-                  {r.system_type}
-                </td>
-                <td style={{ padding: "6px 8px", borderBottom: "1px solid var(--panel-border)", color: "var(--muted)" }}>
-                  {r.category}
-                </td>
-                <td style={{ padding: "6px 8px", borderBottom: "1px solid var(--panel-border)", color: "#fbbf24" }}>
-                  {r.risk_level}
-                </td>
+                <td style={{ padding: "6px 8px", borderBottom: "1px solid var(--panel-border)", color: "var(--muted)" }}>{r.system_type}</td>
+                <td style={{ padding: "6px 8px", borderBottom: "1px solid var(--panel-border)", color: "var(--muted)" }}>{r.category}</td>
+                <td style={{ padding: "6px 8px", borderBottom: "1px solid var(--panel-border)", color: "#fbbf24" }}>{r.risk_level}</td>
                 <td style={{ padding: "6px 8px", borderBottom: "1px solid var(--panel-border)", whiteSpace: "nowrap" }}>
                   <span
                     style={{
@@ -593,23 +768,30 @@ export function DangerPanel({
                     {r.enabled ? ir("officialNormal") : ir("officialDisabled")}
                   </span>
                 </td>
-                <td style={{ padding: "6px 8px", borderBottom: "1px solid var(--panel-border)", whiteSpace: "nowrap" }}>
+                <td
+                  style={{
+                    ...stickyActionColumnCellStyle,
+                    padding: "6px 8px",
+                    borderBottom: "1px solid var(--panel-border)",
+                  }}
+                >
                   {r.enabled === 0 ? (
                     <div style={{ fontSize: 10, color: "var(--muted2)" }}>{ir("systemDisabledHint")}</div>
                   ) : (
                     <button
                       type="button"
                       onClick={() => toggleUserEnabled(r.id, r.user_enabled, r.enabled)}
-                      disabled={updatingId === r.id}
+                      disabled={updatingId === r.id || batchUpdating}
+                      title={r.user_enabled === 0 ? "已启用拦截" : "未启用拦截"}
                       style={{
                         position: "relative",
                         width: 42,
                         height: 20,
                         borderRadius: 999,
                         border: "none",
-                        background: r.user_enabled === 0 ? "#374151" : "#22c55e",
-                        cursor: updatingId === r.id ? "not-allowed" : "pointer",
-                        opacity: updatingId === r.id ? 0.6 : 1,
+                        background: r.user_enabled === 0 ? "#22c55e" : "#374151",
+                        cursor: updatingId === r.id || batchUpdating ? "not-allowed" : "pointer",
+                        opacity: updatingId === r.id || batchUpdating ? 0.6 : 1,
                         transition: "background 0.2s, opacity 0.2s",
                       }}
                     >
@@ -617,7 +799,7 @@ export function DangerPanel({
                         style={{
                           position: "absolute",
                           top: 2,
-                          left: r.user_enabled === 0 ? 2 : 24,
+                          left: r.user_enabled === 0 ? 24 : 2,
                           width: 16,
                           height: 16,
                           borderRadius: "50%",
@@ -633,7 +815,7 @@ export function DangerPanel({
             {dangerCommands.length === 0 && !loading && (
               <tr>
                 <td
-                  colSpan={7}
+                  colSpan={8}
                   style={{ padding: "8px 10px", textAlign: "center", color: "var(--muted2)", background: "var(--panel-bg)" }}
                 >
                   {ir("emptyLocal")}
@@ -642,6 +824,7 @@ export function DangerPanel({
             )}
           </tbody>
         </table>
+        </div>
       </div>
     </div>
   );

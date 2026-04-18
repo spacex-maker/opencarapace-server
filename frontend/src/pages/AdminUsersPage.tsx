@@ -23,7 +23,10 @@ import {
 } from "lucide-react";
 
 const inputCls =
-  "w-full min-w-0 border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 px-3 py-2 text-sm rounded-xl outline-none focus:ring-2 focus:ring-brand-500/35";
+  "w-full min-w-0 h-10 box-border border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 px-3 text-sm rounded-xl outline-none focus:ring-2 focus:ring-brand-500/35";
+
+const filterLabelCls =
+  "block text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400 mb-2 leading-none";
 
 function apiErr(e: unknown): string {
   if (axios.isAxiosError(e) && e.response?.data && typeof (e.response.data as { message?: string }).message === "string") {
@@ -40,7 +43,7 @@ function formatDt(s: string | null | undefined): string {
 
 export function AdminUsersPage() {
   const { user: me } = useAuth();
-  const confirm = useConfirm();
+  const { confirm } = useConfirm();
   const [page, setPage] = useState(1);
   const [size] = useState(20);
   const [emailQ, setEmailQ] = useState("");
@@ -137,10 +140,10 @@ export function AdminUsersPage() {
     <button
       type="button"
       onClick={onClick}
-      className={`rounded-full px-3 py-1.5 text-xs font-semibold transition-colors ${
+      className={`inline-flex h-10 min-w-[3.25rem] shrink-0 items-center justify-center rounded-lg px-3 text-xs font-semibold transition-colors ${
         active
-          ? "bg-brand-600 text-white shadow-sm"
-          : "bg-slate-100 text-slate-600 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"
+          ? "bg-brand-600 text-white shadow-sm ring-1 ring-brand-500/30"
+          : "border border-slate-200 bg-slate-50 text-slate-600 hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800"
       }`}
     >
       {label}
@@ -170,39 +173,39 @@ export function AdminUsersPage() {
       </div>
 
       <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950/50 p-4 sm:p-5 space-y-4 shadow-sm">
-        <div className="flex flex-col lg:flex-row lg:items-end gap-3 flex-wrap">
-          <div className="flex-1 min-w-[200px]">
-            <label className="block text-[11px] font-medium text-slate-500 dark:text-slate-400 mb-1">邮箱筛选</label>
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-12 lg:gap-x-4 lg:gap-y-0 lg:items-end">
+          <div className="lg:col-span-5">
+            <label className={filterLabelCls}>邮箱筛选</label>
             <div className="flex gap-2">
               <input
                 type="text"
                 value={emailQ}
                 onChange={(e) => setEmailQ(e.target.value)}
                 className={inputCls}
-                placeholder="模糊匹配"
+                placeholder="模糊匹配邮箱"
                 onKeyDown={(e) => e.key === "Enter" && applySearch()}
               />
               <button
                 type="button"
                 onClick={applySearch}
-                className="shrink-0 inline-flex items-center gap-1 rounded-xl bg-brand-500 text-white px-4 py-2 text-sm font-semibold"
+                className="inline-flex h-10 shrink-0 items-center justify-center gap-1.5 rounded-xl bg-brand-500 px-4 text-sm font-semibold text-white shadow-sm hover:bg-brand-600"
               >
-                <Search className="w-4 h-4" />
+                <Search className="h-4 w-4 shrink-0" />
                 查询
               </button>
             </div>
           </div>
-          <div>
-            <div className="text-[11px] font-medium text-slate-500 dark:text-slate-400 mb-1">角色</div>
-            <div className="flex flex-wrap gap-2">
+          <div className="lg:col-span-3">
+            <label className={filterLabelCls}>角色</label>
+            <div className="flex min-h-10 flex-wrap items-center gap-2">
               {filterBtn(roleFilter === "", () => { setRoleFilter(""); setPage(1); }, "全部")}
               {filterBtn(roleFilter === "USER", () => { setRoleFilter("USER"); setPage(1); }, "USER")}
               {filterBtn(roleFilter === "ADMIN", () => { setRoleFilter("ADMIN"); setPage(1); }, "ADMIN")}
             </div>
           </div>
-          <div>
-            <div className="text-[11px] font-medium text-slate-500 dark:text-slate-400 mb-1">状态</div>
-            <div className="flex flex-wrap gap-2">
+          <div className="lg:col-span-4">
+            <label className={filterLabelCls}>账号状态</label>
+            <div className="flex min-h-10 flex-wrap items-center gap-2">
               {filterBtn(disabledFilter === undefined, () => { setDisabledFilter(undefined); setPage(1); }, "全部")}
               {filterBtn(disabledFilter === false, () => { setDisabledFilter(false); setPage(1); }, "正常")}
               {filterBtn(disabledFilter === true, () => { setDisabledFilter(true); setPage(1); }, "已禁用")}

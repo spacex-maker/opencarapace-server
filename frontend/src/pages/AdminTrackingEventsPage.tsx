@@ -5,7 +5,7 @@ import {
   type AdminTrackingEventDetail,
   type AdminTrackingEventRow,
 } from "../api/client";
-import { Activity, Loader2, Search, X } from "lucide-react";
+import { Activity, ChevronRight, Clock, Loader2, Search, User, X } from "lucide-react";
 
 type ActiveFilters = {
   userId: string;
@@ -48,6 +48,18 @@ function formatLocalDateTime(value?: string | null): string {
   const d = new Date(value);
   if (Number.isNaN(d.getTime())) return String(value);
   return d.toLocaleString("zh-CN", { hour12: false });
+}
+
+function platformBadge(platform: string | null | undefined): { label: string; className: string } {
+  const raw = (platform || "").trim();
+  const p = raw.toLowerCase();
+  const base = "inline-flex items-center rounded-md px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide";
+  if (!p) return { label: "—", className: `${base} bg-slate-500/10 text-slate-500 dark:text-slate-500 ring-1 ring-slate-500/15` };
+  if (p === "web") return { label: "Web", className: `${base} bg-sky-500/15 text-sky-700 dark:text-sky-300 ring-1 ring-sky-500/25` };
+  if (p === "desktop") return { label: "Desktop", className: `${base} bg-violet-500/15 text-violet-700 dark:text-violet-300 ring-1 ring-violet-500/25` };
+  if (p === "android") return { label: "Android", className: `${base} bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 ring-1 ring-emerald-500/25` };
+  if (p === "ios") return { label: "iOS", className: `${base} bg-amber-500/15 text-amber-800 dark:text-amber-300 ring-1 ring-amber-500/25` };
+  return { label: raw, className: `${base} bg-slate-500/10 text-slate-600 dark:text-slate-400 ring-1 ring-slate-500/20` };
 }
 
 export function AdminTrackingEventsPage() {
@@ -213,58 +225,139 @@ export function AdminTrackingEventsPage() {
           </button>
         </div>
 
-        {error && <div className="mt-4 rounded-full border border-red-500/30 bg-red-500/10 text-red-600 dark:text-red-300 text-xs px-4 py-2">{error}</div>}
+        {error && (
+          <div className="mt-4 rounded-xl border border-red-500/30 bg-red-500/10 text-red-600 dark:text-red-300 text-xs px-4 py-3">
+            {error}
+          </div>
+        )}
 
-        <div className="mt-5 rounded-xl border border-slate-200 dark:border-slate-800 overflow-x-auto">
-          <table className="w-full text-xs border-collapse min-w-[900px]">
-            <thead className="bg-slate-100 dark:bg-slate-900 text-slate-500 dark:text-slate-400">
-              <tr>
-                <th className="text-left font-medium px-3 py-2.5 w-[200px]">用户</th>
-                <th className="text-left font-medium px-3 py-2.5 w-[160px]">事件</th>
-                <th className="text-left font-medium px-3 py-2.5 w-[140px]">平台/模块</th>
-                <th className="text-left font-medium px-3 py-2.5">页面 / 属性摘要</th>
-                <th className="text-left font-medium px-3 py-2.5 w-[180px]">时间</th>
-                <th className="w-[72px]" />
-              </tr>
-            </thead>
-            <tbody>
-              {items.length === 0 ? (
-                <tr><td colSpan={6} className="px-3 py-8 text-center text-slate-500 dark:text-slate-500">{loading ? "正在加载…" : "暂无数据。"}</td></tr>
-              ) : (
-                items.map((it) => (
-                  <tr key={it.id} className="border-t border-slate-200 dark:border-slate-800">
-                    <td className="px-3 py-2 align-top text-slate-800 dark:text-slate-200">
-                      <div className="font-mono text-[11px] text-slate-500 dark:text-slate-400">#{it.userId ?? "-"}</div>
-                      <div className="mt-0.5 break-all text-slate-700 dark:text-slate-300">{it.userEmail || "-"}</div>
-                    </td>
-                    <td className="px-3 py-2 align-top">
-                      <div className="font-semibold text-slate-800 dark:text-slate-200">{it.eventName}</div>
-                    </td>
-                    <td className="px-3 py-2 align-top text-slate-700 dark:text-slate-300">
-                      <div>{it.platform || "-"}</div>
-                      <div className="text-[11px] text-slate-500 dark:text-slate-400">{it.module || "-"}</div>
-                    </td>
-                    <td className="px-3 py-2 align-top text-slate-600 dark:text-slate-400">
-                      <div className="line-clamp-1">{it.pageId || "-"}</div>
-                      <div className="mt-1 font-mono text-[10px] text-slate-500 dark:text-slate-500 line-clamp-2">{it.eventPropsSnippet || "-"}</div>
-                    </td>
-                    <td className="px-3 py-2 align-top whitespace-nowrap text-slate-700 dark:text-slate-300">{formatLocalDateTime(it.eventTime)}</td>
-                    <td className="px-3 py-2 text-right align-top">
-                      <button type="button" onClick={() => void openDetail(it.id)} className="text-[11px] px-2.5 py-1 rounded-full border border-slate-300 dark:border-slate-700 text-slate-800 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-900">
-                        详情
-                      </button>
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
+        <div className="mt-6">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-3 px-0.5">
+            <div className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-400">
+              <span className="font-semibold text-slate-900 dark:text-slate-100 tabular-nums">{total.toLocaleString("zh-CN")}</span>
+              <span>条匹配记录</span>
+              {loading ? (
+                <span className="inline-flex items-center gap-1 text-xs text-slate-400">
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  刷新中
+                </span>
+              ) : null}
+            </div>
+            <div className="text-[11px] text-slate-500 dark:text-slate-500">
+              本页 {items.length} 条 · 每页 {size} 条
+            </div>
+          </div>
+
+          <div className="rounded-2xl border border-slate-200/90 dark:border-slate-800 bg-slate-50/40 dark:bg-slate-950/50 overflow-hidden shadow-sm">
+            {items.length === 0 ? (
+              <div className="px-6 py-16 text-center">
+                {loading ? (
+                  <div className="inline-flex flex-col items-center gap-2 text-slate-500 dark:text-slate-400 text-sm">
+                    <Loader2 className="w-8 h-8 animate-spin text-brand-500" />
+                    正在加载埋点数据…
+                  </div>
+                ) : (
+                  <p className="text-sm text-slate-500 dark:text-slate-500 m-0">暂无数据，可调整筛选条件后重试。</p>
+                )}
+              </div>
+            ) : (
+              <ul className="divide-y divide-slate-200/80 dark:divide-slate-800/90">
+                {items.map((it) => {
+                  const plat = platformBadge(it.platform);
+                  return (
+                    <li key={it.id}>
+                      <div className="group flex flex-col lg:flex-row lg:items-stretch gap-4 p-4 sm:p-5 bg-white dark:bg-slate-950/40 hover:bg-brand-500/[0.03] dark:hover:bg-brand-500/[0.06] transition-colors">
+                        <div className="flex-1 min-w-0 space-y-3">
+                          <div className="flex flex-wrap items-start justify-between gap-3">
+                            <div className="min-w-0 flex-1">
+                              <div className="flex flex-wrap items-center gap-2">
+                                <h3 className="m-0 text-sm sm:text-base font-bold text-slate-900 dark:text-white font-mono tracking-tight break-all">
+                                  {it.eventName}
+                                </h3>
+                                <span className={plat.className}>{plat.label}</span>
+                                {it.module ? (
+                                  <span className="inline-flex items-center rounded-md px-2 py-0.5 text-[10px] font-semibold bg-slate-200/80 dark:bg-slate-800 text-slate-700 dark:text-slate-300">
+                                    {it.module}
+                                  </span>
+                                ) : null}
+                              </div>
+                              <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-600 dark:text-slate-400">
+                                <span className="inline-flex items-center gap-1.5 min-w-0">
+                                  <User className="w-3.5 h-3.5 shrink-0 text-slate-400" />
+                                  <span className="font-mono text-[11px] text-slate-500 dark:text-slate-500 shrink-0">#{it.userId ?? "—"}</span>
+                                  <span className="truncate max-w-[220px] sm:max-w-[320px]" title={it.userEmail || undefined}>
+                                    {it.userEmail || "未登录 / 无邮箱"}
+                                  </span>
+                                </span>
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-2 shrink-0 lg:flex-col lg:items-end lg:justify-start">
+                              <div className="inline-flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400 whitespace-nowrap">
+                                <Clock className="w-3.5 h-3.5 shrink-0" />
+                                {formatLocalDateTime(it.eventTime)}
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => void openDetail(it.id)}
+                                className="inline-flex items-center gap-1 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-1.5 text-xs font-semibold text-slate-800 dark:text-slate-100 shadow-sm hover:border-brand-500/40 hover:text-brand-600 dark:hover:text-brand-400 hover:shadow-md transition-all"
+                              >
+                                详情
+                                <ChevronRight className="w-3.5 h-3.5 opacity-60 group-hover:translate-x-0.5 transition-transform" />
+                              </button>
+                            </div>
+                          </div>
+                          <div className="rounded-xl border border-slate-200/80 dark:border-slate-800 bg-slate-50/90 dark:bg-slate-900/60 px-3 py-2.5">
+                            <div className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500 mb-1">
+                              页面
+                            </div>
+                            <div className="font-mono text-xs text-slate-800 dark:text-slate-200 break-all line-clamp-2">
+                              {it.pageId || "—"}
+                            </div>
+                            {(it.eventPropsSnippet || "").trim() ? (
+                              <>
+                                <div className="mt-2 text-[10px] font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500">
+                                  属性摘要
+                                </div>
+                                <div className="mt-0.5 font-mono text-[11px] leading-relaxed text-slate-600 dark:text-slate-400 line-clamp-2 break-all">
+                                  {it.eventPropsSnippet}
+                                </div>
+                              </>
+                            ) : null}
+                          </div>
+                        </div>
+                      </div>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+          </div>
         </div>
 
-        <div className="mt-4 flex flex-wrap items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
-          <button type="button" disabled={loading || page <= 1} onClick={() => setPage((p) => Math.max(1, p - 1))} className="px-3 py-1.5 rounded-full border border-slate-300 dark:border-slate-700 disabled:opacity-50">上一页</button>
-          <span>第 <span className="text-slate-900 dark:text-slate-200">{page}</span> / {totalPages} 页（共 {total} 条）</span>
-          <button type="button" disabled={loading || page >= totalPages} onClick={() => setPage((p) => Math.min(totalPages, p + 1))} className="px-3 py-1.5 rounded-full border border-slate-300 dark:border-slate-700 disabled:opacity-50">下一页</button>
+        <div className="mt-5 flex flex-col sm:flex-row flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50/80 dark:bg-slate-900/40 px-4 py-3">
+          <p className="text-xs text-slate-500 dark:text-slate-400 m-0 tabular-nums">
+            第 <span className="font-semibold text-slate-800 dark:text-slate-200">{page}</span>
+            <span className="mx-1">/</span>
+            <span className="font-semibold text-slate-800 dark:text-slate-200">{totalPages}</span> 页
+          </p>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              disabled={loading || page <= 1}
+              onClick={() => setPage((p) => Math.max(1, p - 1))}
+              className="rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-950 px-4 py-2 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-900 disabled:opacity-45 disabled:pointer-events-none transition-colors"
+            >
+              上一页
+            </button>
+            <button
+              type="button"
+              disabled={loading || page >= totalPages}
+              onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+              className="rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-950 px-4 py-2 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-900 disabled:opacity-45 disabled:pointer-events-none transition-colors"
+            >
+              下一页
+            </button>
+          </div>
         </div>
       </div>
 

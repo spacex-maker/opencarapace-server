@@ -11,8 +11,8 @@ import jakarta.persistence.Query;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.time.Instant;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -24,6 +24,17 @@ import java.util.stream.Collectors;
 @Transactional(readOnly = true)
 public class AdminAnalyticsService {
 
+    /**
+     * 报表按「上海日历日」对齐前端时间轴。
+     * <p>
+     * 当前数据源使用 {@code serverTimezone=Asia/Shanghai}，JPA 将 {@link java.time.Instant} 写入 MySQL {@code DATETIME}
+     * 时一般为<strong>上海墙钟</strong>（而非 UTC）。若对这类列再执行 {@code CONVERT_TZ(..., '+00:00', 'Asia/Shanghai')}，
+     * 会把墙钟误当 UTC，导致按日分组错位，出现「当天已注册但新增注册为 0」等现象。
+     * <p>
+     * 因此日粒度聚合使用 {@code DATE(column)}；区间过滤使用<strong>上海日界</strong>的 {@link LocalDateTime}
+     * 绑定到 {@code DATETIME}（与 JDBC {@code serverTimezone=Asia/Shanghai} 下写入的墙钟一致）。切勿使用 {@link java.time.Instant}
+     * 绑定：部分驱动会转成 UTC 再写入比较值，导致与库内墙钟比较错位、整段区间查无数据。
+     */
     private static final ZoneId REPORT_ZONE = ZoneId.of("Asia/Shanghai");
     private static final int MAX_RANGE_DAYS = 90;
     private static final int DEFAULT_RANGE_DAYS = 14;
@@ -47,8 +58,8 @@ public class AdminAnalyticsService {
             from = today.minusDays(d - 1L);
         }
 
-        Instant rangeStart = from.atStartOfDay(REPORT_ZONE).toInstant();
-        Instant rangeEndExclusive = to.plusDays(1).atStartOfDay(REPORT_ZONE).toInstant();
+        LocalDateTime rangeStartLdt = from.atStartOfDay(REPORT_ZONE).toLocalDateTime();
+        LocalDateTime rangeEndExLdt = to.plusDays(1).atStartOfDay(REPORT_ZONE).toLocalDateTime();
 
         List<LocalDate> spine = enumerateDates(from, to);
 
@@ -56,7 +67,7 @@ public class AdminAnalyticsService {
                 spine,
                 queryKeyedLong(
                         """
-                                SELECT DATE(CONVERT_TZ(l.event_time, '+00:00', 'Asia/Shanghai')) AS d,
+                                SELECT DATE(l.event_time) AS d,
                                        COUNT(DISTINCT COALESCE(CAST(l.user_id AS CHAR), l.anonymous_id)) AS c
                                 FROM oc_user_event_logs l
                                 WHERE l.valid = TRUE
@@ -64,8 +75,8 @@ public class AdminAnalyticsService {
                                 GROUP BY d
                                 ORDER BY d
                                 """,
-                        rangeStart,
-                        rangeEndExclusive
+                        rangeStartLdt,
+                        rangeEndExLdt
                 )
         );
 
@@ -73,7 +84,7 @@ public class AdminAnalyticsService {
                 spine,
                 queryKeyedLong(
                         """
-                                SELECT DATE(CONVERT_TZ(l.event_time, '+00:00', 'Asia/Shanghai')) AS d,
+                                SELECT DATE(l.event_time) AS d,
                                        COUNT(DISTINCT l.user_id) AS c
                                 FROM oc_user_event_logs l
                                 WHERE l.valid = TRUE
@@ -82,8 +93,8 @@ public class AdminAnalyticsService {
                                 GROUP BY d
                                 ORDER BY d
                                 """,
-                        rangeStart,
-                        rangeEndExclusive
+                        rangeStartLdt,
+                        rangeEndExLdt
                 )
         );
 
@@ -91,15 +102,15 @@ public class AdminAnalyticsService {
                 spine,
                 queryKeyedLong(
                         """
-                                SELECT DATE(CONVERT_TZ(u.created_at, '+00:00', 'Asia/Shanghai')) AS d,
+                                SELECT DATE(u.created_at) AS d,
                                        COUNT(*) AS c
                                 FROM oc_users u
                                 WHERE u.created_at >= ?1 AND u.created_at < ?2
                                 GROUP BY d
                                 ORDER BY d
                                 """,
-                        rangeStart,
-                        rangeEndExclusive
+                        rangeStartLdt,
+                        rangeEndExLdt
                 )
         );
 
@@ -107,7 +118,7 @@ public class AdminAnalyticsService {
                 spine,
                 queryKeyedLong(
                         """
-                                SELECT DATE(CONVERT_TZ(l.event_time, '+00:00', 'Asia/Shanghai')) AS d,
+                                SELECT DATE(l.event_time) AS d,
                                        COUNT(DISTINCT l.user_id) AS c
                                 FROM oc_user_event_logs l
                                 WHERE l.valid = TRUE
@@ -117,8 +128,8 @@ public class AdminAnalyticsService {
                                 GROUP BY d
                                 ORDER BY d
                                 """,
-                        rangeStart,
-                        rangeEndExclusive
+                        rangeStartLdt,
+                        rangeEndExLdt
                 )
         );
 
@@ -126,7 +137,7 @@ public class AdminAnalyticsService {
                 spine,
                 queryKeyedLong(
                         """
-                                SELECT DATE(CONVERT_TZ(l.event_time, '+00:00', 'Asia/Shanghai')) AS d,
+                                SELECT DATE(l.event_time) AS d,
                                        COUNT(*) AS c
                                 FROM oc_user_event_logs l
                                 WHERE l.valid = TRUE
@@ -135,12 +146,12 @@ public class AdminAnalyticsService {
                                 GROUP BY d
                                 ORDER BY d
                                 """,
-                        rangeStart,
-                        rangeEndExclusive
+                        rangeStartLdt,
+                        rangeEndExLdt
                 )
         );
 
-        List<DailyDownloadsBreakdown> downloadsByDay = queryDownloadsByDay(rangeStart, rangeEndExclusive, spine);
+        List<DailyDownloadsBreakdown> downloadsByDay = queryDownloadsByDay(rangeStartLdt, rangeEndExLdt, spine);
 
         List<NameCount> downloadTargets = queryNameCounts(
                 """
@@ -154,8 +165,8 @@ public class AdminAnalyticsService {
                         ORDER BY c DESC
                         LIMIT 24
                         """,
-                rangeStart,
-                rangeEndExclusive
+                rangeStartLdt,
+                rangeEndExLdt
         );
 
         List<NameCount> downloadVariants = queryNameCounts(
@@ -170,8 +181,8 @@ public class AdminAnalyticsService {
                         ORDER BY c DESC
                         LIMIT 32
                         """,
-                rangeStart,
-                rangeEndExclusive
+                rangeStartLdt,
+                rangeEndExLdt
         );
 
         List<NameCount> topPages = queryNameCounts(
@@ -186,8 +197,8 @@ public class AdminAnalyticsService {
                         ORDER BY c DESC
                         LIMIT 20
                         """,
-                rangeStart,
-                rangeEndExclusive
+                rangeStartLdt,
+                rangeEndExLdt
         );
 
         List<NameCount> topEvents = queryNameCounts(
@@ -201,11 +212,11 @@ public class AdminAnalyticsService {
                         ORDER BY c DESC
                         LIMIT 18
                         """,
-                rangeStart,
-                rangeEndExclusive
+                rangeStartLdt,
+                rangeEndExLdt
         );
 
-        Summary summary = loadSummary(rangeStart, rangeEndExclusive);
+        Summary summary = loadSummary(rangeStartLdt, rangeEndExLdt);
 
         return new AnalyticsDashboardResponse(
                 REPORT_ZONE.getId(),
@@ -225,7 +236,7 @@ public class AdminAnalyticsService {
         );
     }
 
-    private Summary loadSummary(Instant from, Instant toExclusive) {
+    private Summary loadSummary(LocalDateTime from, LocalDateTime toExclusive) {
         long totalTracked = scalarLong(
                 "SELECT COUNT(*) FROM oc_user_event_logs l WHERE l.valid = TRUE AND l.event_time >= ?1 AND l.event_time < ?2",
                 from,
@@ -260,7 +271,7 @@ public class AdminAnalyticsService {
         return new Summary(totalTracked, totalPv, totalDl, distinctAnon, distinctUsers);
     }
 
-    private long scalarLong(String sql, Instant from, Instant toExclusive) {
+    private long scalarLong(String sql, LocalDateTime from, LocalDateTime toExclusive) {
         Query q = entityManager.createNativeQuery(sql);
         q.setParameter(1, from);
         q.setParameter(2, toExclusive);
@@ -271,10 +282,10 @@ public class AdminAnalyticsService {
         return 0L;
     }
 
-    private List<DailyDownloadsBreakdown> queryDownloadsByDay(Instant from, Instant toExclusive, List<LocalDate> spine) {
+    private List<DailyDownloadsBreakdown> queryDownloadsByDay(LocalDateTime from, LocalDateTime toExclusive, List<LocalDate> spine) {
         Query q = entityManager.createNativeQuery(
                 """
-                        SELECT DATE(CONVERT_TZ(l.event_time, '+00:00', 'Asia/Shanghai')) AS d,
+                        SELECT DATE(l.event_time) AS d,
                                COUNT(*) AS total,
                                SUM(CASE WHEN LOWER(l.platform) = 'web' THEN 1 ELSE 0 END) AS pw,
                                SUM(CASE WHEN LOWER(l.platform) = 'desktop' THEN 1 ELSE 0 END) AS pd,
@@ -325,7 +336,7 @@ public class AdminAnalyticsService {
         return out;
     }
 
-    private List<NameCount> queryNameCounts(String sql, Instant from, Instant toExclusive) {
+    private List<NameCount> queryNameCounts(String sql, LocalDateTime from, LocalDateTime toExclusive) {
         Query q = entityManager.createNativeQuery(sql);
         q.setParameter(1, from);
         q.setParameter(2, toExclusive);
@@ -339,7 +350,7 @@ public class AdminAnalyticsService {
         return out;
     }
 
-    private Map<LocalDate, Long> queryKeyedLong(String sql, Instant from, Instant toExclusive) {
+    private Map<LocalDate, Long> queryKeyedLong(String sql, LocalDateTime from, LocalDateTime toExclusive) {
         Query q = entityManager.createNativeQuery(sql);
         q.setParameter(1, from);
         q.setParameter(2, toExclusive);

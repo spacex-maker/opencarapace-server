@@ -86,6 +86,7 @@ export function AdminAnalyticsDashboardPage() {
       },
       yAxis: {
         type: "value",
+        min: 0,
         splitLine: { lineStyle: { color: ax.split } },
         axisLabel: { color: ax.text, fontSize: 11 },
       },
@@ -596,6 +597,14 @@ export function AdminAnalyticsDashboardPage() {
             <p className="text-xs text-slate-500 dark:text-slate-400 mb-4">
               DAU（访客）· 登录用户日活 · 新增注册 · 当日登录人数（auth_login_success 去重）
             </p>
+            {data.summary.totalTrackedEvents === 0 ? (
+              <div className="mb-4 rounded-xl border border-amber-500/35 bg-amber-500/10 dark:bg-amber-500/10 px-4 py-3 text-xs text-amber-900 dark:text-amber-100/90 leading-relaxed">
+                当前时间范围内 <strong className="font-semibold">未统计到任何埋点事件</strong>（
+                <span className="font-mono">oc_user_event_logs</span>
+                为空或查询区间未命中）。请确认 Web 前端已能访问{" "}
+                <span className="font-mono">/api/track/events</span>、且运营看板连接的是同一套后端与数据库。若仅有注册无浏览，「新增注册」仍可能大于 0。
+              </div>
+            ) : null}
             <ReactECharts option={engagementOption} style={{ height: 360 }} notMerge lazyUpdate />
           </div>
 

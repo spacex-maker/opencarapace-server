@@ -10,6 +10,7 @@ import org.springframework.security.authentication.UsernamePasswordAuthenticatio
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
+import com.opencarapace.server.user.UserRepository;
 import org.springframework.security.core.userdetails.User;
 import org.springframework.security.web.authentication.WebAuthenticationDetailsSource;
 import org.springframework.stereotype.Component;
@@ -24,9 +25,11 @@ import java.util.List;
 public class JwtAuthFilter extends OncePerRequestFilter {
 
     private final JwtTokenService jwtTokenService;
+    private final UserRepository userRepository;
 
-    public JwtAuthFilter(JwtTokenService jwtTokenService) {
+    public JwtAuthFilter(JwtTokenService jwtTokenService, UserRepository userRepository) {
         this.jwtTokenService = jwtTokenService;
+        this.userRepository = userRepository;
     }
 
     @Override
@@ -41,17 +44,23 @@ public class JwtAuthFilter extends OncePerRequestFilter {
             try {
                 Claims claims = jwtTokenService.parseToken(token);
                 String subject = claims.getSubject();
-                String role = claims.get("role", String.class);
-                List<GrantedAuthority> authorities = role != null && !role.isBlank()
-                        ? List.of(new SimpleGrantedAuthority("ROLE_" + role))
-                        : Collections.emptyList();
-                UsernamePasswordAuthenticationToken authentication = new UsernamePasswordAuthenticationToken(
-                        new User(subject, "", authorities),
-                        null,
-                        authorities
-                );
-                authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
-                SecurityContextHolder.getContext().setAuthentication(authentication);
+                long userId = Long.parseLong(subject);
+                com.opencarapace.server.user.User appUser = userRepository.findById(userId).orElse(null);
+                if (appUser == null || appUser.isDisabled()) {
+                    SecurityContextHolder.clearContext();
+                } else {
+                    String role = claims.get("role", String.class);
+                    List<GrantedAuthority> authorities = role != null && !role.isBlank()
+                            ? List.of(new SimpleGrantedAuthority("ROLE_" + role))
+                            : Collections.emptyList();
+                    UsernamePasswordAuthenticationToken authentication = new UsernamePasswordAuthenticationToken(
+                            new User(subject, "", authorities),
+                            null,
+                            authorities
+                    );
+                    authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
+                    SecurityContextHolder.getContext().setAuthentication(authentication);
+                }
             } catch (Exception ex) {
                 SecurityContextHolder.clearContext();
             }

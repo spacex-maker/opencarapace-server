@@ -48,6 +48,10 @@ public class User {
     @Column(name = "settings_version", nullable = false)
     private Long settingsVersion = 0L;
 
+    /** 为 true 时禁止登录（邮箱密码与 Google 均拦截） */
+    @Column(nullable = false)
+    private boolean disabled = false;
+
     @CreationTimestamp
     private Instant createdAt;
 

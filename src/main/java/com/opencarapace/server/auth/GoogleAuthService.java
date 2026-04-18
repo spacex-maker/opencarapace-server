@@ -67,6 +67,9 @@ public class GoogleAuthService {
                     u.setRole("USER");
                     return u;
                 });
+        if (user.isDisabled()) {
+            return Mono.error(new IllegalArgumentException("账号已被禁用，请联系管理员"));
+        }
         user.setEmail(tokenInfo.email);
         user.setDisplayName(tokenInfo.name);
         user.setAvatarUrl(tokenInfo.picture);

@@ -16,6 +16,7 @@ import { MyInterceptLogsPage } from "./pages/MyInterceptLogsPage";
 import { AdminInterceptLogsPage } from "./pages/AdminInterceptLogsPage";
 import { AdminTrackingEventsPage } from "./pages/AdminTrackingEventsPage";
 import { AdminAnalyticsDashboardPage } from "./pages/AdminAnalyticsDashboardPage";
+import { AdminUsersPage } from "./pages/AdminUsersPage";
 import { SettingsPage } from "./pages/SettingsPage";
 import { ApiKeysPage } from "./pages/ApiKeysPage";
 import { OfficialIntroPage } from "./pages/OfficialIntroPage";
@@ -156,6 +157,14 @@ function App() {
                   element={
                     <AdminRoute>
                       <AdminAnalyticsDashboardPage />
+                    </AdminRoute>
+                  }
+                />
+                <Route
+                  path="/admin/users"
+                  element={
+                    <AdminRoute>
+                      <AdminUsersPage />
                     </AdminRoute>
                   }
                 />

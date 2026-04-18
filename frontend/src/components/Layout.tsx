@@ -1,6 +1,6 @@
 import { ReactNode } from "react";
 import { Link, useLocation } from "react-router-dom";
-import { Shield, KeyRound, FileText, LogOut, ShieldAlert, Settings, Moon, Sun, BookOpen, ReceiptText, LayoutDashboard, Activity, BarChart3 } from "lucide-react";
+import { Shield, KeyRound, FileText, LogOut, ShieldAlert, Settings, Moon, Sun, BookOpen, ReceiptText, LayoutDashboard, Activity, BarChart3, Users } from "lucide-react";
 import { useAuth } from "../contexts/AuthContext";
 import { useTheme } from "../contexts/ThemeContext";
 
@@ -104,6 +104,10 @@ export const Layout = ({ children }: Props) => {
             <Link to="/admin/analytics" className={navItemClass("/admin/analytics")}>
               <BarChart3 className="w-4 h-4 shrink-0" />
               运营看板
+            </Link>
+            <Link to="/admin/users" className={navItemClass("/admin/users")}>
+              <Users className="w-4 h-4 shrink-0" />
+              用户管理
             </Link>
           </div>
         )}

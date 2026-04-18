@@ -40,6 +40,8 @@ export interface UserProfile {
   displayName: string | null;
   avatarUrl: string | null;
   role: string;
+  /** 后端新版本字段；缺省时视为未禁用 */
+  disabled?: boolean;
   createdAt: string;
 }
 
@@ -717,4 +719,64 @@ export async function fetchAdminAnalyticsDashboard(params: {
     `/api/admin/analytics/dashboard${q ? `?${q}` : ""}`,
   );
   return data;
+}
+
+/** 管理员：用户管理 */
+export interface AdminUserRow {
+  id: number;
+  email: string;
+  displayName: string | null;
+  role: string;
+  provider: string | null;
+  disabled: boolean;
+  passwordSet: boolean;
+  createdAt: string;
+}
+
+export interface AdminUserPageResponse {
+  page: number;
+  size: number;
+  total: number;
+  items: AdminUserRow[];
+}
+
+export async function fetchAdminUsers(params: {
+  page?: number;
+  size?: number;
+  email?: string;
+  role?: string;
+  disabled?: boolean;
+}): Promise<AdminUserPageResponse> {
+  const sp = new URLSearchParams();
+  if (params.page != null) sp.set("page", String(params.page));
+  if (params.size != null) sp.set("size", String(params.size));
+  if (params.email?.trim()) sp.set("email", params.email.trim());
+  if (params.role?.trim()) sp.set("role", params.role.trim());
+  if (params.disabled !== undefined) sp.set("disabled", String(params.disabled));
+  const { data } = await api.get<AdminUserPageResponse>(`/api/admin/users?${sp.toString()}`);
+  return data;
+}
+
+export async function createAdminUser(body: {
+  email: string;
+  password: string;
+  displayName?: string;
+  role?: string;
+}): Promise<AdminUserRow> {
+  const { data } = await api.post<AdminUserRow>("/api/admin/users", body);
+  return data;
+}
+
+export async function patchAdminUserDisabled(id: number, disabled: boolean): Promise<AdminUserRow> {
+  const { data } = await api.patch<AdminUserRow>(`/api/admin/users/${id}/disabled`, { disabled });
+  return data;
+}
+
+export async function patchAdminUserRole(id: number, role: string): Promise<AdminUserRow> {
+  const { data } = await api.patch<AdminUserRow>(`/api/admin/users/${id}/role`, { role });
+  return data;
+}
+
+export async function resetAdminUserPassword(id: number, newPassword: string): Promise<void> {
+  await api.post(`/api/admin/users/${id}/password`, { newPassword });
 }

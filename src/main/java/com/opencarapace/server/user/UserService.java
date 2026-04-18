@@ -68,6 +68,9 @@ public class UserService {
     public GoogleAuthService.AuthResponse login(String email, String password) {
         User user = userRepository.findByEmail(email.trim().toLowerCase())
                 .orElseThrow(() -> new IllegalArgumentException("邮箱或密码错误"));
+        if (user.isDisabled()) {
+            throw new IllegalArgumentException("账号已被禁用，请联系管理员");
+        }
         if (user.getPasswordHash() == null || !passwordEncoder.matches(password, user.getPasswordHash())) {
             throw new IllegalArgumentException("邮箱或密码错误");
         }

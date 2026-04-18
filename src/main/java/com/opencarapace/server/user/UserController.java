@@ -40,6 +40,7 @@ public class UserController {
             String displayName,
             String avatarUrl,
             String role,
+            boolean disabled,
             java.time.Instant createdAt
     ) {
         static UserProfileDto from(User user) {
@@ -49,6 +50,7 @@ public class UserController {
                     user.getDisplayName(),
                     user.getAvatarUrl(),
                     user.getRole(),
+                    user.isDisabled(),
                     user.getCreatedAt()
             );
         }

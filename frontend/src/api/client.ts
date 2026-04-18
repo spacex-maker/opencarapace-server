@@ -655,3 +655,66 @@ export async function fetchAdminTrackingEventDetail(id: number): Promise<AdminTr
     return null;
   }
 }
+
+/** 管理员：运营数据看板（埋点聚合） */
+export interface AdminAnalyticsDailyPoint {
+  date: string;
+  value: number;
+}
+
+export interface AdminAnalyticsDailyDownloads {
+  date: string;
+  total: number;
+  platformWeb: number;
+  platformDesktop: number;
+  platformOther: number;
+  targetWindows: number;
+  targetMac: number;
+  targetOther: number;
+}
+
+export interface AdminAnalyticsNameCount {
+  name: string;
+  count: number;
+}
+
+export interface AdminAnalyticsSummary {
+  totalTrackedEvents: number;
+  totalPageViews: number;
+  totalDownloadClicks: number;
+  distinctAnonymousInRange: number;
+  distinctUsersWithAnyEventInRange: number;
+}
+
+export interface AdminAnalyticsDashboard {
+  timezone: string;
+  fromDate: string;
+  toDate: string;
+  dauAll: AdminAnalyticsDailyPoint[];
+  dauRegistered: AdminAnalyticsDailyPoint[];
+  newRegistrations: AdminAnalyticsDailyPoint[];
+  uniqueLoginUsers: AdminAnalyticsDailyPoint[];
+  dailyPageViews: AdminAnalyticsDailyPoint[];
+  downloadsByDay: AdminAnalyticsDailyDownloads[];
+  downloadTargetsInRange: AdminAnalyticsNameCount[];
+  downloadVariantsInRange: AdminAnalyticsNameCount[];
+  topPageViews: AdminAnalyticsNameCount[];
+  topEventNames: AdminAnalyticsNameCount[];
+  summary: AdminAnalyticsSummary;
+}
+
+export async function fetchAdminAnalyticsDashboard(params: {
+  days?: number;
+  from?: string;
+  to?: string;
+}): Promise<AdminAnalyticsDashboard> {
+  const sp = new URLSearchParams();
+  if (params.days != null) sp.set("days", String(params.days));
+  if (params.from?.trim()) sp.set("from", params.from.trim());
+  if (params.to?.trim()) sp.set("to", params.to.trim());
+  const q = sp.toString();
+  const { data } = await api.get<AdminAnalyticsDashboard>(
+    `/api/admin/analytics/dashboard${q ? `?${q}` : ""}`,
+  );
+  return data;
+}

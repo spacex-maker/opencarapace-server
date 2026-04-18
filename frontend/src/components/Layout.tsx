@@ -1,6 +1,6 @@
 import { ReactNode } from "react";
 import { Link, useLocation } from "react-router-dom";
-import { Shield, KeyRound, FileText, LogOut, ShieldAlert, Settings, Moon, Sun, BookOpen, ReceiptText, LayoutDashboard, Activity } from "lucide-react";
+import { Shield, KeyRound, FileText, LogOut, ShieldAlert, Settings, Moon, Sun, BookOpen, ReceiptText, LayoutDashboard, Activity, BarChart3 } from "lucide-react";
 import { useAuth } from "../contexts/AuthContext";
 import { useTheme } from "../contexts/ThemeContext";
 
@@ -100,6 +100,10 @@ export const Layout = ({ children }: Props) => {
             <Link to="/admin/tracking-events" className={navItemClass("/admin/tracking-events")}>
               <Activity className="w-4 h-4 shrink-0" />
               埋点管理
+            </Link>
+            <Link to="/admin/analytics" className={navItemClass("/admin/analytics")}>
+              <BarChart3 className="w-4 h-4 shrink-0" />
+              运营看板
             </Link>
           </div>
         )}

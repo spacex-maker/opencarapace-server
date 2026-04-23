@@ -448,6 +448,28 @@ function getClientId() {
   return `desktop-${hostname}`;
 }
 
+function registerSocialMediaRoutes(app) {
+  app.get("/api/social-media", async (_req, res) => {
+    try {
+      const settings = await getLocalSettings();
+      const apiBase = settings?.apiBase
+        ? String(settings.apiBase).replace(/\/+$/, "")
+        : "https://api.clawheart.live";
+      const r = await axios.get(`${apiBase}/api/public/social-media`, {
+        validateStatus: () => true,
+        timeout: 8000,
+      });
+      if (r.status >= 200 && r.status < 300) {
+        res.status(200).json(Array.isArray(r.data) ? r.data : []);
+        return;
+      }
+      res.status(200).json([]);
+    } catch {
+      res.status(200).json([]);
+    }
+  });
+}
+
 async function getLocalStatus() {
   const db = getDb();
   const counts = {
@@ -546,6 +568,7 @@ async function startServer() {
   registerSecurityScanRoutes(app);
   registerAgentMgmtRoutes(app);
   registerBudgetRoutes(app);
+  registerSocialMediaRoutes(app);
 
   app.post(/^(?!\/api\/).+$/, forwardChatCompletions);
 

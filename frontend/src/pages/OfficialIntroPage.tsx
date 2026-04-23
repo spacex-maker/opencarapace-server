@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import {
   Shield,
@@ -30,6 +31,8 @@ import {
 } from "lucide-react";
 import { useTheme } from "../contexts/ThemeContext";
 import { useAuth } from "../contexts/AuthContext";
+import { fetchPublicSocialMedia, type SocialMediaItem } from "../api/client";
+import { SocialMediaModule } from "../components/SocialMediaModule";
 
 const USER_MODULES = [
   {
@@ -154,46 +157,68 @@ const HERO_STATS = [
 ] as const;
 
 const PILLAR_STYLES = [
-  "border-emerald-300/80 bg-gradient-to-br from-emerald-50/90 to-white dark:from-emerald-950/30 dark:to-slate-900/80 dark:border-emerald-800/50",
-  "border-violet-300/80 bg-gradient-to-br from-violet-50/90 to-white dark:from-violet-950/30 dark:to-slate-900/80 dark:border-violet-800/50",
-  "border-amber-300/80 bg-gradient-to-br from-amber-50/90 to-white dark:from-amber-950/25 dark:to-slate-900/80 dark:border-amber-800/50",
+  {
+    surface:
+      "bg-gradient-to-br from-emerald-100/95 to-white dark:from-emerald-950/35 dark:to-slate-900/85 shadow-[0_18px_40px_-18px_rgba(16,185,129,0.45)]",
+    clipPath: "polygon(0 8%, 9% 0, 100% 0, 100% 88%, 91% 100%, 0 100%)",
+    offset: "md:-translate-y-2",
+  },
+  {
+    surface:
+      "bg-gradient-to-br from-violet-100/95 to-white dark:from-violet-950/35 dark:to-slate-900/85 shadow-[0_18px_40px_-18px_rgba(139,92,246,0.45)]",
+    clipPath: "polygon(0 0, 92% 0, 100% 14%, 100% 100%, 8% 100%, 0 86%)",
+    offset: "md:translate-y-2",
+  },
+  {
+    surface:
+      "bg-gradient-to-br from-amber-100/95 to-white dark:from-amber-950/35 dark:to-slate-900/85 shadow-[0_18px_40px_-18px_rgba(245,158,11,0.45)]",
+    clipPath: "polygon(0 12%, 7% 0, 100% 0, 100% 92%, 93% 100%, 0 100%)",
+    offset: "md:-translate-y-1",
+  },
 ] as const;
 
-const USER_BENTO_LAYOUT: { span: string; tint: string; iconWrap: string }[] = [
+const USER_BENTO_LAYOUT: { span: string; tint: string; iconWrap: string; clipPath: string }[] = [
   {
     span: "lg:col-span-5 lg:row-span-2 lg:row-start-1 lg:col-start-1 min-h-[200px]",
-    tint: "bg-gradient-to-br from-sky-500/[0.08] via-white to-cyan-500/[0.06] dark:from-sky-500/15 dark:via-slate-900 dark:to-cyan-950/20 border-sky-200/70 dark:border-sky-800/50",
+    tint: "bg-gradient-to-br from-sky-500/[0.08] via-white to-cyan-500/[0.06] dark:from-sky-500/15 dark:via-slate-900 dark:to-cyan-950/20",
     iconWrap: "bg-sky-500/15 text-sky-700 dark:bg-sky-500/25 dark:text-sky-300",
+    clipPath: "polygon(0 6%, 7% 0, 100% 0, 100% 92%, 93% 100%, 0 100%)",
   },
   {
     span: "lg:col-span-3 lg:row-start-1 lg:col-start-6",
-    tint: "bg-indigo-50/80 dark:bg-indigo-950/25 border-indigo-200/70 dark:border-indigo-800/50",
+    tint: "bg-indigo-50/80 dark:bg-indigo-950/25",
     iconWrap: "bg-indigo-500/15 text-indigo-700 dark:bg-indigo-500/25 dark:text-indigo-300",
+    clipPath: "polygon(0 0, 92% 0, 100% 18%, 100% 100%, 8% 100%, 0 82%)",
   },
   {
     span: "lg:col-span-4 lg:row-start-1 lg:col-start-9",
-    tint: "bg-orange-50/85 dark:bg-orange-950/20 border-orange-200/70 dark:border-orange-900/40",
+    tint: "bg-orange-50/85 dark:bg-orange-950/20",
     iconWrap: "bg-orange-500/15 text-orange-800 dark:bg-orange-500/20 dark:text-orange-300",
+    clipPath: "polygon(0 14%, 10% 0, 100% 0, 100% 86%, 90% 100%, 0 100%)",
   },
   {
     span: "lg:col-span-3 lg:row-start-2 lg:col-start-6",
-    tint: "bg-fuchsia-50/80 dark:bg-fuchsia-950/20 border-fuchsia-200/70 dark:border-fuchsia-900/40",
+    tint: "bg-fuchsia-50/80 dark:bg-fuchsia-950/20",
     iconWrap: "bg-fuchsia-500/15 text-fuchsia-800 dark:bg-fuchsia-500/20 dark:text-fuchsia-300",
+    clipPath: "polygon(0 10%, 8% 0, 100% 0, 100% 90%, 92% 100%, 0 100%)",
   },
   {
     span: "lg:col-span-4 lg:row-start-2 lg:col-start-9",
-    tint: "bg-teal-50/85 dark:bg-teal-950/25 border-teal-200/70 dark:border-teal-800/50",
+    tint: "bg-teal-50/85 dark:bg-teal-950/25",
     iconWrap: "bg-teal-500/15 text-teal-800 dark:bg-teal-500/20 dark:text-teal-300",
+    clipPath: "polygon(0 0, 94% 0, 100% 24%, 100% 100%, 6% 100%, 0 76%)",
   },
   {
     span: "lg:col-span-6 lg:row-start-3 lg:col-start-1",
-    tint: "bg-amber-50/80 dark:bg-amber-950/20 border-amber-200/70 dark:border-amber-800/45",
+    tint: "bg-amber-50/80 dark:bg-amber-950/20",
     iconWrap: "bg-amber-500/15 text-amber-900 dark:bg-amber-500/20 dark:text-amber-300",
+    clipPath: "polygon(0 8%, 5% 0, 100% 0, 100% 92%, 95% 100%, 0 100%)",
   },
   {
     span: "lg:col-span-6 lg:row-start-3 lg:col-start-7",
-    tint: "bg-slate-100/90 dark:bg-slate-800/40 border-slate-300/70 dark:border-slate-600/50",
+    tint: "bg-slate-100/90 dark:bg-slate-800/40",
     iconWrap: "bg-slate-600/15 text-slate-800 dark:bg-slate-500/20 dark:text-slate-200",
+    clipPath: "polygon(0 0, 96% 0, 100% 22%, 100% 100%, 4% 100%, 0 78%)",
   },
 ];
 
@@ -207,6 +232,13 @@ const PRODUCT_STRIP = [
 export const OfficialIntroPage = () => {
   const { theme, toggleTheme } = useTheme();
   const { isAuthenticated, user, logout } = useAuth();
+  const [socialItems, setSocialItems] = useState<SocialMediaItem[]>([]);
+
+  useEffect(() => {
+    fetchPublicSocialMedia()
+      .then((rows) => setSocialItems(Array.isArray(rows) ? rows : []))
+      .catch(() => setSocialItems([]));
+  }, []);
 
   return (
     <div
@@ -574,9 +606,10 @@ export const OfficialIntroPage = () => {
               {PILLARS.map((p, i) => (
                 <div
                   key={p.title}
-                  className={`group relative rounded-[1.35rem] border-2 p-6 md:p-8 shadow-sm transition-all hover:shadow-lg hover:-translate-y-0.5 ${PILLAR_STYLES[i]}`}
+                  className={`group relative p-6 md:p-8 transition-all hover:shadow-xl hover:-translate-y-1 ${PILLAR_STYLES[i].surface} ${PILLAR_STYLES[i].offset}`}
+                  style={{ clipPath: PILLAR_STYLES[i].clipPath }}
                 >
-                  <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-white/80 dark:bg-slate-950/40 text-slate-800 dark:text-slate-200 shadow-sm group-hover:scale-105 transition-transform">
+                  <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-white/70 dark:bg-slate-950/45 text-slate-800 dark:text-slate-200 group-hover:scale-105 transition-transform">
                     <p.icon className="w-5 h-5" strokeWidth={2} />
                   </div>
                   <h3 className="mt-5 text-lg font-semibold text-slate-900 dark:text-white">{p.title}</h3>
@@ -642,31 +675,42 @@ export const OfficialIntroPage = () => {
             aria-hidden
           />
           <div className="relative max-w-6xl mx-auto px-4 py-16 md:py-24">
-            <div className="grid lg:grid-cols-12 gap-10 items-start">
-              <div className="lg:col-span-5 lg:sticky lg:top-24">
-                <p className="text-xs font-semibold uppercase tracking-[0.2em] text-indigo-700 dark:text-indigo-300">ClawHeart Desktop</p>
-                <h2 className="mt-2 text-2xl md:text-3xl font-semibold tracking-tight text-slate-900 dark:text-white">
-                  桌面端：本地网关 · 内置或外置 OpenClaw
-                </h2>
-                <p className="mt-4 text-sm md:text-base text-slate-600 dark:text-slate-400 leading-relaxed">
-                  Electron 客户端把策略执行点放在本机：OpenAI 兼容代理、拦截与技能、看板与云端同步。支持
-                  <strong className="text-slate-800 dark:text-slate-200"> 安装包内置 </strong>
-                  与
-                  <strong className="text-slate-800 dark:text-slate-200"> 外置 npm 前缀 </strong>
-                  两种 OpenClaw 形态；外置场景下可搭配专用 Node 目录与本机 PATH。详见{" "}
-                  <Link to="/download" className="text-indigo-600 dark:text-indigo-400 font-medium hover:underline">
-                    下载页
-                  </Link>{" "}
-                  各平台与变体说明。
-                </p>
-                <div className="mt-8 rounded-2xl border border-indigo-200/80 dark:border-indigo-800/50 bg-white/80 dark:bg-slate-900/60 p-5 shadow-sm">
+            <div className="grid lg:grid-cols-12 gap-6 lg:gap-8 items-stretch">
+              <div className="lg:col-span-5 space-y-4">
+                <div
+                  className="bg-white/90 dark:bg-slate-900/75 p-7 md:p-8"
+                  style={{ clipPath: "polygon(0 0, 92% 0, 100% 14%, 100% 100%, 10% 100%, 0 86%)" }}
+                >
+                  <p className="text-xs font-semibold uppercase tracking-[0.2em] text-indigo-700 dark:text-indigo-300">ClawHeart Desktop</p>
+                  <h2 className="mt-2 text-2xl md:text-3xl font-semibold tracking-tight text-slate-900 dark:text-white">
+                    桌面端：本地网关 · 内置或外置 OpenClaw
+                  </h2>
+                  <p className="mt-4 text-sm md:text-base text-slate-600 dark:text-slate-400 leading-relaxed">
+                    Electron 客户端把策略执行点放在本机：OpenAI 兼容代理、拦截与技能、看板与云端同步。支持
+                    <strong className="text-slate-800 dark:text-slate-200"> 安装包内置 </strong>
+                    与
+                    <strong className="text-slate-800 dark:text-slate-200"> 外置 npm 前缀 </strong>
+                    两种 OpenClaw 形态；外置场景下可搭配专用 Node 目录与本机 PATH。详见{" "}
+                    <Link to="/download" className="text-indigo-600 dark:text-indigo-400 font-medium hover:underline">
+                      下载页
+                    </Link>{" "}
+                    各平台与变体说明。
+                  </p>
+                </div>
+                <div
+                  className="bg-indigo-50/85 dark:bg-indigo-950/30 p-5"
+                  style={{ clipPath: "polygon(0 12%, 8% 0, 100% 0, 100% 88%, 92% 100%, 0 100%)" }}
+                >
                   <p className="text-[11px] font-semibold uppercase tracking-wider text-indigo-600 dark:text-indigo-400">本机入口</p>
                   <code className="mt-2 block text-sm font-mono text-slate-800 dark:text-slate-200">127.0.0.1:19111/v1</code>
                   <p className="mt-2 text-xs text-slate-500 dark:text-slate-500">OpenAI 兼容 Base URL，SDK 一行切换即可。</p>
                 </div>
               </div>
-              <div className="lg:col-span-7 flex flex-col gap-5">
-                <div className="rounded-[1.5rem] border-2 border-slate-200/90 dark:border-slate-700 bg-white dark:bg-slate-900/70 p-6 md:p-8 shadow-md md:ml-4">
+              <div className="lg:col-span-7 grid grid-rows-[auto_auto] gap-4">
+                <div
+                  className="bg-white/90 dark:bg-slate-900/75 p-6 md:p-8"
+                  style={{ clipPath: "polygon(0 10%, 8% 0, 100% 0, 100% 90%, 92% 100%, 0 100%)" }}
+                >
                   <div className="flex items-center gap-3">
                     <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-slate-800 text-white dark:bg-slate-700">
                       <Monitor className="w-5 h-5" strokeWidth={2} />
@@ -682,7 +726,10 @@ export const OfficialIntroPage = () => {
                     ))}
                   </ul>
                 </div>
-                <div className="rounded-[1.5rem] border-2 border-fuchsia-300/60 dark:border-fuchsia-700/50 bg-gradient-to-br from-fuchsia-500/[0.12] via-white to-violet-500/[0.08] dark:from-fuchsia-950/40 dark:via-slate-900 dark:to-violet-950/30 p-6 md:p-8 shadow-md md:-ml-2 md:mr-2">
+                <div
+                  className="bg-gradient-to-br from-fuchsia-500/[0.12] via-white to-violet-500/[0.08] dark:from-fuchsia-950/40 dark:via-slate-900 dark:to-violet-950/30 p-6 md:p-8"
+                  style={{ clipPath: "polygon(0 0, 94% 0, 100% 16%, 100% 100%, 6% 100%, 0 84%)" }}
+                >
                   <div className="flex items-center gap-3">
                     <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-fuchsia-600 text-white dark:bg-fuchsia-500">
                       <Package className="w-5 h-5" strokeWidth={2} />
@@ -754,7 +801,8 @@ export const OfficialIntroPage = () => {
                 return (
                   <div
                     key={m.title}
-                    className={`flex gap-4 rounded-2xl border p-5 transition-all hover:shadow-lg hover:-translate-y-0.5 ${L.span} ${L.tint}`}
+                    className={`flex gap-4 p-5 transition-all hover:shadow-lg hover:-translate-y-0.5 ${L.span} ${L.tint}`}
+                    style={{ clipPath: L.clipPath }}
                   >
                     <div className={`shrink-0 flex h-10 w-10 items-center justify-center rounded-xl ${L.iconWrap}`}>
                       <m.icon className="w-5 h-5" />
@@ -777,19 +825,19 @@ export const OfficialIntroPage = () => {
           />
           <div className="relative max-w-6xl mx-auto px-4 py-16 md:py-24">
             <div className="grid lg:grid-cols-12 gap-8 lg:gap-10 items-stretch">
-              <div className="lg:col-span-5 flex flex-col">
-                <div className="flex-1 rounded-[1.75rem] border-2 border-orange-200/90 dark:border-orange-900/50 bg-white/95 dark:bg-slate-900/85 p-8 shadow-lg shadow-orange-500/5">
+              <div className="lg:col-span-5">
+                <div
+                  className="h-full bg-white/85 dark:bg-slate-900/70 p-7 md:p-8"
+                  style={{ clipPath: "polygon(0 0, 92% 0, 100% 14%, 100% 100%, 10% 100%, 0 86%)" }}
+                >
                   <p className="text-xs font-semibold uppercase tracking-[0.2em] text-orange-700 dark:text-orange-400">Administration</p>
                   <h2 className="mt-2 text-2xl font-semibold tracking-tight text-slate-900 dark:text-white">平台运营与全局治理</h2>
                   <p className="mt-3 text-sm text-slate-600 dark:text-slate-400 leading-relaxed">
                     管理员维护跨用户资源：全局技能与危险指令、系统配置、全站拦截日志与埋点查询，支撑规模化运营与审计。
                   </p>
-                  <ul className="mt-8 space-y-4">
+                  <ul className="mt-7 space-y-3.5">
                     {ADMIN_MODULES.map((a) => (
-                      <li
-                        key={a.title}
-                        className="flex gap-3 rounded-xl bg-orange-50/60 dark:bg-orange-950/20 px-3 py-2.5 border border-orange-100/80 dark:border-orange-900/30"
-                      >
+                      <li key={a.title} className="flex gap-3 px-0.5 py-1">
                         <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-orange-500" />
                         <div>
                           <div className="font-medium text-slate-900 dark:text-white text-sm">{a.title}</div>
@@ -800,8 +848,11 @@ export const OfficialIntroPage = () => {
                   </ul>
                 </div>
               </div>
-              <div className="lg:col-span-7 flex flex-col">
-                <div className="flex-1 rounded-[1.75rem] border border-slate-700/80 bg-slate-900 text-slate-100 p-6 md:p-8 shadow-2xl shadow-slate-900/30 ring-1 ring-white/10 dark:ring-white/5">
+              <div className="lg:col-span-7 grid grid-rows-[auto_auto] gap-4">
+                <div
+                  className="bg-slate-900/95 text-slate-100 p-6 md:p-8"
+                  style={{ clipPath: "polygon(0 10%, 8% 0, 100% 0, 100% 88%, 92% 100%, 0 100%)" }}
+                >
                   <div className="flex items-center gap-2 text-cyan-400/90">
                     <Cpu className="w-4 h-4" />
                     <span className="text-xs font-semibold uppercase tracking-[0.2em]">Stack & Integration</span>
@@ -815,17 +866,19 @@ export const OfficialIntroPage = () => {
                   </p>
                   <div className="mt-6 flex flex-wrap gap-2">
                     {["Spring Boot", "React", "MySQL", "REST", "明 / 暗主题"].map((t) => (
-                      <span
-                        key={t}
-                        className="inline-flex items-center rounded-full border border-slate-600/80 bg-slate-800/80 px-3 py-1 text-[11px] font-medium text-slate-300"
-                      >
+                      <span key={t} className="inline-flex items-center rounded-full bg-slate-800/80 px-3 py-1 text-[11px] font-medium text-slate-300">
                         {t}
                       </span>
                     ))}
                   </div>
-                  <div className="mt-8 flex items-start gap-3 rounded-xl bg-slate-800/80 border border-slate-700/60 p-4">
+                </div>
+                <div
+                  className="bg-slate-800/85 dark:bg-slate-900/80 p-4 md:p-5"
+                  style={{ clipPath: "polygon(0 0, 96% 0, 100% 28%, 100% 100%, 4% 100%, 0 72%)" }}
+                >
+                  <div className="flex items-start gap-3">
                     <Eye className="w-5 h-5 text-cyan-500/90 shrink-0 mt-0.5" />
-                    <p className="text-xs text-slate-400 leading-relaxed">
+                    <p className="text-xs text-slate-300 dark:text-slate-400 leading-relaxed">
                       桌面端在 <code className="rounded bg-slate-950 px-1 text-cyan-200/90">127.0.0.1:19111</code>{" "}
                       提供本地代理；拦截与用量可同步云端，与「我的拦截日志 / Token 账单 / 全站拦截日志」同源。
                     </p>
@@ -838,18 +891,31 @@ export const OfficialIntroPage = () => {
 
         <section className="relative border-t border-slate-200/80 dark:border-slate-800/80 overflow-hidden">
           <div
-            className="absolute inset-0 bg-gradient-to-br from-violet-200/35 via-white to-cyan-200/30 dark:from-violet-950/50 dark:via-slate-950 dark:to-cyan-950/35"
+            className="pointer-events-none absolute inset-0 opacity-70 dark:opacity-45"
+            style={{
+              background:
+                "radial-gradient(900px 280px at 20% 20%, rgba(139,92,246,0.12), transparent 48%), radial-gradient(700px 240px at 85% 75%, rgba(6,182,212,0.1), transparent 46%)",
+            }}
             aria-hidden
           />
-          <div className="relative max-w-6xl mx-auto px-4 py-16 md:py-24">
-            <div className="max-w-3xl mx-auto">
-              <div className="rounded-[1.75rem] border border-violet-200/70 dark:border-violet-800/40 bg-white/90 dark:bg-slate-900/90 backdrop-blur-md px-8 py-12 md:px-12 md:py-14 shadow-xl shadow-violet-500/10 text-center">
-                <Users className="w-9 h-9 mx-auto text-violet-500 dark:text-violet-400" strokeWidth={1.5} />
-                <blockquote className="mt-6 text-xl md:text-2xl font-medium text-slate-800 dark:text-slate-100 leading-snug tracking-tight">
+          <div className="relative max-w-6xl mx-auto px-4 py-14 md:py-18">
+            <div className="grid lg:grid-cols-12 gap-8 lg:gap-10 items-start">
+              <div className="lg:col-span-3">
+                <div className="inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-violet-500/15 text-violet-600 dark:text-violet-400">
+                  <Users className="w-6 h-6" strokeWidth={1.6} />
+                </div>
+                <p className="mt-4 text-xs font-semibold uppercase tracking-[0.2em] text-violet-700/85 dark:text-violet-300/90">
+                  Our Belief
+                </p>
+              </div>
+              <div className="lg:col-span-9">
+                <blockquote className="text-xl md:text-[1.9rem] font-semibold text-slate-900 dark:text-slate-100 leading-tight tracking-tight">
                   我们相信，下一代软件将由人机协作编写；
-                  <span className="text-violet-700/85 dark:text-violet-300/90">而信任来自可验证的策略、可回放的决策与可持续演进的治理。</span>
+                  <span className="text-violet-700/90 dark:text-violet-300/90">
+                    而信任来自可验证的策略、可回放的决策与可持续演进的治理。
+                  </span>
                 </blockquote>
-                <p className="mt-6 text-sm text-slate-600 dark:text-slate-400 leading-relaxed">
+                <p className="mt-5 text-sm md:text-base text-slate-600 dark:text-slate-400 leading-relaxed max-w-3xl">
                   ClawHeart 持续扩展规则引擎与更细粒度策略编排，在模型能力快速演进的时代，为自动化链路保留清晰边界。
                 </p>
               </div>
@@ -857,64 +923,44 @@ export const OfficialIntroPage = () => {
           </div>
         </section>
 
-        <section className="max-w-6xl mx-auto px-4 pb-20 pt-4">
-          <div
-            className="relative overflow-hidden rounded-3xl px-6 py-12 md:px-14 md:py-16 text-center border backdrop-blur-md shadow-xl transition-colors duration-200"
-            style={{
-              backgroundColor: "var(--intro-cta-surface)",
-              borderColor: "var(--intro-cta-border)",
-              boxShadow:
-                "0 25px 50px -12px rgba(37, 99, 235, 0.12), 0 0 0 1px rgba(255,255,255,0.06) inset",
-            }}
-          >
-            <div
-              className="pointer-events-none absolute inset-0 dark:opacity-100 opacity-100"
-              style={{
-                backgroundImage: `radial-gradient(circle at 22% 18%, var(--intro-cta-glow-a), transparent 42%),
-                  radial-gradient(circle at 88% 72%, var(--intro-cta-glow-b), transparent 38%)`,
-              }}
-            />
-            <div className="relative">
-              <Server
-                className="w-9 h-9 mx-auto text-brand-600 dark:text-brand-400"
-                strokeWidth={1.25}
-              />
-              <h2
-                className="mt-4 text-2xl md:text-3xl font-semibold tracking-tight"
-                style={{ color: "var(--intro-text)" }}
-              >
+        <section className="max-w-6xl mx-auto px-4 py-14 md:py-16">
+          <div className="grid lg:grid-cols-12 gap-8 lg:gap-10 items-end">
+            <div className="lg:col-span-8">
+              <div className="inline-flex h-11 w-11 items-center justify-center rounded-2xl bg-brand-500/15 text-brand-600 dark:text-brand-400">
+                <Server className="w-5 h-5" strokeWidth={1.35} />
+              </div>
+              <h2 className="mt-4 text-2xl md:text-3xl font-semibold tracking-tight text-slate-900 dark:text-white">
                 准备好接入你的第一条受控链路了吗？
               </h2>
-              <p className="mt-3 text-sm max-w-lg mx-auto leading-relaxed" style={{ color: "var(--intro-text-muted)" }}>
+              <p className="mt-3 text-sm md:text-base leading-relaxed max-w-3xl" style={{ color: "var(--intro-text-muted)" }}>
                 注册并创建 API Key，或将 OpenClaw / SDK 指到 ClawHeart 网关与本地 19111；下载桌面端获得完整 Gateway 体验。
               </p>
-              <div className="mt-8 flex flex-wrap justify-center gap-3">
+            </div>
+            <div className="lg:col-span-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-1 gap-2.5">
                 <Link
                   to="/register"
-                  className="inline-flex items-center gap-2 px-8 py-3 rounded-full bg-brand-600 text-white text-sm font-semibold hover:bg-brand-500 shadow-md shadow-brand-600/25 transition-colors"
+                  className="inline-flex items-center justify-center gap-2 px-6 py-3 rounded-full bg-brand-600 text-white text-sm font-semibold hover:bg-brand-500 transition-colors"
                 >
                   创建账号
                 </Link>
                 <Link
                   to="/download"
-                  className="inline-flex items-center gap-2 px-8 py-3 rounded-full border-2 border-brand-600 dark:border-brand-500 bg-brand-600/[0.07] dark:bg-brand-500/10 text-brand-700 dark:text-brand-300 text-sm font-semibold hover:bg-brand-600/15 dark:hover:bg-brand-500/20 transition-colors"
+                  className="inline-flex items-center justify-center gap-2 px-6 py-3 rounded-full bg-brand-600/10 text-brand-700 dark:text-brand-300 text-sm font-semibold hover:bg-brand-600/15 dark:hover:bg-brand-500/20 transition-colors"
                 >
                   <Download className="w-4 h-4" />
                   下载客户端
                 </Link>
                 <Link
                   to="/login"
-                  className="inline-flex items-center gap-2 px-8 py-3 rounded-full border text-sm font-medium transition-colors hover:bg-black/[0.05] dark:hover:bg-white/[0.08]"
-                  style={{
-                    borderColor: "var(--intro-border)",
-                    color: "var(--intro-text)",
-                  }}
+                  className="inline-flex items-center justify-center gap-2 px-6 py-3 rounded-full border text-sm font-medium transition-colors hover:bg-black/[0.05] dark:hover:bg-white/[0.08]"
+                  style={{ borderColor: "var(--intro-border)", color: "var(--intro-text)" }}
                 >
                   已有账号登录
                 </Link>
                 <Link
                   to="/docs"
-                  className="inline-flex items-center gap-2 px-8 py-3 rounded-full text-sm font-medium text-brand-600 dark:text-brand-400 hover:bg-brand-500/10 transition-colors"
+                  className="inline-flex items-center justify-center gap-2 px-6 py-3 rounded-full text-sm font-medium text-brand-600 dark:text-brand-400 hover:bg-brand-500/10 transition-colors"
                 >
                   <BookOpen className="w-4 h-4" />
                   阅读文档
@@ -926,14 +972,23 @@ export const OfficialIntroPage = () => {
       </main>
 
       <footer
-        className="shrink-0 border-t py-6 text-center text-[11px] transition-colors duration-200"
-        style={{ borderColor: "var(--intro-border)", color: "var(--intro-text-subtle)" }}
+        className="shrink-0 border-t transition-colors duration-200 bg-gradient-to-br from-sky-100/70 via-white to-violet-100/65 dark:from-sky-950/30 dark:via-slate-950/90 dark:to-violet-950/30"
+        style={{ borderColor: "var(--intro-border)" }}
       >
-        <a href="#intro-top" className="hover:opacity-80 underline-offset-2 hover:underline" style={{ color: "var(--intro-text-muted)" }}>
-          回到顶部
-        </a>
-        <span className="mx-2 opacity-50">·</span>
-        <span>ClawHeart — Agent 安全与治理</span>
+        <div className="max-w-6xl mx-auto px-4 pt-8 pb-6">
+          <SocialMediaModule
+            title="社媒矩阵"
+            subtitle="在各平台关注 ClawHeart，第一时间获取新版本、能力发布与活动动态。"
+            items={socialItems}
+          />
+        </div>
+        <div className="border-t py-6 text-center text-[11px]" style={{ borderColor: "var(--intro-border-soft)", color: "var(--intro-text-subtle)" }}>
+          <a href="#intro-top" className="hover:opacity-80 underline-offset-2 hover:underline" style={{ color: "var(--intro-text-muted)" }}>
+            回到顶部
+          </a>
+          <span className="mx-2 opacity-50">·</span>
+          <span>ClawHeart — Agent 安全与治理</span>
+        </div>
       </footer>
     </div>
   );

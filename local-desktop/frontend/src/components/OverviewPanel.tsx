@@ -46,6 +46,14 @@ interface DashboardStats {
   };
 }
 
+interface SocialMediaItem {
+  id: number;
+  name: string;
+  iconKey: string;
+  url: string;
+  showQrCode: boolean;
+}
+
 const CACHE_DURATION = 5 * 60 * 1000; // 5分钟
 
 let cachedStats: DashboardStats | null = null;
@@ -75,6 +83,7 @@ export function OverviewPanel(props: Props) {
   const [interceptGranularity, setInterceptGranularity] = useState<"minute" | "hour" | "day" | "week" | "month">("hour");
   const [lastCacheTime, setLastCacheTime] = useState<string | null>(null);
   const [skillsLoadError, setSkillsLoadError] = useState<string | null>(null);
+  const [socialItems, setSocialItems] = useState<SocialMediaItem[]>([]);
 
   /** 未登录时不拉云端看板，加载位若仍为 true 也不应显示「同步中」 */
   const cloudAuthed = !!status?.auth?.token;
@@ -101,6 +110,13 @@ export function OverviewPanel(props: Props) {
       loadInterceptTimeline();
     }
   }, [status?.auth?.token, interceptTimeRange, interceptGranularity]);
+
+  useEffect(() => {
+    fetch("http://127.0.0.1:19111/api/social-media")
+      .then((r) => (r.ok ? r.json() : []))
+      .then((rows) => setSocialItems(Array.isArray(rows) ? rows : []))
+      .catch(() => setSocialItems([]));
+  }, []);
 
   const loadSkillsStats = async () => {
     setSkillsLoading(true);
@@ -479,6 +495,24 @@ export function OverviewPanel(props: Props) {
     );
   };
 
+  const socialIcon = (key: string | null | undefined): string => {
+    const k = String(key || "").toLowerCase();
+    if (k === "x" || k === "twitter") return "𝕏";
+    if (k === "github") return "GH";
+    if (k === "linkedin") return "in";
+    if (k === "wechat" || k === "weixin") return "微";
+    if (k === "xiaohongshu") return "红";
+    if (k === "douyin") return "抖";
+    if (k === "zhihu") return "知";
+    if (k === "bilibili") return "B";
+    if (k === "youtube") return "▶";
+    if (k === "telegram") return "TG";
+    return "•";
+  };
+
+  const qrUrl = (raw: string) =>
+    `https://api.qrserver.com/v1/create-qr-code/?size=150x150&margin=0&data=${encodeURIComponent(raw)}`;
+
   return (
     <div
       style={{
@@ -725,6 +759,62 @@ export function OverviewPanel(props: Props) {
       </div>
       
       {/* 全局动画关键帧 */}
+      {socialItems.length > 0 && (
+        <div style={{ ...cardBaseStyle, marginTop: 24 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+            <h3 style={{ margin: 0, fontSize: 18, fontWeight: 700, color: "var(--fg)" }}>社媒与社区</h3>
+            <span style={{ fontSize: 12, color: "var(--muted)" }}>二维码由 URL 动态生成</span>
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: 14 }}>
+            {socialItems.map((it) => (
+              <div
+                key={it.id}
+                style={{
+                  border: "1px solid var(--border)",
+                  borderRadius: 14,
+                  background: "rgba(255,255,255,0.02)",
+                  padding: 12,
+                }}
+              >
+                <a
+                  href={it.url}
+                  target="_blank"
+                  rel="noreferrer"
+                  style={{ display: "inline-flex", alignItems: "center", gap: 8, color: "var(--fg)", textDecoration: "none" }}
+                >
+                  <span
+                    style={{
+                      width: 28,
+                      height: 28,
+                      borderRadius: 8,
+                      border: "1px solid var(--border)",
+                      display: "inline-flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      fontSize: 12,
+                      fontWeight: 700,
+                    }}
+                  >
+                    {socialIcon(it.iconKey)}
+                  </span>
+                  <span style={{ fontWeight: 700, fontSize: 14 }}>{it.name}</span>
+                </a>
+                {it.showQrCode ? (
+                  <img
+                    src={qrUrl(it.url)}
+                    alt={`${it.name} 二维码`}
+                    style={{ marginTop: 10, width: 90, height: 90, borderRadius: 8, border: "1px solid var(--border)", background: "#fff", padding: 4 }}
+                    loading="lazy"
+                  />
+                ) : (
+                  <div style={{ marginTop: 10, fontSize: 12, color: "var(--muted)" }}>二维码已关闭</div>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       <style>{`
         @keyframes spin {
           to { transform: rotate(360deg); }

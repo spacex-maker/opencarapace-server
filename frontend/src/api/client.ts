@@ -780,3 +780,49 @@ export async function patchAdminUserRole(id: number, role: string): Promise<Admi
 export async function resetAdminUserPassword(id: number, newPassword: string): Promise<void> {
   await api.post(`/api/admin/users/${id}/password`, { newPassword });
 }
+
+/** 社媒配置（公开 + 管理） */
+export interface SocialMediaItem {
+  id: number;
+  name: string;
+  iconKey: string;
+  url: string;
+  enabled: boolean;
+  showQrCode: boolean;
+  sortOrder: number;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface UpsertSocialMediaPayload {
+  name: string;
+  iconKey: string;
+  url: string;
+  enabled: boolean;
+  showQrCode: boolean;
+  sortOrder: number;
+}
+
+export async function fetchPublicSocialMedia(): Promise<SocialMediaItem[]> {
+  const { data } = await api.get<SocialMediaItem[]>("/api/public/social-media");
+  return Array.isArray(data) ? data : [];
+}
+
+export async function fetchAdminSocialMedia(): Promise<SocialMediaItem[]> {
+  const { data } = await api.get<SocialMediaItem[]>("/api/admin/social-media");
+  return Array.isArray(data) ? data : [];
+}
+
+export async function createAdminSocialMedia(body: UpsertSocialMediaPayload): Promise<SocialMediaItem> {
+  const { data } = await api.post<SocialMediaItem>("/api/admin/social-media", body);
+  return data;
+}
+
+export async function updateAdminSocialMedia(id: number, body: UpsertSocialMediaPayload): Promise<SocialMediaItem> {
+  const { data } = await api.put<SocialMediaItem>(`/api/admin/social-media/${id}`, body);
+  return data;
+}
+
+export async function deleteAdminSocialMedia(id: number): Promise<void> {
+  await api.delete(`/api/admin/social-media/${id}`);
+}

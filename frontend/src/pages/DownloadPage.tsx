@@ -53,6 +53,12 @@ const DEFAULT_MAC_INTEL_DMG =
 const DEFAULT_MAC_ARM64_DMG =
   "https://download.anxin.anakkix.cn/ClawHeart%20Desktop-0.1.0-arm64.dmg";
 
+const DOWNLOAD_HIGHLIGHTS = [
+  { label: "本地 19111", hint: "OpenAI 兼容入口" },
+  { label: "双形态 OpenClaw", hint: "内置 / 外置可选" },
+  { label: "策略联动", hint: "云端规则本地执行" },
+] as const;
+
 export function DownloadPage() {
   const { theme, toggleTheme } = useTheme();
   const { isAuthenticated, user, logout } = useAuth();
@@ -294,6 +300,19 @@ export function DownloadPage() {
               <p className="mt-6 text-lg text-slate-600 dark:text-slate-400 leading-relaxed max-w-lg">
                 在本地暴露 19111 端口，内置 OpenClaw。让你的 AI Agent 调用无缝接入云端统一的安全策略与审计体系。
               </p>
+
+              <div className="mt-6 flex flex-wrap gap-2.5">
+                {DOWNLOAD_HIGHLIGHTS.map((h) => (
+                  <div
+                    key={h.label}
+                    className="rounded-full bg-white/80 dark:bg-slate-900/70 px-3 py-1.5 text-[11px] border border-slate-200/70 dark:border-slate-700/70"
+                  >
+                    <span className="font-semibold text-slate-800 dark:text-slate-200">{h.label}</span>
+                    <span className="mx-1.5 text-slate-300 dark:text-slate-600">·</span>
+                    <span className="text-slate-500 dark:text-slate-400">{h.hint}</span>
+                  </div>
+                ))}
+              </div>
               
               <div className="mt-10 flex flex-wrap items-center gap-4">
                 {releaseNotesUrl ? (
@@ -319,7 +338,8 @@ export function DownloadPage() {
             <div className="lg:col-span-7 lg:pl-10">
               {recommendationBanner ? (
                 <div
-                  className="mb-5 rounded-2xl border border-brand-500/25 bg-brand-50/80 dark:bg-brand-500/10 dark:border-brand-500/20 px-4 py-3 text-[13px] font-medium text-brand-800 dark:text-brand-200 leading-relaxed shadow-sm"
+                  className="mb-5 px-4 py-3 text-[13px] font-medium text-brand-800 dark:text-brand-200 leading-relaxed bg-brand-50/80 dark:bg-brand-500/10"
+                  style={{ clipPath: "polygon(0 0, 96% 0, 100% 24%, 100% 100%, 4% 100%, 0 76%)" }}
                   role="status"
                 >
                   {recommendationBanner}
@@ -337,16 +357,17 @@ export function DownloadPage() {
                   return (
                     <div
                       key={t.id}
-                      className={`relative group rounded-[24px] border p-7 flex flex-col justify-between transition-all duration-300
+                      className={`relative group p-7 flex flex-col justify-between transition-all duration-300
                         ${isAvailable 
-                          ? "bg-white dark:bg-slate-900/80 border-brand-500/20 dark:border-brand-500/20 shadow-xl shadow-brand-500/5 hover:shadow-brand-500/10 hover:-translate-y-1" 
-                          : "bg-slate-50/50 dark:bg-slate-900/20 border-slate-200 dark:border-slate-800/50 opacity-80"}
+                          ? "bg-white dark:bg-slate-900/80 shadow-xl shadow-brand-500/5 hover:shadow-brand-500/10 hover:-translate-y-1" 
+                          : "bg-slate-50/50 dark:bg-slate-900/20 opacity-80"}
                         ${isRecommendedCard ? "ring-2 ring-brand-500/55 ring-offset-2 ring-offset-[#fafbfc] dark:ring-offset-[#030712]" : ""}
                       `}
+                      style={{ clipPath: "polygon(0 8%, 7% 0, 100% 0, 100% 92%, 93% 100%, 0 100%)" }}
                     >
                       {/* 可用时的辉光背景 */}
                       {isAvailable && (
-                        <div className="absolute inset-0 bg-gradient-to-br from-brand-500/[0.03] to-transparent rounded-[24px] pointer-events-none" />
+                        <div className="absolute inset-0 bg-gradient-to-br from-brand-500/[0.03] to-transparent pointer-events-none" />
                       )}
 
                       <div>
@@ -572,7 +593,10 @@ export function DownloadPage() {
           <div className="grid lg:grid-cols-2 gap-12 lg:gap-16 items-start">
             
             {/* Quick Start 卡片 */}
-            <div className="bg-white dark:bg-slate-900/50 border border-slate-200/80 dark:border-slate-800 rounded-[2rem] p-8 sm:p-10 shadow-sm">
+            <div
+              className="bg-white dark:bg-slate-900/50 p-8 sm:p-10 shadow-sm"
+              style={{ clipPath: "polygon(0 0, 96% 0, 100% 18%, 100% 100%, 4% 100%, 0 82%)" }}
+            >
               <div className="flex items-center gap-3 mb-6">
                 <div className="h-10 w-10 rounded-xl bg-brand-100 dark:bg-brand-500/20 flex items-center justify-center text-brand-600 dark:text-brand-400">
                   <Zap className="w-5 h-5" />
@@ -637,11 +661,12 @@ export function DownloadPage() {
                   return (
                     <div
                       key={row.id}
-                      className={`rounded-2xl border transition-colors duration-200 overflow-hidden
+                      className={`transition-colors duration-200 overflow-hidden
                         ${active 
-                          ? "bg-white dark:bg-slate-900 border-brand-500/30 dark:border-brand-500/30 shadow-md shadow-brand-500/5" 
-                          : "bg-white/50 dark:bg-slate-900/30 border-slate-200/80 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700"}
+                          ? "bg-white dark:bg-slate-900 shadow-md shadow-brand-500/5" 
+                          : "bg-white/50 dark:bg-slate-900/30 hover:bg-white dark:hover:bg-slate-900/45"}
                       `}
+                      style={{ clipPath: "polygon(0 8%, 6% 0, 100% 0, 100% 92%, 94% 100%, 0 100%)" }}
                     >
                       <button
                         type="button"
@@ -660,7 +685,7 @@ export function DownloadPage() {
                         className={`grid transition-all duration-200 ease-in-out ${active ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0"}`}
                       >
                         <div className="overflow-hidden">
-                          <div className="px-6 pb-6 text-sm text-slate-600 dark:text-slate-400 leading-relaxed pt-1 border-t border-slate-100 dark:border-slate-800/50 mt-1">
+                          <div className="px-6 pb-6 text-sm text-slate-600 dark:text-slate-400 leading-relaxed pt-1 mt-1">
                             {row.a}
                           </div>
                         </div>

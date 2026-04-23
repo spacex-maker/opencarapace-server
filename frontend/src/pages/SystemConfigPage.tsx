@@ -12,7 +12,17 @@ import {
   type ClawhubSyncSettings,
   type GroupedSettingsDto,
 } from "../api/client";
-import { Settings, Save, Key, RefreshCw, Shield, Zap, Eye, Brain } from "lucide-react";
+import {
+  Settings,
+  Save,
+  Key,
+  RefreshCw,
+  Shield,
+  Zap,
+  Eye,
+  Brain,
+} from "lucide-react";
+import { SocialMediaConfigSection } from "../components/system/SocialMediaConfigSection";
 
 const KEY_LABELS: Record<string, string> = {
   "deepseek.api_key": "DeepSeek API Key",
@@ -657,6 +667,8 @@ export const SystemConfigPage = () => {
           <p className="text-sm text-slate-500 dark:text-slate-400 py-2">加载失败或暂无数据</p>
         )}
       </section>
+
+      <SocialMediaConfigSection />
 
       {error && (
         <div className="rounded-lg bg-red-500/10 border border-red-500/30 text-red-600 dark:text-red-300 text-sm px-4 py-3">

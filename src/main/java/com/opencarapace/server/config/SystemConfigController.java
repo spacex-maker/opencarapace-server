@@ -31,7 +31,7 @@ public class SystemConfigController {
     }
 
     @GetMapping("/{key}")
-    public ResponseEntity<SystemConfig> get(@PathVariable String key) {
+    public ResponseEntity<SystemConfig> get(@PathVariable("key") String key) {
         return systemConfigService.getMasked(key)
                 .map(ResponseEntity::ok)
                 .orElse(ResponseEntity.notFound().build());
@@ -39,7 +39,7 @@ public class SystemConfigController {
 
     @PutMapping("/{key}")
     public ResponseEntity<SystemConfig> set(
-            @PathVariable String key,
+            @PathVariable("key") String key,
             @RequestBody SetConfigRequest request) {
         SystemConfig c = systemConfigService.set(key, request.value(), request.description());
         return ResponseEntity.ok(systemConfigService.getMasked(key).orElse(c));

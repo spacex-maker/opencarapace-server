@@ -180,8 +180,19 @@ async function checkOpenClawRunning(modeArg) {
   const extPort = getExternalGatewayPort();
   if (listTcpListenersOnPort(extPort).length > 0) return true;
   if (extPort !== EXTERNAL_GATEWAY_DEFAULT_PORT && listTcpListenersOnPort(EXTERNAL_GATEWAY_DEFAULT_PORT).length > 0) return true;
+  /**
+   * 进程扫描 +「内置端口暂无监听」曾被用来推断「纯外置 gateway」；
+   * 但内置 Gateway 启动瞬间：进程已存在、19278 尚未 bind，会误判外置为运行中（卡片闪一下）。
+   * 若内置目录 PID 文件进程仍存活，则不应把该进程算到外置侧。
+   */
   if (await detectOpenClawGatewayProcessRunning()) {
-    if (listTcpListenersOnPort(BUNDLED_GATEWAY_PORT).length === 0) return true;
+    if (listTcpListenersOnPort(BUNDLED_GATEWAY_PORT).length === 0) {
+      const bundledPid = readPidFile(getStateDirForMode("bundled"));
+      if (bundledPid && isProcessAlive(bundledPid.pid)) {
+        return false;
+      }
+      return true;
+    }
   }
   const tUp = latestClawHeartDiagGatewayUpTimestampMs("external");
   return tUp > 0 && tUp > lastGatewayStopEpochMs.external;
@@ -198,7 +209,13 @@ async function probeGatewayReadyAfterSpawn(binaryMode) {
   if (extPortProbe !== EXTERNAL_GATEWAY_DEFAULT_PORT && listTcpListenersOnPort(EXTERNAL_GATEWAY_DEFAULT_PORT).length > 0) return true;
   if (gatewayDiagLogShowsGatewayListening(binaryMode)) return true;
   if (listTcpListenersOnPort(BUNDLED_GATEWAY_PORT).length === 0) {
-    if (await detectOpenClawGatewayProcessRunning()) return true;
+    if (await detectOpenClawGatewayProcessRunning()) {
+      const bundledPid = readPidFile(getStateDirForMode("bundled"));
+      if (bundledPid && isProcessAlive(bundledPid.pid)) {
+        return false;
+      }
+      return true;
+    }
   }
   return false;
 }

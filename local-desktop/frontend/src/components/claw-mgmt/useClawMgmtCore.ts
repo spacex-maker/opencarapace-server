@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type RefObject } from "react";
 import {
   EMBEDDED_STATUS_URL,
+  GATEWAY_DIAG_SSE_URL,
   NODE_STATUS_URL,
   INSTALL_PROGRESS_URL,
   INSTALL_NODE_PROGRESS_URL,
@@ -34,6 +35,22 @@ export interface ManagedRuntimeResolutionInfo {
   driftDetected?: boolean;
   notes?: string[];
 }
+
+export type GatewayReadinessIssue = { severity: string; code: string; message: string };
+
+export type GatewayReadinessPayload = {
+  configPath: string;
+  issues: GatewayReadinessIssue[];
+  blocking: boolean;
+  canApplyOfficialMinimaxKey: boolean;
+};
+
+/** 启动 Gateway 被 400 拦截时弹出快捷配置框 */
+export type GatewayConfigGatePayload = {
+  mode: GatewayOpenclawBinary;
+  message: string;
+  readiness: GatewayReadinessPayload;
+};
 
 function gatewayPortConflictFromServer(raw: unknown): GatewayPortConflict | null {
   if (raw === null) return null;
@@ -162,6 +179,9 @@ export interface ClawMgmtCoreValue {
   uninstallRuntimeNode: (profile: "bundled" | "external") => Promise<void>;
   /** @param mode 从指定卡片启动时传入，会先切换记录模式再请求启动 */
   startGateway: (mode?: GatewayOpenclawBinary) => Promise<void>;
+  /** 启动失败且服务端返回 readiness 时展示快捷填配置弹窗 */
+  gatewayConfigGate: GatewayConfigGatePayload | null;
+  dismissGatewayConfigGate: () => void;
   stopGateway: (mode?: GatewayOpenclawBinary) => Promise<void>;
   gatewayPortConflictBundled: GatewayPortConflict | null;
   gatewayPortConflictExternal: GatewayPortConflict | null;
@@ -276,6 +296,11 @@ export function useClawMgmtCore(): ClawMgmtCoreValue {
   const [gatewayPortConflictBundled, setGatewayPortConflictBundled] = useState<GatewayPortConflict | null>(null);
   const [gatewayPortConflictExternal, setGatewayPortConflictExternal] = useState<GatewayPortConflict | null>(null);
   const [killingGatewayPortPid, setKillingGatewayPortPid] = useState<number | null>(null);
+  const [gatewayConfigGate, setGatewayConfigGate] = useState<GatewayConfigGatePayload | null>(null);
+
+  const dismissGatewayConfigGate = useCallback(() => {
+    setGatewayConfigGate(null);
+  }, []);
 
   const installPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const uninstallPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -289,6 +314,8 @@ export function useClawMgmtCore(): ClawMgmtCoreValue {
   const panelUninstallDiagRef = useRef<OpenClawInstallDiag | undefined>(undefined);
   const gatewayDiagBundledRef = useRef("");
   const gatewayDiagExternalRef = useRef("");
+  /** SSE 已连通时由 snapshot/entry/clear 驱动诊断日志，轮询不再覆盖文本（端口冲突等仍由 embedded-status 更新） */
+  const gatewayDiagSseActiveRef = useRef(false);
   /** 跳过首次 effect：挂载时 bootstrap 已 loadConfig；此后仅在配置目标随 tab 变化时拉取 */
   const openClawConfigTargetEffectSkipRef = useRef(true);
 
@@ -342,6 +369,15 @@ export function useClawMgmtCore(): ClawMgmtCoreValue {
         | undefined
     ) => {
       if (!payload || typeof payload !== "object") return;
+      if (Object.prototype.hasOwnProperty.call(payload, "gatewayPortConflictBundled")) {
+        setGatewayPortConflictBundled(gatewayPortConflictFromServer(payload.gatewayPortConflictBundled));
+      }
+      if (Object.prototype.hasOwnProperty.call(payload, "gatewayPortConflictExternal")) {
+        setGatewayPortConflictExternal(gatewayPortConflictFromServer(payload.gatewayPortConflictExternal));
+      }
+      if (gatewayDiagSseActiveRef.current) {
+        return;
+      }
       const hasB = Object.prototype.hasOwnProperty.call(payload, "gatewayDiagnosticLogBundled");
       const hasE = Object.prototype.hasOwnProperty.call(payload, "gatewayDiagnosticLogExternal");
       if (typeof payload.gatewayDiagnosticLogBundled === "string") {
@@ -356,12 +392,6 @@ export function useClawMgmtCore(): ClawMgmtCoreValue {
         if (mode === "external") gatewayDiagExternalRef.current = leg;
         else gatewayDiagBundledRef.current = leg;
       }
-      if (Object.prototype.hasOwnProperty.call(payload, "gatewayPortConflictBundled")) {
-        setGatewayPortConflictBundled(gatewayPortConflictFromServer(payload.gatewayPortConflictBundled));
-      }
-      if (Object.prototype.hasOwnProperty.call(payload, "gatewayPortConflictExternal")) {
-        setGatewayPortConflictExternal(gatewayPortConflictFromServer(payload.gatewayPortConflictExternal));
-      }
     },
     []
   );
@@ -374,6 +404,65 @@ export function useClawMgmtCore(): ClawMgmtCoreValue {
     setGatewayBundledLog(gatewayDiagBundledRef.current);
     setGatewayExternalLog(gatewayDiagExternalRef.current);
   }, []);
+
+  useEffect(() => {
+    let es: EventSource | null = null;
+    try {
+      es = new EventSource(GATEWAY_DIAG_SSE_URL);
+    } catch {
+      gatewayDiagSseActiveRef.current = false;
+      return;
+    }
+    const onOpen = () => {
+      gatewayDiagSseActiveRef.current = true;
+    };
+    const onSnapshot = (ev: MessageEvent) => {
+      try {
+        const d = JSON.parse(ev.data) as { bundled?: string; external?: string };
+        gatewayDiagBundledRef.current = typeof d.bundled === "string" ? d.bundled : "";
+        gatewayDiagExternalRef.current = typeof d.external === "string" ? d.external : "";
+        mergePanelGatewayLog();
+      } catch {
+        /* ignore */
+      }
+    };
+    const onEntry = (ev: MessageEvent) => {
+      try {
+        const d = JSON.parse(ev.data) as { mode?: string; entry?: string };
+        const entry = typeof d.entry === "string" ? d.entry : "";
+        if (!entry) return;
+        const m = d.mode === "external" ? "external" : "bundled";
+        if (m === "external") gatewayDiagExternalRef.current += entry;
+        else gatewayDiagBundledRef.current += entry;
+        mergePanelGatewayLog();
+      } catch {
+        /* ignore */
+      }
+    };
+    const onClear = (ev: MessageEvent) => {
+      try {
+        const d = JSON.parse(ev.data) as { mode?: string };
+        const m = d.mode === "external" ? "external" : "bundled";
+        if (m === "external") gatewayDiagExternalRef.current = "";
+        else gatewayDiagBundledRef.current = "";
+        mergePanelGatewayLog();
+      } catch {
+        /* ignore */
+      }
+    };
+    const onError = () => {
+      gatewayDiagSseActiveRef.current = false;
+    };
+    es.addEventListener("open", onOpen);
+    es.addEventListener("snapshot", onSnapshot as EventListener);
+    es.addEventListener("entry", onEntry as EventListener);
+    es.addEventListener("clear", onClear as EventListener);
+    es.addEventListener("error", onError);
+    return () => {
+      gatewayDiagSseActiveRef.current = false;
+      es?.close();
+    };
+  }, [mergePanelGatewayLog]);
 
   const applyEmbeddedStatus = useCallback((data: {
     hasEmbedded?: boolean;
@@ -1050,7 +1139,16 @@ export function useClawMgmtCore(): ClawMgmtCoreValue {
       try {
         const st = await fetchEmbeddedStatus();
         const merged =
-          res.ok && data?.ok ? { ...st, isRunning: true } : st;
+          res.ok && data?.ok
+            ? {
+                ...st,
+                isRunning: true,
+                /** 启动回调那一侧立即置 true，避免 embedded-status 稍慢时外置/内置互相误判一瞬间 */
+                ...(bin === "bundled"
+                  ? { isRunningBundled: true }
+                  : { isRunningExternal: true }),
+              }
+            : st;
         applyEmbeddedStatus(merged);
       } catch {
         ingestGatewayDiagnosticFields(data);
@@ -1061,7 +1159,21 @@ export function useClawMgmtCore(): ClawMgmtCoreValue {
       }
 
       if (!res.ok || !data?.ok) {
-        setError(data?.error?.message || "启动失败");
+        const rd = data?.readiness as GatewayReadinessPayload | undefined;
+        if (res.status === 400 && rd && typeof rd === "object" && Array.isArray(rd.issues)) {
+          setGatewayConfigGate({
+            mode: bin,
+            message: typeof data?.message === "string" ? data.message : "配置不完整，无法启动 Gateway",
+            readiness: rd,
+          });
+          setError(null);
+          return;
+        }
+        setError(
+          (typeof data?.message === "string" && data.message) ||
+            data?.error?.message ||
+            "启动失败"
+        );
         return;
       }
 
@@ -1375,6 +1487,8 @@ export function useClawMgmtCore(): ClawMgmtCoreValue {
     installRuntimeNode,
     uninstallRuntimeNode,
     startGateway,
+    gatewayConfigGate,
+    dismissGatewayConfigGate,
     stopGateway,
     gatewayPortConflictBundled,
     gatewayPortConflictExternal,

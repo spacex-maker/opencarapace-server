@@ -77,4 +77,10 @@ public class SystemConfig {
     public static final String KEY_SKILLS_DATA_VERSION = "system.skills_data_version";
     /** 系统数据版本号：危险指令数据版本（用于客户端轮询检测系统级变更） */
     public static final String KEY_DANGER_COMMANDS_DATA_VERSION = "system.danger_commands_data_version";
+
+    /**
+     * 桌面 OpenClaw 安装默认 MiniMax 直连 Key：由管理员在「系统配置」中维护；
+     * 客户端通过 {@code GET /api/public/client-defaults/minimax-api-key} 拉取（无鉴权，仅供装机默认写入）。
+     */
+    public static final String KEY_CLIENT_DEFAULT_MINIMAX_API_KEY = "client.default.minimax.api_key";
 }

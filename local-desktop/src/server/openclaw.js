@@ -25,6 +25,7 @@ const fs = require("fs");
 const path = require("path");
 const os = require("os");
 const { execFileSync } = require("child_process");
+const { subscribeGatewayDiag } = require("./openclaw-manager/diag.js");
 const {
   hasEmbeddedNode,
   getEmbeddedNodePath,
@@ -951,6 +952,59 @@ async function runNpmUninstallGlobalPackage(packageName, onChunk, opts = {}) {
 }
 
 function registerOpenClawRoutes(app) {
+  /**
+   * Gateway 诊断日志 SSE（HTML Living Standard — Server-Sent Events）。
+   * 连接后先发 snapshot；每条 appendGatewayDiag 推送 entry；clearGatewayDiag 推送 clear。
+   */
+  app.get("/api/openclaw/gateway-diag-stream", (req, res) => {
+    res.status(200);
+    res.setHeader("Content-Type", "text/event-stream; charset=utf-8");
+    res.setHeader("Cache-Control", "no-cache, no-transform");
+    res.setHeader("Connection", "keep-alive");
+    res.setHeader("X-Accel-Buffering", "no");
+    if (typeof res.flushHeaders === "function") res.flushHeaders();
+
+    const payload = getGatewayDiagnosticLogsPayload();
+    const snap = JSON.stringify({
+      bundled: payload.gatewayDiagnosticLogBundled || "",
+      external: payload.gatewayDiagnosticLogExternal || "",
+    });
+    res.write(`event: snapshot\ndata: ${snap}\n\n`);
+
+    const unsub = subscribeGatewayDiag({
+      onEntry: ({ mode, entry }) => {
+        try {
+          res.write(`event: entry\ndata: ${JSON.stringify({ mode, entry })}\n\n`);
+        } catch (e) {
+          console.warn("[OpenClaw][sse] write entry failed:", e?.message || e);
+        }
+      },
+      onClear: ({ mode }) => {
+        try {
+          res.write(`event: clear\ndata: ${JSON.stringify({ mode })}\n\n`);
+        } catch (e) {
+          console.warn("[OpenClaw][sse] write clear failed:", e?.message || e);
+        }
+      },
+    });
+
+    const heartbeat = setInterval(() => {
+      try {
+        res.write(": ping\n\n");
+      } catch {
+        /* ignore */
+      }
+    }, 15000);
+
+    const cleanup = () => {
+      clearInterval(heartbeat);
+      unsub();
+    };
+    req.on("close", cleanup);
+    req.on("aborted", cleanup);
+    res.on("close", cleanup);
+  });
+
   app.get("/api/openclaw/discovery", async (_req, res) => {
     try {
       const discovery = await discoverOpenClawInstallations();
@@ -1337,6 +1391,44 @@ function registerOpenClawRoutes(app) {
         const cur = await getOpenClawSettings();
         await saveOpenClawSettings({ ...cur, gatewayOpenclawBinary: mode });
       }
+      const settings = await getOpenClawSettings();
+      syncGatewayWorkspaceFromSettings(settings);
+      // 与 lifecycle 内顺序一致：先保证内置侧 openclaw.json 已生成，再审计（否则只拦 Web UI 不拦 gateway，空 apiKey 仍能用 --allow-unconfigured 起来）
+      if (mode !== "external") {
+        const {
+          initOpenClawConfig,
+          ensureGatewayModeLocal,
+          ensureManagedGatewayPort,
+          auditOpenClawConfigForWebUi,
+        } = require("./openclaw-config.js");
+        await initOpenClawConfig();
+        ensureGatewayModeLocal();
+        ensureManagedGatewayPort();
+        const readiness = auditOpenClawConfigForWebUi("bundled");
+        if (readiness.blocking) {
+          return res.status(400).json({
+            ok: false,
+            mode,
+            message:
+              "当前 openclaw.json 配置不完整，已禁止启动 Gateway（与「启动 Web UI」使用同一套检查）。请补全 MiniMax API Key 等必填项，或使用官方默认 Key。",
+            readiness,
+            ...jsonGatewayDiagnosticFields(),
+          });
+        }
+      } else {
+        const { auditOpenClawConfigForWebUi } = require("./openclaw-config.js");
+        const readiness = auditOpenClawConfigForWebUi("external");
+        if (readiness.blocking) {
+          return res.status(400).json({
+            ok: false,
+            mode,
+            message:
+              "当前 ~/.openclaw 配置不完整，已禁止启动外置 Gateway。请补全 MiniMax 等必填项。",
+            readiness,
+            ...jsonGatewayDiagnosticFields(),
+          });
+        }
+      }
       // 直接传 mode 给 startEmbeddedOpenClaw，绕过全局工作区状态竞争
       const result = await startEmbeddedOpenClaw(mode);
       res.status(200).json({
@@ -1373,6 +1465,71 @@ function registerOpenClawRoutes(app) {
         error: { message: e?.message ?? "停止失败" },
         ...jsonGatewayDiagnosticFields(),
       });
+    }
+  });
+
+  /** 打开 Web UI 前：审计对应模式下的 openclaw.json（内置=托管目录，外置=~/.openclaw） */
+  app.get("/api/openclaw/web-ui-readiness", (req, res) => {
+    try {
+      const raw = String(req.query.mode || "bundled").trim().toLowerCase();
+      const slot = raw === "external" ? "external" : "bundled";
+      const { auditOpenClawConfigForWebUi } = require("./openclaw-config.js");
+      res.json(auditOpenClawConfigForWebUi(slot));
+    } catch (e) {
+      res.status(500).json({ error: { message: e?.message ?? "readiness 失败" } });
+    }
+  });
+
+  /** 写入云端系统配置中的默认 MiniMax Key 并重启对应 Gateway */
+  app.post("/api/openclaw/apply-official-minimax-key", async (req, res) => {
+    try {
+      const rawBin = req.body?.gatewayOpenclawBinary;
+      const { normalizeGatewayOpenclawBinary } = require("./openclaw-external.js");
+      const mode = normalizeGatewayOpenclawBinary(rawBin);
+      const settings = await getOpenClawSettings();
+      syncGatewayWorkspaceFromSettings({ ...settings, gatewayOpenclawBinary: mode });
+      const { applyOfficialMinimaxKeyForMode, auditOpenClawConfigForWebUi, restartGateway } = require("./openclaw-config.js");
+      const slot = mode === "external" ? "external" : "bundled";
+      const applied = await applyOfficialMinimaxKeyForMode(slot);
+      if (!applied.ok) {
+        return res.status(400).json({ ok: false, message: applied.message });
+      }
+      await restartGateway(mode);
+      const readiness = auditOpenClawConfigForWebUi(slot);
+      res.json({ ok: true, message: applied.message, readiness });
+    } catch (e) {
+      res.status(500).json({ ok: false, error: { message: e?.message ?? "apply 失败" } });
+    }
+  });
+
+  /** 在弹窗中快捷写入 MiniMax / Gateway token（不写库其它逻辑；不自动启动 Gateway） */
+  app.post("/api/openclaw/merge-gateway-prereqs", async (req, res) => {
+    try {
+      const { gatewayOpenclawBinary, minimaxApiKey, minimaxBaseUrl, generateGatewayTokenIfEmpty } = req.body || {};
+      const { normalizeGatewayOpenclawBinary } = require("./openclaw-external.js");
+      const mode = normalizeGatewayOpenclawBinary(gatewayOpenclawBinary);
+      const settings = await getOpenClawSettings();
+      /** 与 body 模式一致，避免 DB 仍为 external 时 init/ensure 写到 ~/.openclaw */
+      syncGatewayWorkspaceFromSettings({ ...settings, gatewayOpenclawBinary: mode });
+      const oc = require("./openclaw-config.js");
+      const slot = mode === "external" ? "external" : "bundled";
+      if (mode !== "external") {
+        await oc.initOpenClawConfig();
+        oc.ensureGatewayModeLocal();
+        oc.ensureManagedGatewayPort();
+      }
+      const merged = oc.mergeGatewayPrereqsForMode(slot, {
+        minimaxApiKey,
+        minimaxBaseUrl,
+        generateGatewayTokenIfEmpty: !!generateGatewayTokenIfEmpty,
+      });
+      if (!merged.ok) {
+        return res.status(400).json({ ok: false, message: merged.message });
+      }
+      const readiness = oc.auditOpenClawConfigForWebUi(slot);
+      res.json({ ok: true, readiness, configPath: merged.configPath });
+    } catch (e) {
+      res.status(500).json({ ok: false, error: { message: e?.message ?? "merge 失败" } });
     }
   });
 
@@ -1430,8 +1587,9 @@ function registerOpenClawRoutes(app) {
       const rawBin = req.body?.gatewayOpenclawBinary;
       const { normalizeGatewayOpenclawBinary } = require("./openclaw-external.js");
       const mode = normalizeGatewayOpenclawBinary(rawBin);
-      syncGatewayWorkspaceFromSettings({ gatewayOpenclawBinary: mode });
-      initOpenClawConfig();
+      const curSettings = await getOpenClawSettings();
+      syncGatewayWorkspaceFromSettings({ ...curSettings, gatewayOpenclawBinary: mode });
+      await initOpenClawConfig();
       const rotated = rotateGatewayAuthToken();
       await restartGateway(mode);
       const status = await getOpenClawStatus();
@@ -1872,7 +2030,7 @@ function registerOpenClawRoutes(app) {
           if (result.code === 0) {
             try {
               syncGatewayWorkspaceFromSettings(await getOpenClawSettings());
-              initOpenClawConfig();
+              await initOpenClawConfig();
             } catch (configErr) {
               console.log(
                 "[OpenClaw] 安装后初始化当前工作区 OpenClaw 配置失败（可忽略）:",

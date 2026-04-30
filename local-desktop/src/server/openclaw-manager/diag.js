@@ -1,9 +1,14 @@
 /**
  * Gateway 诊断日志系统：内存缓冲 + 磁盘持久化，内置 / 外置分文件。
+ * 每条追加会通过 EventEmitter 推送，供 GET /api/openclaw/gateway-diag-stream（SSE）实时输出。
  */
 
 const path = require("path");
 const fs = require("fs");
+const { EventEmitter } = require("events");
+
+const gatewayDiagEmitter = new EventEmitter();
+gatewayDiagEmitter.setMaxListeners(200);
 const { getElectronUserDataPath } = require("../openclaw-workspace.js");
 const {
   ingestGatewayPortConflictStderrLine,
@@ -56,11 +61,21 @@ function appendGatewayDiag(line, modeOpt) {
   }
   appendGatewayDiagToFile(m, entry);
   console.log("[OpenClaw][diag]", line);
+  try {
+    gatewayDiagEmitter.emit("entry", { mode: m, entry });
+  } catch (e) {
+    console.warn("[OpenClaw][diag] emit entry failed:", e?.message || e);
+  }
 }
 
 function clearGatewayDiag(mode) {
   const m = normalizeGatewayDiagMode(mode);
   gatewayDiagnosticLogs[m] = "";
+  try {
+    gatewayDiagEmitter.emit("clear", { mode: m });
+  } catch (e) {
+    console.warn("[OpenClaw][diag] emit clear failed:", e?.message || e);
+  }
   try {
     const dir = getGatewayLogsDir();
     fs.mkdirSync(dir, { recursive: true });
@@ -163,6 +178,21 @@ function gatewayDiagLogShowsGatewayListening(mode) {
 
 const PRE_STOP_LOG_MAX = 4000;
 
+/**
+ * @param {{ onEntry?: (p: { mode: string; entry: string }) => void; onClear?: (p: { mode: string }) => void }} handlers
+ * @returns {() => void} unsubscribe
+ */
+function subscribeGatewayDiag(handlers) {
+  const onEntry = (p) => handlers.onEntry && handlers.onEntry(p);
+  const onClear = (p) => handlers.onClear && handlers.onClear(p);
+  gatewayDiagEmitter.on("entry", onEntry);
+  gatewayDiagEmitter.on("clear", onClear);
+  return () => {
+    gatewayDiagEmitter.off("entry", onEntry);
+    gatewayDiagEmitter.off("clear", onClear);
+  };
+}
+
 function appendPreStopOutputToDiag(label, text, mode) {
   const s = String(text || "").replace(/\r\n/g, "\n").trim();
   if (!s) return;
@@ -174,6 +204,7 @@ function appendPreStopOutputToDiag(label, text, mode) {
 
 module.exports = {
   appendGatewayDiag,
+  subscribeGatewayDiag,
   clearGatewayDiag,
   getGatewayDiagnosticLog,
   getGatewayDiagnosticLogsPayload,

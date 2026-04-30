@@ -2,6 +2,7 @@ import type { CSSProperties } from "react";
 import { useState } from "react";
 import { useClawMgmtCore } from "./useClawMgmtCore";
 import { ClawMgmtProvider } from "./context";
+import { GatewayConfigGateModal } from "./GatewayConfigGateModal";
 import { ClawHeartBuiltInTab } from "./ClawHeartBuiltInTab";
 import { OtherClawsTab } from "./OtherClawsTab";
 
@@ -30,6 +31,7 @@ export function ClawMgmtPanel() {
 
   return (
     <ClawMgmtProvider value={core}>
+      <GatewayConfigGateModal />
       <div
         style={{
           maxWidth: 1100,

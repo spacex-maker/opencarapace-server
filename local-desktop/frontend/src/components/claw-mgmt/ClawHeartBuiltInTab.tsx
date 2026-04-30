@@ -452,6 +452,8 @@ function NodeRuntimeModal({
                       无需再下载；若启动仍失败，可改用「下载到用户目录」作为后备。
                     </div>
                   </>
+                ) : c.loading ? (
+                  <span style={{ color: "var(--muted2)" }}>正在检测安装包 / 工程内的 Node…</span>
                 ) : (
                   <span style={{ color: "var(--claw-amber-fg)" }}>当前环境未检测到安装包 / 开发目录内的 Node，请改用「下载到用户目录」。</span>
                 )}
@@ -462,7 +464,14 @@ function NodeRuntimeModal({
         {dirHint}
                 </div>
                 <div style={{ fontSize: 11, color: hasDl ? "var(--claw-green-fg)" : "var(--muted)", marginBottom: 10 }}>
-                  状态：{hasDl ? `已安装（v${targetVer} 发行包）` : systemNodeReady ? "专用目录为空（本机 Node 已可用）" : "未安装"}
+                  状态：
+                  {hasDl
+                    ? `已安装（v${targetVer} 发行包）`
+                    : c.loading
+                      ? "正在检测…"
+                      : systemNodeReady
+                        ? "专用目录为空（本机 Node 已可用）"
+                        : "未安装"}
                 </div>
                 {systemNodeReady && !hasDl ? (
                   <div
@@ -616,7 +625,13 @@ function NodeRuntimeModal({
                     color: hasDl ? "var(--claw-green-fg)" : "var(--muted2)",
                   }}
                 >
-                  {hasDl ? `已安装 · v${targetVer}` : systemNodeReady ? "专用目录未使用" : "未安装"}
+                  {hasDl
+                    ? `已安装 · v${targetVer}`
+                    : c.loading
+                      ? "正在检测…"
+                      : systemNodeReady
+                        ? "专用目录未使用"
+                        : "未安装"}
                 </span>
               </div>
               <p style={{ fontSize: 10, color: "var(--muted2)", margin: "0 0 10px", lineHeight: 1.5 }}>
@@ -1017,6 +1032,171 @@ function CardAdvancedMenu({ accent, children }: { accent: "purple" | "cyan"; chi
   );
 }
 
+/** Web UI 打开前：配置项未就绪时的提示（非原生 Modal） */
+function WebUiGateModal({
+  open,
+  accent,
+  issues,
+  canApplyOfficial,
+  applyBusy,
+  opening,
+  uiUrl,
+  webUiGateMode,
+  onClose,
+  onApplyOfficial,
+  onConfigure,
+  onOpenAnyway,
+}: {
+  open: boolean;
+  accent: "purple" | "cyan";
+  issues: { severity: string; code: string; message: string }[];
+  canApplyOfficial: boolean;
+  applyBusy: boolean;
+  opening: boolean;
+  uiUrl: string;
+  webUiGateMode: "bundled" | "external";
+  onClose: () => void;
+  onApplyOfficial: () => void | Promise<void>;
+  onConfigure: () => void;
+  onOpenAnyway: () => void;
+}) {
+  if (!open) return null;
+  const accentFg = accent === "purple" ? "var(--claw-purple-fg)" : "var(--claw-cyan-fg)";
+  return (
+    <div
+      style={{
+        position: "fixed",
+        inset: 0,
+        zIndex: 12000,
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        padding: 16,
+        background: "rgba(0,0,0,0.55)",
+      }}
+      role="presentation"
+      onClick={onClose}
+    >
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="webui-gate-title"
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          width: "min(440px, 100%)",
+          maxHeight: "min(80vh, 520px)",
+          overflow: "auto",
+          borderRadius: 12,
+          border: "1px solid var(--panel-border)",
+          background: "var(--panel-bg)",
+          color: "var(--fg)",
+          padding: "16px 18px",
+          boxShadow: "0 16px 48px rgba(0,0,0,0.45)",
+        }}
+      >
+        <div id="webui-gate-title" style={{ fontSize: 14, fontWeight: 800, marginBottom: 8 }}>
+          打开 Web UI 前请检查配置
+        </div>
+        <div style={{ fontSize: 11, color: "var(--muted)", lineHeight: 1.5, marginBottom: 12 }}>
+          {webUiGateMode === "bundled" ? "内置 OpenClaw" : "外置 OpenClaw"} 当前{" "}
+          <code style={{ fontSize: 10 }}>openclaw.json</code> 存在以下问题，可能导致聊天失败或无法登录：
+        </div>
+        <ul style={{ margin: "0 0 14px", paddingLeft: 18, fontSize: 11, lineHeight: 1.55 }}>
+          {issues.map((it, idx) => (
+            <li
+              key={`${it.code}-${idx}`}
+              style={{
+                color: it.severity === "error" ? "var(--claw-danger-fg)" : "var(--claw-amber-fg)",
+                marginBottom: 4,
+              }}
+            >
+              <span style={{ fontWeight: 700 }}>{it.severity === "error" ? "[必需]" : "[建议]"}</span> {it.message}
+            </li>
+          ))}
+        </ul>
+        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+          {canApplyOfficial ? (
+            <button
+              type="button"
+              disabled={applyBusy || opening}
+              onClick={() => void onApplyOfficial()}
+              style={{
+                padding: "10px 12px",
+                borderRadius: 8,
+                border: `1px solid ${accent === "purple" ? "rgba(167,139,250,0.55)" : "rgba(56,189,248,0.55)"}`,
+                background: accent === "purple" ? "rgba(167,139,250,0.14)" : "rgba(56,189,248,0.14)",
+                color: accentFg,
+                fontSize: 12,
+                fontWeight: 700,
+                cursor: applyBusy || opening ? "not-allowed" : "pointer",
+              }}
+            >
+              {applyBusy ? "正在写入官方默认 Key…" : "使用云端官方默认 MiniMax Key（并重启 Gateway）"}
+            </button>
+          ) : null}
+          <button
+            type="button"
+            onClick={() => {
+              onConfigure();
+              onClose();
+            }}
+            style={{
+              padding: "10px 12px",
+              borderRadius: 8,
+              border: "1px solid var(--panel-border)",
+              background: "var(--panel-bg2)",
+              color: "var(--fg)",
+              fontSize: 12,
+              fontWeight: 600,
+              cursor: "pointer",
+            }}
+          >
+            前往「可视化配置」填写 MiniMax / 网关
+          </button>
+          <button
+            type="button"
+            disabled={opening}
+            onClick={() => {
+              onOpenAnyway();
+              onClose();
+            }}
+            style={{
+              padding: "10px 12px",
+              borderRadius: 8,
+              border: "1px solid var(--panel-border)",
+              background: "transparent",
+              color: "var(--muted)",
+              fontSize: 11,
+              fontWeight: 600,
+              cursor: opening ? "not-allowed" : "pointer",
+            }}
+          >
+            仍要打开 Web UI（已知风险）
+          </button>
+          <button
+            type="button"
+            onClick={onClose}
+            style={{
+              padding: "8px 12px",
+              borderRadius: 8,
+              border: "none",
+              background: "transparent",
+              color: "var(--muted2)",
+              fontSize: 11,
+              cursor: "pointer",
+            }}
+          >
+            取消
+          </button>
+        </div>
+        <div style={{ marginTop: 12, fontSize: 9, color: "var(--muted2)", wordBreak: "break-all" }} title={uiUrl}>
+          URL: {uiUrl}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 /** 卡片底栏：左下角高级功能 + 右下 Gateway / Web UI / 帮助 */
 function CardWebUiCorner({
   accent,
@@ -1032,6 +1212,8 @@ function CardWebUiCorner({
   gatewayStartPending,
   gatewayStopPending,
   gatewayActionHint,
+  webUiGateMode,
+  onRefreshClawStatus,
 }: {
   accent: "purple" | "cyan";
   engineReady: boolean;
@@ -1048,8 +1230,111 @@ function CardWebUiCorner({
   gatewayStopPending: boolean;
   /** 启动/停止 Gateway 等本卡操作反馈，贴在卡片底栏下方 */
   gatewayActionHint?: string | null;
+  /** 打开 Web UI 前审计的配置归属（内置托管目录 vs 用户 ~/.openclaw） */
+  webUiGateMode: "bundled" | "external";
+  /** 应用官方 Key / 重启后刷新面板状态 */
+  onRefreshClawStatus?: () => Promise<void>;
 }) {
-  const c = useClawMgmt();
+  const [webUiGateModal, setWebUiGateModal] = useState<{
+    issues: { severity: string; code: string; message: string }[];
+    blocking: boolean;
+    canApplyOfficialMinimaxKey: boolean;
+  } | null>(null);
+  const [webUiOpening, setWebUiOpening] = useState(false);
+  const [applyOfficialBusy, setApplyOfficialBusy] = useState(false);
+
+  const [bannerReadiness, setBannerReadiness] = useState<{ blocking: boolean; hint?: string } | null>(null);
+  useEffect(() => {
+    if (!gatewayRunning || !engineReady) {
+      setBannerReadiness(null);
+      return;
+    }
+    let cancelled = false;
+    void (async () => {
+      try {
+        const r = await fetch(`/api/openclaw/web-ui-readiness?mode=${webUiGateMode}`).then((x) => x.json());
+        if (cancelled || !r || typeof r.blocking !== "boolean") return;
+        if (r.blocking) {
+          const err = Array.isArray(r.issues)
+            ? r.issues.find((i: { severity: string }) => i.severity === "error")
+            : undefined;
+          setBannerReadiness({ blocking: true, hint: err?.message || r.issues?.[0]?.message });
+        } else {
+          setBannerReadiness(null);
+        }
+      } catch {
+        if (!cancelled) setBannerReadiness(null);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [gatewayRunning, engineReady, webUiGateMode]);
+
+  const openWebUiAfterCheck = async () => {
+    setWebUiOpening(true);
+    try {
+      const r = await fetch(`/api/openclaw/web-ui-readiness?mode=${webUiGateMode}`).then((x) => x.json());
+      if (!r.blocking) {
+        window.open(uiUrl, "_blank", "noopener,noreferrer");
+        return;
+      }
+      setWebUiGateModal({
+        issues: Array.isArray(r.issues) ? r.issues : [],
+        blocking: r.blocking,
+        canApplyOfficialMinimaxKey: !!r.canApplyOfficialMinimaxKey,
+      });
+    } catch {
+      window.open(uiUrl, "_blank", "noopener,noreferrer");
+    } finally {
+      setWebUiOpening(false);
+    }
+  };
+
+  const handleApplyOfficialKey = async () => {
+    setApplyOfficialBusy(true);
+    try {
+      const res = await fetch("/api/openclaw/apply-official-minimax-key", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          gatewayOpenclawBinary: webUiGateMode === "external" ? "external" : "bundled",
+        }),
+      });
+      const data = (await res.json()) as {
+        ok?: boolean;
+        message?: string;
+        readiness?: {
+          blocking?: boolean;
+          issues?: { severity: string; code: string; message: string }[];
+          canApplyOfficialMinimaxKey?: boolean;
+        };
+        error?: { message?: string };
+      };
+      if (!res.ok || !data.ok) {
+        window.alert(data.message || data.error?.message || "写入官方 Key 失败");
+        return;
+      }
+      await onRefreshClawStatus?.();
+      const next = data.readiness;
+      if (next && !next.blocking) {
+        setWebUiGateModal(null);
+        setBannerReadiness(null);
+        window.open(uiUrl, "_blank", "noopener,noreferrer");
+      } else if (next) {
+        setWebUiGateModal({
+          issues: next.issues || [],
+          blocking: !!next.blocking,
+          canApplyOfficialMinimaxKey: !!next.canApplyOfficialMinimaxKey,
+        });
+        const err = next.issues?.find((i) => i.severity === "error");
+        setBannerReadiness({ blocking: true, hint: err?.message || next.issues?.[0]?.message });
+        window.alert(data.message || "已写入 Key，但仍有其它配置项需处理。");
+      }
+    } finally {
+      setApplyOfficialBusy(false);
+    }
+  };
 
   const webUiDisabledStyle: CSSProperties = {
     padding: "7px 14px",
@@ -1065,8 +1350,9 @@ function CardWebUiCorner({
   };
 
   return (
-    <div style={{ marginTop: "auto", paddingTop: 10 }}>
-      {engineReady && gatewayRunning ? (
+    <>
+      <div style={{ marginTop: "auto", paddingTop: 10 }}>
+      {engineReady && gatewayRunning && bannerReadiness?.blocking ? (
         <div
           style={{
             marginBottom: 8,
@@ -1076,9 +1362,10 @@ function CardWebUiCorner({
             background: "rgba(251,191,36,0.10)",
           }}
         >
-          <div style={{ fontSize: 10, fontWeight: 700, color: "var(--claw-amber-fg)", marginBottom: 2 }}>需配置 LLM</div>
+          <div style={{ fontSize: 10, fontWeight: 700, color: "var(--claw-amber-fg)", marginBottom: 2 }}>配置未完成</div>
           <div style={{ fontSize: 10, color: "var(--claw-amber-fg-muted)", lineHeight: 1.5 }}>
-            点左下「高级功能」→「配置」填写提供商，否则 Web UI 聊天可能 401。
+            {bannerReadiness.hint ||
+              "点「启动 Web UI」将提示缺失项；可在高级功能 → 配置中填写，或使用云端官方默认 MiniMax Key。"}
           </div>
         </div>
       ) : null}
@@ -1168,10 +1455,10 @@ function CardWebUiCorner({
             </button>
           ) : null}
           {gatewayRunning ? (
-            <a
-              href={uiUrl}
-              target="_blank"
-              rel="noopener noreferrer"
+            <button
+              type="button"
+              onClick={() => void openWebUiAfterCheck()}
+              disabled={webUiOpening}
               style={{
                 padding: "7px 14px",
                 borderRadius: 999,
@@ -1183,10 +1470,12 @@ function CardWebUiCorner({
                 textDecoration: "none",
                 whiteSpace: "nowrap",
                 display: "inline-block",
+                cursor: webUiOpening ? "wait" : "pointer",
+                opacity: webUiOpening ? 0.85 : 1,
               }}
             >
-              启动 Web UI
-            </a>
+              {webUiOpening ? "检查配置…" : "启动 Web UI"}
+            </button>
           ) : (
             <button type="button" disabled style={webUiDisabledStyle}>
               启动 Web UI
@@ -1266,7 +1555,22 @@ function CardWebUiCorner({
           {gatewayActionHint}
         </div>
       ) : null}
-    </div>
+      </div>
+      <WebUiGateModal
+        open={webUiGateModal != null}
+        accent={accent}
+        issues={webUiGateModal?.issues ?? []}
+        canApplyOfficial={!!webUiGateModal?.canApplyOfficialMinimaxKey}
+        applyBusy={applyOfficialBusy}
+        opening={webUiOpening}
+        uiUrl={uiUrl}
+        webUiGateMode={webUiGateMode}
+        onClose={() => setWebUiGateModal(null)}
+        onApplyOfficial={handleApplyOfficialKey}
+        onConfigure={onVisualConfig}
+        onOpenAnyway={() => window.open(uiUrl, "_blank", "noopener,noreferrer")}
+      />
+    </>
   );
 }
 
@@ -1349,19 +1653,24 @@ function NpmOpenClawUpgradeModal({
   const titleId = bundled ? "openclaw-npm-upgrade-bundled-title" : "openclaw-npm-upgrade-external-title";
 
   const localDisp = bundled
-    ? c.hasBundledOpenClaw
-      ? localRaw?.trim() || "（已检测到 CLI，未能读取 --version）"
-      : "（尚未安装内置 CLI · 确认后将执行全局 npm install + onboard）"
-    : localRaw?.trim() || "（未能读取 prefix 内 openclaw --version）";
+    ? c.loading
+      ? "（正在检测内置 CLI…）"
+      : c.hasBundledOpenClaw
+        ? localRaw?.trim() || "（已检测到 CLI，未能读取 --version）"
+        : "（尚未安装内置 CLI · 确认后将执行全局 npm install + onboard）"
+    : c.loading
+      ? "（正在检测外置 CLI…）"
+      : localRaw?.trim() || "（未能读取 prefix 内 openclaw --version）";
 
   const localTok = extractOpenClawSemverLike(localRaw);
   const latestTok = latest ? extractOpenClawSemverLike(latest) : null;
   const cmpNow = latest ? compareOpenClawLocalToNpmLatest(localRaw, latest) : null;
 
   let cmpHint = "打开弹窗后将自动查询 npm registry。";
-  if (loading) cmpHint = "正在查询 npm…";
+  if (c.loading) cmpHint = "正在检测本机 OpenClaw…";
+  else if (loading) cmpHint = "正在查询 npm…";
   else if (err) cmpHint = "";
-  else if (!c.hasBundledOpenClaw && bundled) {
+  else if (!c.loading && !c.hasBundledOpenClaw && bundled) {
     cmpHint = "将安装 npm 上的 latest 到本机全局并由 onboard 配置守护进程（与内置卡默认流程一致）。";
   } else if (cmpNow === "upgradeAvailable") {
     cmpHint = "registry 上有更新版本，可确认后执行（npm install @latest + onboard）。";
@@ -1375,7 +1684,7 @@ function NpmOpenClawUpgradeModal({
 
   const blockNoNpm = bundled && !c.hasBundledOpenClaw && !c.hasEmbeddedNode && !c.hasSystemNpm;
   const blockUpgrade =
-    c.installing || c.uninstalling || c.nodeInstalling || c.isRunning || blockNoNpm;
+    c.installing || c.uninstalling || c.nodeInstalling || c.isRunning || c.loading || blockNoNpm;
 
   const confirmLabel = bundled
     ? c.hasBundledOpenClaw
@@ -1724,9 +2033,11 @@ export function ClawHeartBuiltInTab() {
             "purple",
             bundledActive,
             "内置 OpenClaw",
-            c.hasBundledOpenClaw
-              ? `已就绪${c.bundledOpenClawVersion ? ` · ${c.bundledOpenClawVersion}` : ""}`
-              : "未检测到"
+            c.loading
+              ? "正在检测…"
+              : c.hasBundledOpenClaw
+                ? `已就绪${c.bundledOpenClawVersion ? ` · ${c.bundledOpenClawVersion}` : ""}`
+                : "未检测到"
           )}
           <div
             style={{
@@ -1742,6 +2053,8 @@ export function ClawHeartBuiltInTab() {
               engineReady={c.hasBundledOpenClaw}
               gatewayRunning={bundledGatewayRunning}
               uiUrl={c.uiUrlBundled}
+              webUiGateMode="bundled"
+              onRefreshClawStatus={() => c.refresh()}
               onVisualConfig={() => setVisualConfigMode("bundled")}
               gatewayShowStart={c.hasBundledOpenClaw && !bundledGatewayRunning}
               gatewayShowStop={c.hasBundledOpenClaw && bundledGatewayRunning}
@@ -1882,11 +2195,13 @@ export function ClawHeartBuiltInTab() {
             "cyan",
             externalActive,
             "外置 OpenClaw",
-            !externalGatewayCliReady
-              ? "未检测到 CLI"
-              : c.hasExternalManagedOpenClaw
-                ? `ClawHeart 前缀${c.externalOpenClawVersion ? ` · ${c.externalOpenClawVersion}` : ""}`
-                : `本机 OpenClaw${c.externalOpenClawVersion ? ` · ${c.externalOpenClawVersion}` : ""}`,
+            c.loading
+              ? "正在检测…"
+              : !externalGatewayCliReady
+                ? "未检测到 CLI"
+                : c.hasExternalManagedOpenClaw
+                  ? `ClawHeart 前缀${c.externalOpenClawVersion ? ` · ${c.externalOpenClawVersion}` : ""}`
+                  : `本机 OpenClaw${c.externalOpenClawVersion ? ` · ${c.externalOpenClawVersion}` : ""}`,
             <>
               <ExternalOpenClawInstallPills />
               <DetailsButton label="完整路径与 CLI" popoverAlign="end" buttonMarginLeft={0}>
@@ -1908,6 +2223,8 @@ export function ClawHeartBuiltInTab() {
               engineReady={externalGatewayCliReady}
               gatewayRunning={externalGatewayRunning}
               uiUrl={c.uiUrlExternal}
+              webUiGateMode="external"
+              onRefreshClawStatus={() => c.refresh()}
               onVisualConfig={() => setVisualConfigMode("external")}
               gatewayShowStart={externalGatewayCliReady && !externalGatewayRunning}
               gatewayShowStop={externalGatewayCliReady && externalGatewayRunning}

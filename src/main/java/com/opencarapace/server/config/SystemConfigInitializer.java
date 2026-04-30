@@ -59,6 +59,12 @@ public class SystemConfigInitializer implements ApplicationRunner {
         if (repository.findByConfigKey(SystemConfig.KEY_LLM_PROXY_INTENT_MODEL).isEmpty()) {
             save(SystemConfig.KEY_LLM_PROXY_INTENT_MODEL, "gpt-3.5-turbo", "意图层：分类请求用的模型名（与用户上游一致），如 deepseek-chat");
         }
+        if (repository.findByConfigKey(SystemConfig.KEY_CLIENT_DEFAULT_MINIMAX_API_KEY).isEmpty()) {
+            save(
+                    SystemConfig.KEY_CLIENT_DEFAULT_MINIMAX_API_KEY,
+                    "",
+                    "桌面客户端：首次生成 OpenClaw 配置时默认填入的 MiniMax API Key（空则客户端不配；官网装机 Key 请在此维护）");
+        }
     }
 
     private void save(String key, String value, String description) {

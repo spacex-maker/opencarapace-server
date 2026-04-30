@@ -297,7 +297,7 @@ async function startEmbeddedOpenClaw(modeArg) {
   if (binaryMode !== "external") {
     try {
       const { initOpenClawConfig, ensureGatewayModeLocal, ensureManagedGatewayPort } = require("../openclaw-config.js");
-      initOpenClawConfig();
+      await initOpenClawConfig();
       ensureGatewayModeLocal();
       ensureManagedGatewayPort();
       appendGatewayDiag(

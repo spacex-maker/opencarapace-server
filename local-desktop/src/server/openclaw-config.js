@@ -1,5 +1,6 @@
 const path = require("path");
 const fs = require("fs");
+const axios = require("axios");
 const { execWithOutput } = require("./utils.js");
 const {
   getUnpackedAppRoot,
@@ -8,7 +9,7 @@ const {
   resolveRealNodeExecutable,
   buildOpenClawChildEnv,
 } = require("./openclaw-paths.js");
-const { getManagedOpenClawEnv, getActiveOpenClawEnv } = require("./openclaw-workspace.js");
+const { getManagedOpenClawEnv, getActiveOpenClawEnv, getUserDefaultOpenClawEnv } = require("./openclaw-workspace.js");
 const { getUserProfileOpenClawPaths } = require("./openclaw-discovery.js");
 
 /**
@@ -192,6 +193,35 @@ function generateToken() {
 }
 
 /**
+ * agents.defaults.workspace：与 openclaw.json 同一代目录下的 workspace 子目录。
+ * configDir 已由 OPENCLAW_CONFIG_PATH 解析（内置托管目录随 Electron userData，Windows/macOS 路径不同）。
+ */
+function getDefaultAgentsWorkspacePath(configDir) {
+  return path.join(configDir, "workspace");
+}
+
+/**
+ * 从 OpenCarapace 服务端「系统配置」暴露的公开接口拉取默认 MiniMax Key（管理员在 Web 后台维护）。
+ * 使用本地 settings.apiBase（默认官方域名）；离线或失败时返回空字符串。
+ */
+async function fetchDefaultMinimaxApiKeyFromCloud() {
+  try {
+    const { getLocalSettings } = require("../db.js");
+    const settings = await getLocalSettings();
+    const base = String(settings?.apiBase || "https://api.clawheart.live").replace(/\/+$/, "");
+    const url = `${base}/api/public/client-defaults/minimax-api-key`;
+    const res = await axios.get(url, { timeout: 12000, validateStatus: () => true });
+    if (res.status !== 200 || res.data == null || typeof res.data.apiKey !== "string") {
+      return "";
+    }
+    return String(res.data.apiKey).trim();
+  } catch (e) {
+    console.warn("[OpenClaw Config] 拉取云端默认 MiniMax API Key 失败:", e?.message || e);
+    return "";
+  }
+}
+
+/**
  * 轮换 Gateway 鉴权 token（用于认证失败锁定后的快速恢复）
  */
 function rotateGatewayAuthToken() {
@@ -230,9 +260,9 @@ function rotateGatewayAuthToken() {
 /**
  * OpenClaw 2026.3+：`gateway run` 要求 `gateway.mode=local` 或传 `--allow-unconfigured`。
  * 旧版/手写的 openclaw.json 可能没有 mode，仅补全为 local，不覆盖已有非空 mode。
+ * @param {string} configPath 绝对路径 openclaw.json
  */
-function ensureGatewayModeLocal() {
-  const configPath = getOpenClawConfigPath();
+function patchEnsureGatewayModeLocalForPath(configPath) {
   if (!fs.existsSync(configPath)) {
     return false;
   }
@@ -261,27 +291,46 @@ function ensureGatewayModeLocal() {
   }
 }
 
+function ensureGatewayModeLocal() {
+  return patchEnsureGatewayModeLocalForPath(getOpenClawConfigPath());
+}
+
 /**
- * 初始化 OpenClaw 配置文件（如果不存在）
- * 完全按照用户提供的配置结构，但不设置 API Key
+ * 初始化**内置（ClawHeart 托管）** OpenClaw 配置文件（若不存在则创建）。
+ *
+ * 固定写入 `clawheart-openclaw-runtime/openclaw.json`（见 getManagedOpenClawEnv），与「当前 UI 选的是内置还是外置」无关，
+ * 避免在外置工作区激活时误在用户 ~/.openclaw 里生成一份内置模板。
+ *
+ * 结构对齐 OpenClaw 2026.3.x：`meta` / `auth.profiles` / `models.providers.minimax` / `agents.defaults` /
+ * `commands` / `gateway`（port 19278、mode local、token 鉴权）。
+ * MiniMax `apiKey` 仅来自云端公开接口；Gateway `token` 每次随机；`workspace` 为托管目录下 `workspace` 子目录（随 Electron userData 变化）。
  */
-function initOpenClawConfig() {
-  const configPath = getOpenClawConfigPath();
-  const configDir = path.dirname(configPath);
+async function initOpenClawConfig() {
+  const managed = getManagedOpenClawEnv();
+  const configPath = managed.OPENCLAW_CONFIG_PATH;
+  const configDir = managed.OPENCLAW_STATE_DIR;
   if (!fs.existsSync(configDir)) {
     fs.mkdirSync(configDir, { recursive: true });
   }
-  
-  // 如果配置文件已存在，不覆盖
+
+  // 如果配置文件已存在，不覆盖（仍补全 gateway.mode 等，读写的亦是托管路径）
   if (fs.existsSync(configPath)) {
-    console.log("[OpenClaw Config] 配置文件已存在，跳过初始化");
-    ensureGatewayModeLocal();
+    console.log("[OpenClaw Config] 托管目录配置文件已存在，跳过初始化");
+    patchEnsureGatewayModeLocalForPath(configPath);
     return;
   }
-  
-  console.log("[OpenClaw Config] 初始化配置文件...");
-  
-  // 创建默认配置（完全按照用户的配置结构）
+
+  console.log("[OpenClaw Config] 初始化内置托管目录配置文件...");
+
+  const minimaxApiKeyFromCloud = await fetchDefaultMinimaxApiKeyFromCloud();
+
+  const workspacePath = getDefaultAgentsWorkspacePath(configDir);
+  try {
+    fs.mkdirSync(workspacePath, { recursive: true });
+  } catch (e) {
+    console.warn("[OpenClaw Config] 创建工作区目录失败（可继续写入配置）:", e?.message || e);
+  }
+
   const defaultConfig = {
     meta: {
       lastTouchedVersion: "2026.3.13",
@@ -299,7 +348,7 @@ function initOpenClawConfig() {
       providers: {
         minimax: {
           baseUrl: "https://api.minimaxi.com/anthropic",
-          apiKey: "",
+          apiKey: minimaxApiKeyFromCloud,
           auth: "api-key",
           api: "anthropic-messages",
           authHeader: true,
@@ -325,7 +374,7 @@ function initOpenClawConfig() {
         models: {
           "minimax/MiniMax-M2.5": {},
         },
-        workspace: path.join(configDir, "workspace"),
+        workspace: getDefaultAgentsWorkspacePath(configDir),
       },
     },
     commands: {
@@ -636,6 +685,241 @@ function writeOpenClawConfigToPath(configPath, config) {
  *
  * @returns {boolean} true = 发生了写入（端口已更新）；false = 无需更改
  */
+/**
+ * 启动 Web UI 前审计 openclaw.json（内置读托管目录，外置读 ~/.openclaw）。
+ * @param {"bundled"|"external"} mode
+ * @returns {{ configPath: string, issues: Array<{ severity: string, code: string, message: string }>, blocking: boolean, canApplyOfficialMinimaxKey: boolean }}
+ */
+function auditOpenClawConfigForWebUi(mode) {
+  const env = mode === "external" ? getUserDefaultOpenClawEnv() : getManagedOpenClawEnv();
+  const configPath = env.OPENCLAW_CONFIG_PATH;
+  /** @type {Array<{ severity: string, code: string, message: string }>} */
+  const issues = [];
+
+  if (!fs.existsSync(configPath)) {
+    issues.push({
+      severity: "error",
+      code: "config_missing",
+      message: "未找到 openclaw.json，请先完成初始化或启动过一次 Gateway。",
+    });
+    return { configPath, issues, blocking: true, canApplyOfficialMinimaxKey: false };
+  }
+
+  let cfg;
+  try {
+    cfg = JSON.parse(fs.readFileSync(configPath, "utf-8"));
+  } catch (e) {
+    issues.push({
+      severity: "error",
+      code: "config_invalid_json",
+      message: "openclaw.json 无法解析为 JSON，请检查文件是否损坏。",
+    });
+    return { configPath, issues, blocking: true, canApplyOfficialMinimaxKey: false };
+  }
+
+  const gw = cfg.gateway;
+  if (!gw || typeof gw !== "object") {
+    issues.push({ severity: "error", code: "gateway_missing", message: "缺少 gateway 配置段。" });
+  } else {
+    const tok = gw.auth && typeof gw.auth === "object" ? String(gw.auth.token || "").trim() : "";
+    if (!tok) {
+      issues.push({
+        severity: "error",
+        code: "gateway_token_empty",
+        message: "Gateway 鉴权 token 为空，浏览器打开 Web UI 时可能无法自动附带登录参数。",
+      });
+    }
+    const gmode = String(gw.mode || "").trim();
+    if (gmode && gmode !== "local") {
+      issues.push({
+        severity: "warn",
+        code: "gateway_mode",
+        message: `gateway.mode 为「${gmode}」，内置/本地 Gateway 通常应为 local。`,
+      });
+    }
+    if (mode === "bundled") {
+      const p = Number(gw.port);
+      if (Number.isFinite(p) && p !== BUNDLED_GATEWAY_PORT) {
+        issues.push({
+          severity: "warn",
+          code: "gateway_port",
+          message: `Gateway 端口为 ${p}，内置模式建议使用 ${BUNDLED_GATEWAY_PORT}，否则与客户端检测不一致。`,
+        });
+      }
+    }
+  }
+
+  const providers = cfg.models && typeof cfg.models === "object" ? cfg.models.providers : null;
+  const minimax = providers && typeof providers === "object" ? providers.minimax : null;
+  if (!minimax || typeof minimax !== "object") {
+    issues.push({
+      severity: "error",
+      code: "minimax_provider_missing",
+      message: "未配置 models.providers.minimax，无法在 Web UI 中使用默认 MiniMax 模型。",
+    });
+  } else {
+    if (!String(minimax.apiKey || "").trim()) {
+      issues.push({
+        severity: "error",
+        code: "minimax_api_key_empty",
+        message: "MiniMax API Key 为空，对话请求将失败（401/403）。",
+      });
+    }
+    if (!String(minimax.baseUrl || "").trim()) {
+      issues.push({
+        severity: "error",
+        code: "minimax_base_url_empty",
+        message: "MiniMax baseUrl 未设置。",
+      });
+    }
+  }
+
+  const ws =
+    cfg.agents &&
+    cfg.agents.defaults &&
+    typeof cfg.agents.defaults === "object"
+      ? String(cfg.agents.defaults.workspace || "").trim()
+      : "";
+  if (!ws) {
+    issues.push({
+      severity: "warn",
+      code: "workspace_empty",
+      message: "agents.defaults.workspace 未设置，代理工作目录可能异常。",
+    });
+  } else if (!fs.existsSync(ws)) {
+    issues.push({
+      severity: "warn",
+      code: "workspace_dir_missing",
+      message: `工作区目录不存在：${ws}`,
+    });
+  }
+
+  const blocking = issues.some((i) => i.severity === "error");
+  const canApplyOfficialMinimaxKey = issues.some((i) => i.code === "minimax_api_key_empty");
+  return { configPath, issues, blocking, canApplyOfficialMinimaxKey };
+}
+
+/**
+ * 将云端「系统配置」中的默认 MiniMax Key 写入指定模式的 openclaw.json（不删其它字段）。
+ * @param {"bundled"|"external"} mode
+ */
+/**
+ * 合并用户填写的 MiniMax / Gateway 必填项（不重拉起进程）。
+ * @param {"bundled"|"external"} mode
+ * @param {{ minimaxApiKey?: string, minimaxBaseUrl?: string, generateGatewayTokenIfEmpty?: boolean }} patch
+ */
+function mergeGatewayPrereqsForMode(mode, patch) {
+  const env = mode === "external" ? getUserDefaultOpenClawEnv() : getManagedOpenClawEnv();
+  const configPath = env.OPENCLAW_CONFIG_PATH;
+  const dir = path.dirname(configPath);
+  if (!fs.existsSync(dir)) {
+    fs.mkdirSync(dir, { recursive: true });
+  }
+
+  let cfg = {};
+  if (fs.existsSync(configPath)) {
+    try {
+      cfg = JSON.parse(fs.readFileSync(configPath, "utf-8"));
+    } catch (e) {
+      return { ok: false, message: `配置 JSON 无效：${e?.message || e}` };
+    }
+  }
+
+  const ak =
+    patch.minimaxApiKey != null && typeof patch.minimaxApiKey === "string" ? patch.minimaxApiKey.trim() : "";
+  const bu =
+    patch.minimaxBaseUrl != null && typeof patch.minimaxBaseUrl === "string" ? patch.minimaxBaseUrl.trim() : "";
+
+  if (ak || bu) {
+    if (!cfg.models) cfg.models = {};
+    if (!cfg.models.providers) cfg.models.providers = {};
+    if (!cfg.models.providers.minimax) cfg.models.providers.minimax = {};
+    if (ak) {
+      cfg.models.providers.minimax.apiKey = ak;
+      cfg.models.providers.minimax.auth = "api-key";
+    }
+    if (bu) {
+      cfg.models.providers.minimax.baseUrl = bu;
+    }
+    if (!cfg.models.providers.minimax.api) cfg.models.providers.minimax.api = "anthropic-messages";
+    if (cfg.models.providers.minimax.authHeader !== false) cfg.models.providers.minimax.authHeader = true;
+    if (!Array.isArray(cfg.models.providers.minimax.models) || cfg.models.providers.minimax.models.length === 0) {
+      cfg.models.providers.minimax.models = [
+        {
+          id: "MiniMax-M2.5",
+          name: "MiniMax-M2.5",
+          api: "anthropic-messages",
+          reasoning: true,
+          input: ["text"],
+          contextWindow: 204800,
+          maxTokens: 4096,
+        },
+      ];
+    }
+  }
+
+  if (patch.generateGatewayTokenIfEmpty) {
+    if (!cfg.gateway) cfg.gateway = {};
+    if (!cfg.gateway.auth || typeof cfg.gateway.auth !== "object") cfg.gateway.auth = {};
+    if (!String(cfg.gateway.auth.token || "").trim()) {
+      cfg.gateway.auth.mode = "token";
+      cfg.gateway.auth.token = generateToken();
+    }
+  }
+
+  if (!cfg.gateway) cfg.gateway = {};
+  if (!String(cfg.gateway.mode || "").trim()) cfg.gateway.mode = "local";
+
+  const ws =
+    cfg.agents &&
+    cfg.agents.defaults &&
+    typeof cfg.agents.defaults === "object"
+      ? String(cfg.agents.defaults.workspace || "").trim()
+      : "";
+  if (ws && !fs.existsSync(ws)) {
+    try {
+      fs.mkdirSync(ws, { recursive: true });
+    } catch (e) {
+      console.warn("[OpenClaw Config] mergeGatewayPrereqsForMode 创建工作区目录失败:", e?.message || e);
+    }
+  }
+
+  try {
+    writeOpenClawConfigToPath(configPath, cfg);
+  } catch (e) {
+    return { ok: false, message: `写入失败：${e?.message || e}` };
+  }
+  return { ok: true, configPath };
+}
+
+async function applyOfficialMinimaxKeyForMode(mode) {
+  const key = await fetchDefaultMinimaxApiKeyFromCloud();
+  if (!key) {
+    return {
+      ok: false,
+      message:
+        "未获取到云端默认 Key（请检查网络，或由管理员在 Web 后台系统配置中填写 client.default.minimax.api_key）。",
+    };
+  }
+  const configPath =
+    mode === "external" ? getUserDefaultOpenClawEnv().OPENCLAW_CONFIG_PATH : getManagedOpenClawEnv().OPENCLAW_CONFIG_PATH;
+  let cfg = {};
+  if (fs.existsSync(configPath)) {
+    try {
+      cfg = JSON.parse(fs.readFileSync(configPath, "utf-8"));
+    } catch (e) {
+      return { ok: false, message: `读取配置失败：${e?.message || e}` };
+    }
+  }
+  if (!cfg.models) cfg.models = {};
+  if (!cfg.models.providers) cfg.models.providers = {};
+  if (!cfg.models.providers.minimax) cfg.models.providers.minimax = {};
+  cfg.models.providers.minimax.apiKey = key;
+  if (!cfg.models.providers.minimax.auth) cfg.models.providers.minimax.auth = "api-key";
+  writeOpenClawConfigToPath(configPath, cfg);
+  return { ok: true, message: "已写入云端下发的默认 MiniMax API Key" };
+}
+
 function ensureManagedGatewayPort() {
   const configPath = getManagedOpenClawEnv().OPENCLAW_CONFIG_PATH;
   if (!fs.existsSync(configPath)) return false;
@@ -677,6 +961,9 @@ module.exports = {
   ensureGatewayModeLocal,
   ensureManagedGatewayPort,
   rotateGatewayAuthToken,
+  auditOpenClawConfigForWebUi,
+  mergeGatewayPrereqsForMode,
+  applyOfficialMinimaxKeyForMode,
   PROVIDER_PRESETS,
   BUNDLED_GATEWAY_PORT,
 };

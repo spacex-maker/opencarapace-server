@@ -72,6 +72,14 @@ public class SkillSyncService {
      * 按 updated 降序分页补充 / 更新技能，页内再做一次本地排序兜底；遇到已有记录的 ClawHub updatedAt 小于 last_sync_at 则停止。
      */
     public int syncFromClawhubApi() {
+        return syncFromClawhubApi(true);
+    }
+
+    /**
+     * 通过 ClawHub 官方 v1 API 拉取并同步技能。
+     * stopAtWatermark=true 时按 last_sync_at 水位提前终止；false 时不中断扫描，用于全量同步。
+     */
+    public int syncFromClawhubApi(boolean stopAtWatermark) {
         SkillSource source = ensureSource();
         String cursor = null;
         int pageIndex = 0;
@@ -102,7 +110,7 @@ public class SkillSyncService {
                 }
                 var existing = skillRepository.findBySourceIdAndExternalId(source.getId(), slug);
                 Instant clawhubUpdatedAt = toInstant(item.getUpdatedAt());
-                if (existing.isPresent() && shouldStopAtExistingSkill(existing.get(), clawhubUpdatedAt)) {
+                if (stopAtWatermark && existing.isPresent() && shouldStopAtExistingSkill(existing.get(), clawhubUpdatedAt)) {
                     stopAtUnchangedSkill = true;
                     log.info("ClawHub v1 skills sync stopped at synced slug={} clawhubUpdatedAt={} lastSyncAt={}",
                             slug, clawhubUpdatedAt, existing.get().getLastSyncAt());

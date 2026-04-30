@@ -38,14 +38,16 @@ public class SkillAdminController {
     }
 
     /**
-     * 使用 Convex 分页接口做全量同步（仅管理员手动触发），不影响原有搜索方案。
+     * 使用 ClawHub 官方 v1 分页接口做全量扫描（仅管理员手动触发），不按 last_sync_at 水位提前终止。
      */
     @PostMapping("/sync/clawhub-full")
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<Map<String, Object>> syncFromClawhubFull() {
-        int count = skillSyncService.syncFromConvexFull();
+        int count = skillSyncService.syncFromClawhubApi(false);
         return ResponseEntity.ok(Map.of(
-                "source", "CLAWHUB_CONVEX",
+                "source", "CLAWHUB",
+                "mode", "FULL_SCAN",
+                "stopAtWatermark", false,
                 "synced", count
         ));
     }

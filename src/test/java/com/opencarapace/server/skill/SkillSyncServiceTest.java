@@ -152,6 +152,61 @@ class SkillSyncServiceTest {
     }
 
     @Test
+    void syncFromClawhubApiContinuesPastSyncedSkillWhenWatermarkStopDisabled() {
+        SkillSourceRepository sourceRepository = mock(SkillSourceRepository.class);
+        SkillRepository skillRepository = mock(SkillRepository.class);
+        FakeClawhubApiClient clawhubApiClient = new FakeClawhubApiClient();
+        CountingSystemDataVersionService versionService = new CountingSystemDataVersionService();
+
+        SkillSource source = new SkillSource();
+        source.setId(7L);
+        source.setCode("CLAWHUB");
+        when(sourceRepository.findByCode("CLAWHUB")).thenReturn(Optional.of(source));
+
+        ClawhubSkillListResponse firstPage = new ClawhubSkillListResponse();
+        firstPage.setItems(List.of(skillItem("already-synced", "Already Synced", 3000L, "1.0.0")));
+        firstPage.setNextCursor("cursor-2");
+        ClawhubSkillListResponse secondPage = new ClawhubSkillListResponse();
+        secondPage.setItems(List.of(skillItem("older-new", "Older New", 1000L, "0.9.0")));
+        secondPage.setNextCursor(null);
+        clawhubApiClient.addPage(firstPage);
+        clawhubApiClient.addPage(secondPage);
+
+        Skill existing = new Skill();
+        existing.setId(31L);
+        existing.setSource(source);
+        existing.setExternalId("already-synced");
+        existing.setSlug("already-synced");
+        existing.setLastSyncAt(Instant.ofEpochMilli(4000L));
+
+        when(skillRepository.findBySourceIdAndExternalId(7L, "already-synced")).thenReturn(Optional.of(existing));
+        when(skillRepository.findBySourceIdAndExternalId(7L, "older-new")).thenReturn(Optional.empty());
+        when(skillRepository.save(any(Skill.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        SkillSyncService service = new SkillSyncService(
+                sourceRepository,
+                skillRepository,
+                clawhubApiClient,
+                versionService,
+                PAGE_LIMIT,
+                Duration.ZERO,
+                millis -> {
+                }
+        );
+
+        int synced = service.syncFromClawhubApi(false);
+
+        assertThat(synced).isEqualTo(2);
+        assertThat(clawhubApiClient.requests).containsExactly(
+                new PageRequest(null, PAGE_LIMIT, "updated"),
+                new PageRequest("cursor-2", PAGE_LIMIT, "updated")
+        );
+        verify(skillRepository).save(argThat(skill -> "already-synced".equals(skill.getExternalId())));
+        verify(skillRepository).save(argThat(skill -> "older-new".equals(skill.getExternalId())));
+        assertThat(versionService.incrementCalls).isEqualTo(1);
+    }
+
+    @Test
     void syncFromClawhubApiDoesNotStopWhenClawhubUpdatedAtEqualsLastSyncAt() {
         SkillSourceRepository sourceRepository = mock(SkillSourceRepository.class);
         SkillRepository skillRepository = mock(SkillRepository.class);

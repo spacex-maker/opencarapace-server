@@ -38,7 +38,7 @@ env:
 
 ## GitHub Secrets
 
-在仓库 `Settings -> Secrets and variables -> Actions` 中配置：
+生产部署工作流 `.github/workflows/backend-deploy.yml` 在仓库 `Settings -> Secrets and variables -> Actions` 中使用：
 
 | Secret | 必填 | 说明 |
 | --- | --- | --- |
@@ -47,6 +47,27 @@ env:
 | `DEPLOY_SSH_KEY` | 是 | SSH 私钥内容，对应公钥需加入服务器 `~/.ssh/authorized_keys` |
 | `DEPLOY_PATH` | 否 | 服务器上的部署目录，未配置时默认 `/home/ubuntu` |
 | `DEPLOY_PORT` | 否 | SSH 端口，未配置时默认 `22` |
+
+测试部署工作流 `.github/workflows/test-deploy.yml` 部署到另一台服务器，使用全新的 `TEST_` 前缀配置：
+
+| Secret | 必填 | 说明 |
+| --- | --- | --- |
+| `TEST_DEPLOY_HOST` | 是 | 测试服务器 IP 或域名 |
+| `TEST_DEPLOY_USER` | 是 | 测试服务器 SSH 登录用户 |
+| `TEST_DEPLOY_SSH_KEY` | 是 | 测试服务器 SSH 私钥内容，对应公钥需加入测试服务器 `~/.ssh/authorized_keys` |
+| `TEST_DEPLOY_PATH` | 否 | 测试服务器上的部署目录，未配置时默认 `/home/root` |
+| `TEST_DEPLOY_PORT` | 否 | 测试服务器 SSH 端口，未配置时默认 `22` |
+| `TEST_DB_HOST` | 是 | 测试数据库地址 |
+| `TEST_DB_PORT` | 否 | 测试数据库端口，未配置时默认 `3306` |
+| `TEST_DB_NAME` | 否 | 测试数据库名称，未配置时默认 `opencarapace` |
+| `TEST_DB_USERNAME` | 是 | 测试数据库用户名 |
+| `TEST_DB_PASSWORD` | 是 | 测试数据库密码 |
+| `TEST_GHCR_USERNAME` | 否 | 测试服务器拉取私有 GHCR 镜像时使用的用户名；公开镜像或服务器已登录时可不配置 |
+| `TEST_GHCR_TOKEN` | 否 | 测试服务器拉取私有 GHCR 镜像时使用的 token，需要具备 `read:packages` 权限 |
+
+测试前端会使用 `frontend/.env.test` 构建 Docker 镜像，并推送到 `ghcr.io/<owner>/opencarapace-web:test`。测试服务器需要在 `~/docker` 下维护 Docker Compose 配置，且服务名应为 `opencarapace-web`；流水线会执行 `docker compose --env-file .env.docker pull opencarapace-web` 和 `docker compose --env-file .env.docker up -d`。
+
+测试后端部署会通过 systemd 设置 `SPRING_PROFILES_ACTIVE=test`，因此会读取 `src/main/resources/application-test.yml`。当前测试环境端口为 `8888`，`api-test.clawheart.qzz.io` 在 Nginx Proxy Manager 中应反代到 `host.docker.internal:8888`。测试数据库连接由 `TEST_DB_*` secrets 注入，流水线会在服务器部署目录生成 `${SYSTEMD_SERVICE}.env` 并作为 systemd `EnvironmentFile` 使用。
 
 ## 服务器前置条件
 

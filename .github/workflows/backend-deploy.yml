@@ -1,0 +1,369 @@
+name: Build and Deploy Backend
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: backend-server-deploy
+  cancel-in-progress: false
+
+env:
+  JAVA_VERSION: "17"
+  APP_BASE_NAME: opencarapace-server
+  APP_VERSION: "0.0.1"
+  APP_SNAPSHOT: "true"
+  RUNTIME_JAR_NAME: opencarapace-server.jar
+  SYSTEMD_SERVICE: opencarapace-server
+  SYSTEMD_JVM_OPTS: "-Xms256m -Xmx512m -XX:+UseG1GC"
+  HEALTHCHECK_URL: "http://127.0.0.1:8080/actuator/health"
+  HEALTHCHECK_TIMEOUT_SECONDS: "60"
+  HEALTHCHECK_INTERVAL_SECONDS: "2"
+
+jobs:
+  build-and-deploy:
+    name: Build jar and deploy
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+      DEPLOY_PORT: ${{ secrets.DEPLOY_PORT || '22' }}
+      DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+      DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+      DEPLOY_PATH: ${{ secrets.DEPLOY_PATH || '/home/ubuntu' }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: ${{ env.JAVA_VERSION }}
+          cache: maven
+
+      - name: Resolve artifact version
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          case "$APP_SNAPSHOT" in
+            true)
+              build_version="${APP_VERSION}-SNAPSHOT"
+              ;;
+            false)
+              build_version="${APP_VERSION}"
+              ;;
+            *)
+              echo "::error::APP_SNAPSHOT must be either true or false"
+              exit 1
+              ;;
+          esac
+
+          jar_name="${APP_BASE_NAME}-${build_version}.jar"
+
+          {
+            echo "BUILD_VERSION=$build_version"
+            echo "JAR_NAME=$jar_name"
+          } >> "$GITHUB_ENV"
+
+          echo "Build version: $build_version"
+          echo "Jar name: $jar_name"
+
+      - name: Build executable jar
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          mvn -B org.codehaus.mojo:versions-maven-plugin:2.17.1:set \
+            -DnewVersion="$BUILD_VERSION" \
+            -DgenerateBackupPoms=false
+          mvn -B clean package
+
+      - name: Normalize jar name
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          jar_file="$(find target -maxdepth 1 -type f -name '*.jar' ! -name '*.jar.original' | head -n 1)"
+          if [ -z "$jar_file" ]; then
+            echo "::error::No executable jar found under target/"
+            exit 1
+          fi
+
+          cp "$jar_file" "$JAR_NAME"
+          ls -lh "$JAR_NAME"
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.APP_BASE_NAME }}-${{ env.APP_VERSION }}${{ env.APP_SNAPSHOT == 'true' && '-SNAPSHOT' || '' }}.jar
+          path: ${{ env.APP_BASE_NAME }}-${{ env.APP_VERSION }}${{ env.APP_SNAPSHOT == 'true' && '-SNAPSHOT' || '' }}.jar
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Validate deploy configuration
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          for required_var in DEPLOY_HOST DEPLOY_USER DEPLOY_SSH_KEY; do
+            if [ -z "${!required_var}" ]; then
+              echo "::error::Missing GitHub secret: ${required_var}"
+              exit 1
+            fi
+          done
+
+      - name: Configure SSH
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$DEPLOY_SSH_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -p "$DEPLOY_PORT" -H "$DEPLOY_HOST" >> ~/.ssh/known_hosts
+
+      - name: Prepare remote deploy directory
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          ssh -p "$DEPLOY_PORT" -i ~/.ssh/deploy_key "$DEPLOY_USER@$DEPLOY_HOST" \
+            "DEPLOY_PATH=$(printf '%q' "$DEPLOY_PATH") bash -s" <<'REMOTE'
+          set -euo pipefail
+
+          case "$DEPLOY_PATH" in
+            "~")
+              deploy_dir="$HOME"
+              ;;
+            "~/"*)
+              deploy_dir="$HOME/${DEPLOY_PATH#~/}"
+              ;;
+            *)
+              deploy_dir="$DEPLOY_PATH"
+              ;;
+          esac
+
+          mkdir -p "$deploy_dir"
+          REMOTE
+
+      - name: Copy jar to server
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          remote_target="${DEPLOY_PATH%/}/$RUNTIME_JAR_NAME.new"
+
+          scp -P "$DEPLOY_PORT" -i ~/.ssh/deploy_key \
+            "$JAR_NAME" "$DEPLOY_USER@$DEPLOY_HOST:$(printf '%q' "$remote_target")"
+
+      - name: Restart remote service
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          ssh -p "$DEPLOY_PORT" -i ~/.ssh/deploy_key "$DEPLOY_USER@$DEPLOY_HOST" \
+            "DEPLOY_PATH=$(printf '%q' "$DEPLOY_PATH") APP_BASE_NAME=$(printf '%q' "$APP_BASE_NAME") JAR_NAME=$(printf '%q' "$JAR_NAME") RUNTIME_JAR_NAME=$(printf '%q' "$RUNTIME_JAR_NAME") SYSTEMD_SERVICE=$(printf '%q' "$SYSTEMD_SERVICE") SYSTEMD_JVM_OPTS=$(printf '%q' "$SYSTEMD_JVM_OPTS") HEALTHCHECK_URL=$(printf '%q' "$HEALTHCHECK_URL") HEALTHCHECK_TIMEOUT_SECONDS=$(printf '%q' "$HEALTHCHECK_TIMEOUT_SECONDS") HEALTHCHECK_INTERVAL_SECONDS=$(printf '%q' "$HEALTHCHECK_INTERVAL_SECONDS") bash -s" <<'REMOTE'
+          set -euo pipefail
+
+          case "$DEPLOY_PATH" in
+            "~")
+              deploy_dir="$HOME"
+              ;;
+            "~/"*)
+              deploy_dir="$HOME/${DEPLOY_PATH#~/}"
+              ;;
+            *)
+              deploy_dir="$DEPLOY_PATH"
+              ;;
+          esac
+
+          cd "$deploy_dir"
+
+          if ! command -v java >/dev/null 2>&1; then
+            echo "java command not found on remote server"
+            exit 1
+          fi
+
+          if ! command -v curl >/dev/null 2>&1; then
+            echo "curl command not found on remote server"
+            exit 1
+          fi
+
+          if ! command -v systemctl >/dev/null 2>&1; then
+            echo "systemctl command not found on remote server"
+            exit 1
+          fi
+
+          run_systemctl() {
+            if [ "$(id -u)" -eq 0 ]; then
+              systemctl "$@"
+            else
+              sudo -n systemctl "$@"
+            fi
+          }
+
+          run_journalctl() {
+            if [ "$(id -u)" -eq 0 ]; then
+              journalctl "$@"
+            else
+              sudo -n journalctl "$@"
+            fi
+          }
+
+          run_root() {
+            if [ "$(id -u)" -eq 0 ]; then
+              "$@"
+            else
+              sudo -n "$@"
+            fi
+          }
+
+          run_as_service_user() {
+            if [ "$(id -un)" = "$service_user" ]; then
+              "$@"
+            else
+              sudo -n -u "$service_user" "$@"
+            fi
+          }
+
+          if [ "$(id -u)" -ne 0 ] && ! command -v sudo >/dev/null 2>&1; then
+            echo "sudo command not found; DEPLOY_USER must be root or have passwordless sudo for systemd setup"
+            exit 1
+          fi
+
+          if [ ! -f "$RUNTIME_JAR_NAME.new" ]; then
+            echo "Uploaded jar not found: $deploy_dir/$RUNTIME_JAR_NAME.new"
+            exit 1
+          fi
+
+          find_app_pids() {
+            ps -eo pid=,comm=,args= | awk -v app="$APP_BASE_NAME" '$2 == "java" && $0 ~ /-jar/ && $0 ~ app {print $1}'
+          }
+
+          if run_systemctl cat "$SYSTEMD_SERVICE" >/dev/null 2>&1; then
+            echo "Stopping systemd service: $SYSTEMD_SERVICE"
+            run_systemctl stop "$SYSTEMD_SERVICE" || true
+          else
+            echo "systemd service does not exist yet; it will be created: ${SYSTEMD_SERVICE}.service"
+          fi
+
+          pids="$(find_app_pids || true)"
+          if [ -n "$pids" ]; then
+            echo "Stopping legacy java -jar $APP_BASE_NAME process(es): $pids"
+            kill $pids || true
+
+            for _ in $(seq 1 15); do
+              pids="$(find_app_pids || true)"
+              if [ -z "$pids" ]; then
+                break
+              fi
+              sleep 1
+            done
+
+            pids="$(find_app_pids || true)"
+            if [ -n "$pids" ]; then
+              echo "Force stopping remaining process(es): $pids"
+              kill -9 $pids || true
+            fi
+          else
+            echo "No legacy java -jar $APP_BASE_NAME process found"
+          fi
+
+          service_user="$(id -un)"
+          java_bin="$(command -v java)"
+          runtime_jar_path="$deploy_dir/$RUNTIME_JAR_NAME"
+          service_file="/etc/systemd/system/${SYSTEMD_SERVICE}.service"
+          tmp_service_file="$(mktemp)"
+
+          find . -maxdepth 1 -type f -name "${APP_BASE_NAME}-*.jar" -delete
+          mv -f "$RUNTIME_JAR_NAME.new" "$RUNTIME_JAR_NAME"
+
+          run_root chmod 755 "$deploy_dir"
+          run_root chown "$service_user:$service_user" "$deploy_dir" "$RUNTIME_JAR_NAME"
+          run_root chmod 644 "$RUNTIME_JAR_NAME"
+
+          echo "Deployment file state:"
+          ls -ld "$deploy_dir"
+          ls -l "$RUNTIME_JAR_NAME"
+
+          if [ ! -f "$runtime_jar_path" ] || [ ! -r "$runtime_jar_path" ]; then
+            echo "Runtime jar is not readable: $runtime_jar_path"
+            exit 1
+          fi
+
+          if ! run_as_service_user test -r "$runtime_jar_path"; then
+            echo "Runtime jar is not readable by service user '$service_user': $runtime_jar_path"
+            ls -ld "$deploy_dir"
+            ls -l "$RUNTIME_JAR_NAME"
+            exit 1
+          fi
+
+          cat > "$tmp_service_file" <<SERVICE
+          [Unit]
+          Description=OpenCarapace Server
+          After=network.target
+
+          [Service]
+          User=$service_user
+          WorkingDirectory=$deploy_dir
+          ExecStart=$java_bin $SYSTEMD_JVM_OPTS -jar $runtime_jar_path
+          SuccessExitStatus=143
+          Restart=on-failure
+          RestartSec=5
+
+          [Install]
+          WantedBy=multi-user.target
+          SERVICE
+
+          run_root install -m 0644 "$tmp_service_file" "$service_file"
+          rm -f "$tmp_service_file"
+
+          echo "Restarting systemd service: $SYSTEMD_SERVICE"
+          run_systemctl daemon-reload
+          run_systemctl enable "$SYSTEMD_SERVICE"
+          run_systemctl restart "$SYSTEMD_SERVICE"
+
+          echo "Waiting for health check: $HEALTHCHECK_URL"
+          deadline=$(( $(date +%s) + HEALTHCHECK_TIMEOUT_SECONDS ))
+          healthy=false
+
+          while [ "$(date +%s)" -le "$deadline" ]; do
+            service_state="$(run_systemctl is-active "$SYSTEMD_SERVICE" 2>/dev/null || true)"
+            pids="$(find_app_pids || true)"
+            if [ -z "$pids" ] && [ "$service_state" != "active" ] && [ "$service_state" != "activating" ]; then
+              echo "$SYSTEMD_SERVICE is not active before becoming healthy. State: ${service_state:-unknown}. Recent journal:"
+              run_journalctl -u "$SYSTEMD_SERVICE" -n 120 --no-pager || true
+              exit 1
+            fi
+
+            http_status="$(curl -sS -o /tmp/opencarapace-healthcheck.out -w '%{http_code}' --max-time 5 "$HEALTHCHECK_URL" || true)"
+            if [ "$http_status" = "200" ]; then
+              healthy=true
+              break
+            fi
+
+            echo "Health check pending: status=${http_status:-curl_failed}; service_state=${service_state:-unknown}; PID(s): ${pids:-none}"
+            sleep "$HEALTHCHECK_INTERVAL_SECONDS"
+          done
+
+          if [ "$healthy" != "true" ]; then
+            echo "$SYSTEMD_SERVICE did not become healthy within ${HEALTHCHECK_TIMEOUT_SECONDS}s."
+            echo "Last health response:"
+            cat /tmp/opencarapace-healthcheck.out 2>/dev/null || true
+            echo "Recent journal:"
+            run_journalctl -u "$SYSTEMD_SERVICE" -n 120 --no-pager || true
+            exit 1
+          fi
+
+          pids="$(find_app_pids || true)"
+          run_systemctl --no-pager status "$SYSTEMD_SERVICE" || true
+          echo "$SYSTEMD_SERVICE is healthy. PID(s): $pids"
+          REMOTE

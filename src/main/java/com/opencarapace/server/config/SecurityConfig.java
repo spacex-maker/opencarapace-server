@@ -39,6 +39,7 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                         .requestMatchers("/error").permitAll()
+                        .requestMatchers("/actuator/health", "/actuator/health/**").permitAll()
                         .requestMatchers("/api/auth/google", "/api/auth/register", "/api/auth/login").permitAll()
                         .requestMatchers("/api/public/**").permitAll()
                         // 全端埋点上报：支持匿名与登录态两种上报方式

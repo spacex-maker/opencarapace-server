@@ -1,0 +1,1441 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ClawHeart Desktop v2 -- UI Prototype</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=DM+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg-0: #f8fafc;
+  --bg-1: #ffffff;
+  --bg-2: #f1f5f9;
+  --bg-3: #e2e8f0;
+  --bg-card: rgba(255, 255, 255, 0.85);
+  --bg-card-hover: rgba(241, 245, 249, 0.9);
+  --fg: #0f172a;
+  --fg-dim: #334155;
+  --fg-muted: #94a3b8;
+  --border: rgba(148, 163, 184, 0.35);
+  --border-subtle: rgba(148, 163, 184, 0.18);
+  --green: #2563eb;
+  --green-dim: rgba(37, 99, 235, 0.08);
+  --green-glow: rgba(37, 99, 235, 0.18);
+  --red: #dc2626;
+  --red-dim: rgba(220, 38, 38, 0.08);
+  --amber: #d97706;
+  --amber-dim: rgba(217, 119, 6, 0.08);
+  --blue: #2563eb;
+  --blue-dim: rgba(37, 99, 235, 0.08);
+  --purple: #7c3aed;
+  --cyan: #0891b2;
+  --sidebar-w: 220px;
+  --sidebar-collapsed: 56px;
+  --statusbar-h: 32px;
+  --topbar-h: 0px;
+  --radius: 10px;
+  --radius-sm: 6px;
+  --mono: 'JetBrains Mono', monospace;
+  --sans: 'DM Sans', system-ui, sans-serif;
+}
+
+* { margin:0; padding:0; box-sizing:border-box; }
+html, body { height:100%; overflow:hidden; }
+body {
+  font-family: var(--sans);
+  background: var(--bg-0);
+  color: var(--fg);
+  display: flex;
+  flex-direction: column;
+}
+
+/* ═══════════ SIDEBAR ═══════════ */
+.sidebar {
+  position: fixed; left:0; top:0; bottom: var(--statusbar-h);
+  width: var(--sidebar-w);
+  background: var(--bg-1);
+  border-right: 1px solid var(--border-subtle);
+  display: flex; flex-direction: column;
+  z-index: 100;
+  transition: width 0.2s ease;
+  overflow: hidden;
+}
+.sidebar.collapsed { width: var(--sidebar-collapsed); }
+.sidebar.collapsed .nav-label,
+.sidebar.collapsed .brand-text,
+.sidebar.collapsed .kill-label { display: none; }
+.sidebar.collapsed .brand { justify-content: center; padding: 16px 0; }
+.sidebar.collapsed .nav-item { justify-content: center; padding: 10px 0; }
+.sidebar.collapsed .kill-switch { margin: 8px; padding: 8px; }
+
+.brand {
+  display: flex; align-items: center; gap: 10px;
+  padding: 18px 16px 14px;
+  border-bottom: 1px solid var(--border-subtle);
+  cursor: pointer;
+  flex-shrink: 0;
+}
+.brand-icon {
+  width: 32px; height: 32px; border-radius: 8px;
+  background: linear-gradient(135deg, #2563eb, #1d4ed8);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 16px; color: #fff; flex-shrink: 0;
+  box-shadow: 0 2px 12px var(--green-glow);
+}
+.brand-text { font-size: 14px; font-weight: 800; letter-spacing: -0.02em; white-space: nowrap; }
+.brand-sub { font-size: 8px; font-weight: 600; color: var(--fg-muted); text-transform: uppercase; letter-spacing: 0.1em; }
+
+.nav { flex:1; overflow-y: auto; padding: 8px 6px; display: flex; flex-direction: column; gap: 2px; }
+.nav-item {
+  display: flex; align-items: center; gap: 10px;
+  padding: 9px 12px; border-radius: 8px;
+  cursor: pointer; font-size: 13px; font-weight: 600;
+  color: var(--fg-dim); transition: all 0.15s;
+  white-space: nowrap; border: 1px solid transparent;
+}
+.nav-item:hover { background: var(--bg-card-hover); color: var(--fg); }
+.nav-item.active {
+  background: var(--green-dim); color: var(--green);
+  border-color: rgba(34,197,94,0.2);
+}
+.nav-item .icon { font-size: 18px; width: 20px; text-align: center; flex-shrink:0; }
+.nav-item .badge {
+  margin-left: auto; font-size: 10px; font-weight: 700;
+  padding: 1px 6px; border-radius: 99px;
+  background: var(--red-dim); color: var(--red);
+}
+
+.kill-switch {
+  margin: 8px 10px 12px;
+  padding: 10px 14px; border-radius: 8px;
+  background: var(--red-dim);
+  border: 1px solid rgba(239,68,68,0.25);
+  display: flex; align-items: center; gap: 8px;
+  cursor: pointer; transition: all 0.15s;
+  flex-shrink: 0;
+}
+.kill-switch:hover { background: rgba(239,68,68,0.25); border-color: var(--red); }
+.kill-switch .icon { font-size: 18px; color: var(--red); }
+.kill-label { font-size: 11px; font-weight: 700; color: var(--red); text-transform: uppercase; letter-spacing: 0.05em; }
+
+.collapse-btn {
+  position: absolute; right: -12px; top: 50%;
+  transform: translateY(-50%);
+  width: 24px; height: 24px; border-radius: 99px;
+  background: var(--bg-2); border: 1px solid var(--border);
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer; font-size: 12px; color: var(--fg-dim);
+  z-index: 101; transition: all 0.15s;
+}
+.collapse-btn:hover { background: var(--bg-3); color: var(--fg); }
+
+/* ═══════════ MAIN AREA ═══════════ */
+.main {
+  margin-left: var(--sidebar-w);
+  margin-bottom: var(--statusbar-h);
+  flex: 1; overflow-y: auto;
+  transition: margin-left 0.2s ease;
+  background: var(--bg-0);
+}
+.sidebar.collapsed ~ .main { margin-left: var(--sidebar-collapsed); }
+
+.page { display: none; padding: 24px; animation: fadeIn 0.2s ease; }
+.page.active { display: block; }
+@keyframes fadeIn { from { opacity:0; transform: translateY(4px); } to { opacity:1; transform: none; } }
+
+.page-header {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 20px;
+}
+.page-title { font-size: 20px; font-weight: 800; letter-spacing: -0.02em; }
+.page-actions { display: flex; gap: 8px; }
+
+/* ═══════════ STATUS BAR ═══════════ */
+.statusbar {
+  position: fixed; bottom: 0; left: 0; right: 0;
+  height: var(--statusbar-h);
+  background: var(--bg-1);
+  border-top: 1px solid var(--border-subtle);
+  display: flex; align-items: center;
+  padding: 0 16px; gap: 16px;
+  font-size: 11px; color: var(--fg-muted);
+  z-index: 100;
+  font-family: var(--mono);
+}
+.status-dot {
+  width: 7px; height: 7px; border-radius: 99px;
+  background: #2563eb;
+  box-shadow: 0 0 0 3px rgba(37,99,235,0.15);
+  animation: pulse 2s infinite;
+}
+@keyframes pulse {
+  0%,100% { box-shadow: 0 0 0 3px rgba(37,99,235,0.15); }
+  50% { box-shadow: 0 0 0 6px rgba(37,99,235,0.06); }
+}
+.status-sep { width:1px; height:16px; background: var(--border-subtle); }
+.status-item { display: flex; align-items: center; gap: 5px; }
+.status-label { color: var(--fg-muted); }
+.status-value { color: var(--fg-dim); font-weight: 600; }
+
+/* ═══════════ CARDS & COMPONENTS ═══════════ */
+.card {
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius);
+  padding: 16px;
+  backdrop-filter: blur(8px);
+}
+.card-title {
+  font-size: 12px; font-weight: 700; color: var(--fg-dim);
+  text-transform: uppercase; letter-spacing: 0.06em;
+  margin-bottom: 12px;
+  display: flex; align-items: center; gap: 8px;
+}
+.card-title .icon { font-size: 14px; }
+
+.grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; }
+.grid-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+.grid-2-1 { display: grid; grid-template-columns: 2fr 1fr; gap: 16px; }
+
+.stat-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius);
+  padding: 16px;
+  position: relative; overflow: hidden;
+}
+.stat-card::after {
+  content: ''; position: absolute; top: 0; left: 0; right: 0;
+  height: 2px;
+}
+.stat-card.green::after { background: linear-gradient(90deg, #2563eb, transparent); }
+.stat-card.red::after { background: linear-gradient(90deg, var(--red), transparent); }
+.stat-card.amber::after { background: linear-gradient(90deg, var(--amber), transparent); }
+.stat-card.blue::after { background: linear-gradient(90deg, #0ea5e9, transparent); }
+.stat-label { font-size: 11px; color: var(--fg-muted); font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; }
+.stat-value { font-size: 28px; font-weight: 800; letter-spacing: -0.03em; margin: 4px 0 2px; font-family: var(--mono); }
+.stat-sub { font-size: 11px; color: var(--fg-muted); }
+.stat-value.green { color: #2563eb; }
+.stat-value.red { color: var(--red); }
+.stat-value.amber { color: var(--amber); }
+.stat-value.blue { color: #0ea5e9; }
+
+.btn {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 7px 14px; border-radius: var(--radius-sm);
+  font-size: 12px; font-weight: 700; cursor: pointer;
+  border: 1px solid var(--border);
+  background: var(--bg-2); color: var(--fg-dim);
+  transition: all 0.15s; font-family: var(--sans);
+}
+.btn:hover { background: var(--bg-3); color: var(--fg); border-color: var(--fg-muted); }
+.btn.primary {
+  background: linear-gradient(135deg, #2563eb, #1d4ed8);
+  border: none; color: #ffffff;
+  box-shadow: 0 2px 12px var(--green-glow);
+}
+.btn.primary:hover { box-shadow: 0 4px 20px var(--green-glow); }
+.btn.danger {
+  background: var(--red-dim); border-color: rgba(239,68,68,0.3);
+  color: var(--red);
+}
+
+.tag {
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 2px 8px; border-radius: 99px;
+  font-size: 10px; font-weight: 700; text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.tag.safe { background: rgba(37,99,235,0.08); color: #2563eb; }
+.tag.unsafe { background: var(--red-dim); color: var(--red); }
+.tag.warn { background: var(--amber-dim); color: var(--amber); }
+.tag.info { background: rgba(14,165,233,0.08); color: #0ea5e9; }
+.tag.critical { background: var(--red-dim); color: var(--red); border: 1px solid rgba(220,38,38,0.2); }
+.tag.high { background: rgba(234,88,12,0.08); color: #ea580c; }
+.tag.medium { background: var(--amber-dim); color: var(--amber); }
+
+.toggle {
+  width: 36px; height: 20px; border-radius: 99px;
+  background: var(--bg-3); border: 1px solid var(--border);
+  cursor: pointer; position: relative; transition: all 0.2s;
+}
+.toggle.on { background: #2563eb; border-color: #2563eb; }
+.toggle::after {
+  content: ''; position: absolute; top: 2px; left: 2px;
+  width: 14px; height: 14px; border-radius: 99px;
+  background: #fff; transition: all 0.2s;
+}
+.toggle.on::after { left: 18px; }
+
+/* ═══════════ TABLE ═══════════ */
+.table-wrap { overflow-x: auto; border-radius: var(--radius); border: 1px solid var(--border-subtle); }
+table {
+  width: 100%; border-collapse: collapse;
+  font-size: 12px;
+}
+thead { background: var(--bg-2); }
+th {
+  padding: 10px 12px; text-align: left;
+  font-size: 10px; font-weight: 700; color: var(--fg-muted);
+  text-transform: uppercase; letter-spacing: 0.06em;
+  border-bottom: 1px solid var(--border-subtle);
+}
+td {
+  padding: 10px 12px; border-bottom: 1px solid var(--border-subtle);
+  font-family: var(--mono); font-size: 11px;
+  color: var(--fg-dim);
+}
+tr:hover td { background: rgba(30,41,59,0.3); }
+.td-mono { font-family: var(--mono); }
+
+/* ═══════════ DEFENSE LAYERS VIZ ═══════════ */
+.defense-layers {
+  display: flex; flex-direction: column; gap: 4px;
+}
+.defense-layer {
+  display: flex; align-items: center; gap: 10px;
+  padding: 8px 12px; border-radius: 6px;
+  background: var(--bg-card);
+  border-left: 3px solid var(--green);
+  font-size: 11px; transition: all 0.15s;
+}
+.defense-layer:hover { background: var(--bg-card-hover); }
+.defense-layer .layer-num {
+  font-family: var(--mono); font-weight: 700;
+  color: var(--fg-muted); font-size: 10px; width: 18px;
+}
+.defense-layer .layer-name { font-weight: 700; color: var(--fg-dim); flex:1; }
+.defense-layer .layer-status { font-family: var(--mono); font-size: 10px; }
+.defense-layer { border-left-color: #3b82f6; }
+.defense-layer.active { border-left-color: #2563eb; }
+.defense-layer.active .layer-status { color: #2563eb; }
+.defense-layer.warn { border-left-color: var(--amber); }
+.defense-layer.warn .layer-status { color: var(--amber); }
+
+/* ═══════════ CHART PLACEHOLDER ═══════════ */
+.chart-area {
+  height: 160px; border-radius: 8px;
+  background: linear-gradient(180deg, rgba(37,99,235,0.04) 0%, transparent 100%);
+  border: 1px solid var(--border-subtle);
+  position: relative; overflow: hidden;
+  display: flex; align-items: flex-end; padding: 0 4px 4px;
+  gap: 3px;
+}
+.chart-bar {
+  flex: 1; border-radius: 3px 3px 0 0;
+  background: linear-gradient(180deg, #3b82f6, rgba(59,130,246,0.2));
+  transition: height 0.3s ease;
+  min-height: 4px;
+}
+
+/* ═══════════ SKILL LIST ═══════════ */
+.skill-item {
+  display: flex; align-items: center; gap: 12px;
+  padding: 12px 14px; border-radius: 8px;
+  border: 1px solid var(--border-subtle);
+  background: var(--bg-card);
+  margin-bottom: 8px; transition: all 0.15s;
+}
+.skill-item:hover { border-color: var(--border); background: var(--bg-card-hover); }
+.skill-icon {
+  width: 36px; height: 36px; border-radius: 8px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 18px; flex-shrink: 0;
+  background: var(--bg-3);
+}
+.skill-info { flex: 1; min-width: 0; }
+.skill-name { font-size: 13px; font-weight: 700; }
+.skill-desc { font-size: 11px; color: var(--fg-muted); margin-top: 2px; }
+.skill-score {
+  font-family: var(--mono); font-size: 13px; font-weight: 800;
+  width: 40px; text-align: center;
+}
+.skill-score.high { color: #2563eb; }
+.skill-score.mid { color: var(--amber); }
+.skill-score.low { color: var(--red); }
+
+/* ═══════════ AGENT TREE ═══════════ */
+.agent-tree { display: flex; flex-direction: column; gap: 4px; }
+.agent-node {
+  display: flex; align-items: center; gap: 10px;
+  padding: 8px 12px; border-radius: 8px;
+  cursor: pointer; transition: all 0.15s;
+  font-size: 12px;
+}
+.agent-node:hover { background: var(--bg-card-hover); }
+.agent-node.active { background: var(--green-dim); }
+.agent-dot { width: 8px; height: 8px; border-radius: 99px; flex-shrink: 0; }
+.agent-dot.active { background: #2563eb; box-shadow: 0 0 0 3px rgba(37,99,235,0.15); }
+.agent-dot.inactive { background: var(--fg-muted); }
+.agent-name { font-weight: 700; flex:1; }
+.agent-meta { font-family: var(--mono); font-size: 10px; color: var(--fg-muted); }
+.agent-children { margin-left: 28px; border-left: 1px solid var(--border-subtle); padding-left: 12px; }
+
+/* ═══════════ SCAN RESULTS ═══════════ */
+.scan-finding {
+  padding: 12px; border-radius: 8px;
+  border: 1px solid var(--border-subtle);
+  margin-bottom: 6px; display: flex; align-items: flex-start; gap: 10px;
+}
+.scan-finding.critical { border-left: 3px solid var(--red); }
+.scan-finding.high { border-left: 3px solid #f97316; }
+.scan-finding.medium { border-left: 3px solid var(--amber); }
+.scan-finding.info { border-left: 3px solid var(--blue); }
+.finding-id { font-family: var(--mono); font-size: 10px; color: var(--fg-muted); font-weight: 600; width: 60px; flex-shrink: 0; }
+.finding-body { flex:1; }
+.finding-title { font-size: 12px; font-weight: 700; margin-bottom: 2px; }
+.finding-detail { font-size: 11px; color: var(--fg-muted); }
+
+/* ═══════════ ADVISORY CARD ═══════════ */
+.advisory-item {
+  padding: 14px; border-radius: 8px;
+  border: 1px solid var(--border-subtle);
+  background: var(--bg-card);
+  margin-bottom: 8px; transition: all 0.15s;
+}
+.advisory-item:hover { border-color: var(--border); }
+.advisory-header { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+.advisory-id { font-family: var(--mono); font-size: 11px; font-weight: 700; color: var(--cyan); }
+.advisory-title { font-size: 13px; font-weight: 700; margin-bottom: 4px; }
+.advisory-meta { font-size: 11px; color: var(--fg-muted); display: flex; gap: 12px; }
+
+/* ═══════════ SETTINGS ═══════════ */
+.setting-group { margin-bottom: 20px; }
+.setting-group-title { font-size: 13px; font-weight: 800; margin-bottom: 10px; color: var(--fg); }
+.setting-row {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 10px 0; border-bottom: 1px solid var(--border-subtle);
+  font-size: 13px;
+}
+.setting-label { color: var(--fg-dim); font-weight: 600; }
+.setting-desc { font-size: 11px; color: var(--fg-muted); margin-top: 2px; }
+.input {
+  background: var(--bg-2); border: 1px solid var(--border);
+  border-radius: var(--radius-sm); padding: 7px 10px;
+  color: var(--fg); font-size: 12px; font-family: var(--mono);
+  outline: none; transition: border-color 0.15s;
+  width: 280px;
+}
+.input:focus { border-color: #2563eb; }
+.select {
+  background: var(--bg-2); border: 1px solid var(--border);
+  border-radius: var(--radius-sm); padding: 7px 10px;
+  color: var(--fg); font-size: 12px; appearance: none;
+  cursor: pointer;
+}
+
+/* ═══════════ TRAY POPUP ═══════════ */
+.tray-popup {
+  position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
+  width: 280px; border-radius: 14px;
+  background: var(--bg-1); border: 1px solid var(--border);
+  box-shadow: 0 24px 64px rgba(0,0,0,0.6);
+  z-index: 999; display: none;
+  overflow: hidden;
+}
+.tray-popup.show { display: block; animation: fadeIn 0.15s ease; }
+.tray-header {
+  padding: 14px 16px; display: flex; align-items: center; gap: 10px;
+  border-bottom: 1px solid var(--border-subtle);
+}
+.tray-body { padding: 12px 16px; display: flex; flex-direction: column; gap: 8px; }
+.tray-stat { display: flex; justify-content: space-between; font-size: 12px; }
+.tray-stat-label { color: var(--fg-muted); }
+.tray-stat-value { font-weight: 700; font-family: var(--mono); }
+.tray-actions {
+  padding: 10px 16px; border-top: 1px solid var(--border-subtle);
+  display: flex; flex-direction: column; gap: 4px;
+}
+.tray-action {
+  padding: 8px 10px; border-radius: 6px; font-size: 12px;
+  font-weight: 600; cursor: pointer; transition: all 0.15s;
+  border: none; background: none; color: var(--fg-dim);
+  text-align: left; font-family: var(--sans);
+}
+.tray-action:hover { background: var(--bg-card-hover); color: var(--fg); }
+.tray-action.danger { color: var(--red); }
+.tray-overlay {
+  position: fixed; inset: 0; background: rgba(0,0,0,0.4);
+  backdrop-filter: blur(2px);
+  z-index: 998; display: none;
+}
+.tray-overlay.show { display: block; }
+
+/* ═══════════ PROGRESS ═══════════ */
+.progress-bar {
+  height: 6px; border-radius: 99px; background: var(--bg-3);
+  overflow: hidden;
+}
+.progress-fill {
+  height: 100%; border-radius: 99px;
+  background: linear-gradient(90deg, #2563eb, #0ea5e9);
+  transition: width 0.5s ease;
+}
+
+/* ═══════════ TABS ═══════════ */
+.tabs { display: flex; gap: 2px; margin-bottom: 16px; padding: 3px; background: var(--bg-2); border-radius: 8px; width: fit-content; }
+.tab {
+  padding: 6px 14px; border-radius: 6px; font-size: 12px; font-weight: 600;
+  cursor: pointer; color: var(--fg-muted); transition: all 0.15s;
+  border: none; background: none; font-family: var(--sans);
+}
+.tab:hover { color: var(--fg-dim); }
+.tab.active { background: #ffffff; color: var(--fg); box-shadow: 0 1px 3px rgba(0,0,0,0.08); }
+
+/* ═══════════ THEME TOGGLE ═══════════ */
+.theme-btn {
+  position: fixed; top: 12px; right: 16px; z-index: 200;
+  width: 32px; height: 32px; border-radius: 8px;
+  background: var(--bg-2); border: 1px solid var(--border);
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer; font-size: 14px; color: var(--fg-dim);
+  transition: all 0.15s;
+}
+.theme-btn:hover { background: var(--bg-3); color: var(--fg); }
+
+/* ═══════════ SCROLLBAR ═══════════ */
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 99px; }
+::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+
+/* ═══════════ ARCHITECTURE TOPOLOGY ═══════════ */
+.arch-topo { padding: 4px 0; }
+.arch-row {
+  display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px;
+  justify-items: center;
+}
+.arch-node {
+  display: flex; flex-direction: column; align-items: center; gap: 4px;
+  padding: 10px 8px; border-radius: 10px; cursor: pointer;
+  border: 1px solid rgba(148,163,184,0.2); background: #ffffff;
+  transition: all 0.15s; position: relative; width: 100%; text-align: center;
+}
+.arch-node:hover { border-color: #2563eb; box-shadow: 0 2px 12px rgba(37,99,235,0.1); transform: translateY(-1px); }
+.arch-node.offline { opacity: 0.5; }
+.arch-node.offline:hover { opacity: 0.8; }
+.arch-node.core {
+  grid-column: 1 / -1; flex-direction: row; gap: 12px; text-align: left;
+  background: linear-gradient(135deg, rgba(37,99,235,0.06), rgba(14,165,233,0.04));
+  border-color: rgba(37,99,235,0.25); padding: 14px 18px;
+}
+.arch-node.warn { border-color: rgba(217,119,6,0.4); }
+.arch-dot {
+  width: 8px; height: 8px; border-radius: 99px; background: #cbd5e1;
+  position: absolute; top: 8px; right: 8px;
+}
+.arch-dot.online { background: #2563eb; box-shadow: 0 0 0 3px rgba(37,99,235,0.15); }
+.arch-dot.warn-dot { background: #d97706; box-shadow: 0 0 0 3px rgba(217,119,6,0.15); }
+.arch-dot.pulse { animation: pulse 2s infinite; }
+.arch-node.core .arch-dot { position: static; }
+.arch-icon {
+  width: 32px; height: 32px; border-radius: 8px; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 12px; font-weight: 800; font-family: var(--mono);
+  background: #f1f5f9; color: #334155;
+}
+.core-icon { background: linear-gradient(135deg, #2563eb, #1d4ed8) !important; color: #fff !important; font-size: 16px !important; width: 36px; height: 36px; }
+.up-icon { background: #f8fafc !important; font-size: 13px; }
+.arch-label { font-size: 11px; font-weight: 700; color: #0f172a; }
+.arch-meta { font-size: 9px; color: #94a3b8; font-family: var(--mono); }
+.arch-stats { display: flex; gap: 6px; margin-left: auto; }
+.arch-stat-pill {
+  padding: 2px 8px; border-radius: 99px; font-size: 10px; font-weight: 700;
+  font-family: var(--mono); background: #f1f5f9; color: #334155;
+}
+.arch-stat-pill.blue { background: rgba(37,99,235,0.08); color: #2563eb; }
+.arch-stat-pill.red { background: rgba(220,38,38,0.08); color: #dc2626; }
+.arch-connectors {
+  display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px;
+  justify-items: center; padding: 0;
+  height: 24px;
+}
+.arch-line {
+  width: 1px; height: 100%;
+  background: linear-gradient(180deg, #cbd5e1, #e2e8f0);
+}
+.arch-line.dim { opacity: 0.3; }
+
+/* Context Menu */
+.node-ctx-menu {
+  display: none; position: absolute; z-index: 500;
+  background: #ffffff; border: 1px solid rgba(148,163,184,0.3);
+  border-radius: 10px; box-shadow: 0 8px 32px rgba(0,0,0,0.12);
+  min-width: 180px; padding: 4px; overflow: hidden;
+}
+.node-ctx-menu.show { display: block; animation: fadeIn 0.12s ease; }
+.ctx-menu-header {
+  padding: 8px 12px; font-size: 11px; font-weight: 800;
+  color: #64748b; text-transform: uppercase; letter-spacing: 0.05em;
+  border-bottom: 1px solid rgba(148,163,184,0.15); margin-bottom: 2px;
+}
+.ctx-menu-item {
+  display: block; width: 100%; padding: 7px 12px; border: none;
+  background: none; font-size: 12px; font-weight: 600; color: #334155;
+  text-align: left; cursor: pointer; border-radius: 6px;
+  font-family: var(--sans); transition: background 0.1s;
+}
+.ctx-menu-item:hover { background: #f1f5f9; }
+.ctx-menu-item.danger { color: #dc2626; }
+.ctx-menu-item.danger:hover { background: rgba(220,38,38,0.06); }
+.ctx-menu-sep { height: 1px; background: rgba(148,163,184,0.15); margin: 2px 8px; }
+
+.sidebar { background: #ffffff; border-right-color: rgba(148,163,184,0.2); }
+.statusbar { background: #ffffff; border-top-color: rgba(148,163,184,0.2); }
+.tray-popup { background: #ffffff; border-color: rgba(148,163,184,0.3); box-shadow: 0 24px 64px rgba(0,0,0,0.12); }
+.card { background: #ffffff; border-color: rgba(148,163,184,0.2); box-shadow: 0 1px 3px rgba(0,0,0,0.04); backdrop-filter: none; }
+.stat-card { background: #ffffff; border-color: rgba(148,163,184,0.2); box-shadow: 0 1px 3px rgba(0,0,0,0.04); }
+.skill-item { background: #ffffff; border-color: rgba(148,163,184,0.2); }
+.skill-item:hover { background: #f8fafc; }
+.advisory-item { background: #ffffff; border-color: rgba(148,163,184,0.2); }
+.nav-item.active { background: rgba(37,99,235,0.08); color: #2563eb; border-color: rgba(37,99,235,0.15); }
+.collapse-btn { background: #ffffff; border-color: rgba(148,163,184,0.3); }
+.table-wrap { border-color: rgba(148,163,184,0.2); }
+thead { background: #f8fafc; }
+th { border-bottom-color: rgba(148,163,184,0.2); color: #64748b; }
+td { border-bottom-color: rgba(148,163,184,0.1); }
+tr:hover td { background: rgba(241,245,249,0.6); }
+.defense-layer { background: #f8fafc; }
+.defense-layer:hover { background: #f1f5f9; }
+.tabs { background: #f1f5f9; }
+.scan-finding { border-color: rgba(148,163,184,0.2); background: #ffffff; }
+.kill-switch { background: rgba(220,38,38,0.06); border-color: rgba(220,38,38,0.15); }
+.kill-switch:hover { background: rgba(220,38,38,0.1); }
+.input { background: #f8fafc; border-color: rgba(148,163,184,0.3); }
+.select { background: #f8fafc; border-color: rgba(148,163,184,0.3); }
+.btn { background: #f8fafc; border-color: rgba(148,163,184,0.3); color: #334155; }
+.btn:hover { background: #f1f5f9; }
+.theme-btn { background: #ffffff; border-color: rgba(148,163,184,0.3); }
+</style>
+</head>
+<body>
+
+<!-- SIDEBAR -->
+<div class="sidebar" id="sidebar">
+  <div class="brand" onclick="toggleSidebar()">
+    <div class="brand-icon">&#9737;</div>
+    <div class="brand-text">
+      ClawHeart
+      <div class="brand-sub">AI Security Guardian</div>
+    </div>
+  </div>
+
+  <div class="nav">
+    <div class="nav-item active" data-page="dashboard" onclick="switchPage(this)">
+      <span class="icon">&#9737;</span>
+      <span class="nav-label">防护</span>
+    </div>
+    <div class="nav-item" data-page="monitor" onclick="switchPage(this)">
+      <span class="icon">&#9678;</span>
+      <span class="nav-label">监控</span>
+    </div>
+    <div class="nav-item" data-page="skills" onclick="switchPage(this)">
+      <span class="icon">&#10070;</span>
+      <span class="nav-label">技能市场</span>
+      <span class="badge">3</span>
+    </div>
+    <div class="nav-item" data-page="agents" onclick="switchPage(this)">
+      <span class="icon">&#9881;</span>
+      <span class="nav-label">Agent</span>
+    </div>
+    <div class="nav-item" data-page="scan" onclick="switchPage(this)">
+      <span class="icon">&#8987;</span>
+      <span class="nav-label">安全扫描</span>
+    </div>
+    <div class="nav-item" data-page="advisory" onclick="switchPage(this)">
+      <span class="icon">&#9888;</span>
+      <span class="nav-label">安全公告</span>
+      <span class="badge">2</span>
+    </div>
+    <div class="nav-item" data-page="settings" onclick="switchPage(this)">
+      <span class="icon">&#9881;</span>
+      <span class="nav-label">设置</span>
+    </div>
+  </div>
+
+  <div class="kill-switch" onclick="toggleTray()">
+    <span class="icon">&#9888;</span>
+    <span class="kill-label">Kill Switch</span>
+  </div>
+
+  <div class="collapse-btn" onclick="toggleSidebar()">&#9664;</div>
+</div>
+
+<!-- THEME TOGGLE -->
+<div class="theme-btn" onclick="toggleTray()" title="系统托盘">&#9673;</div>
+
+<!-- ═══════════ PAGE: DASHBOARD ═══════════ -->
+<div class="main" id="mainArea">
+<div class="page active" id="page-dashboard">
+  <div class="page-header">
+    <div class="page-title">&#9737; 防护仪表盘</div>
+    <div class="page-actions">
+      <div class="btn primary">&#8635; 同步</div>
+    </div>
+  </div>
+
+  <div class="grid-4" style="margin-bottom:16px;">
+    <div class="stat-card green">
+      <div class="stat-label">防护状态</div>
+      <div class="stat-value" style="color:#2563eb;">运行中</div>
+      <div class="stat-sub">8 层防御全部激活</div>
+    </div>
+    <div class="stat-card red">
+      <div class="stat-label">今日拦截</div>
+      <div class="stat-value red">17</div>
+      <div class="stat-sub">3 CRITICAL / 8 HIGH / 6 MEDIUM</div>
+    </div>
+    <div class="stat-card blue">
+      <div class="stat-label">请求总量</div>
+      <div class="stat-value blue">1,847</div>
+      <div class="stat-sub">今日已处理 API 请求</div>
+    </div>
+    <div class="stat-card amber">
+      <div class="stat-label">预算用量</div>
+      <div class="stat-value amber">$4.72</div>
+      <div class="stat-sub">月限额 $50.00 (9.4%)</div>
+    </div>
+  </div>
+
+  <!-- Architecture Topology -->
+  <div class="card" style="margin-bottom:16px;">
+    <div class="card-title">&#9741; 本机部署架构</div>
+    <div class="arch-topo" id="archTopo">
+      <div class="arch-row">
+        <div class="arch-node agent" data-name="Claude Code" onclick="showNodeMenu(event, this)">
+          <div class="arch-dot online"></div>
+          <div class="arch-icon">CC</div>
+          <div class="arch-label">Claude Code</div>
+          <div class="arch-meta">v2.1.92 &middot; 活跃</div>
+        </div>
+        <div class="arch-node agent" data-name="Codex CLI" onclick="showNodeMenu(event, this)">
+          <div class="arch-dot online"></div>
+          <div class="arch-icon">CX</div>
+          <div class="arch-label">Codex CLI</div>
+          <div class="arch-meta">v1.0.18 &middot; 活跃</div>
+        </div>
+        <div class="arch-node agent" data-name="Gemini CLI" onclick="showNodeMenu(event, this)">
+          <div class="arch-dot online"></div>
+          <div class="arch-icon">GC</div>
+          <div class="arch-label">Gemini CLI</div>
+          <div class="arch-meta">v1.2.0 &middot; 活跃</div>
+        </div>
+        <div class="arch-node agent offline" data-name="Cursor" onclick="showNodeMenu(event, this)">
+          <div class="arch-dot"></div>
+          <div class="arch-icon">CU</div>
+          <div class="arch-label">Cursor IDE</div>
+          <div class="arch-meta">v3.1.0 &middot; 离线</div>
+        </div>
+        <div class="arch-node agent offline" data-name="OpenClaw" onclick="showNodeMenu(event, this)">
+          <div class="arch-dot"></div>
+          <div class="arch-icon">OC</div>
+          <div class="arch-label">OpenClaw</div>
+          <div class="arch-meta">v2026.3 &middot; 离线</div>
+        </div>
+      </div>
+      <div class="arch-connectors">
+        <div class="arch-line"></div><div class="arch-line"></div><div class="arch-line"></div>
+        <div class="arch-line dim"></div><div class="arch-line dim"></div>
+      </div>
+      <div class="arch-row">
+        <div class="arch-node core" data-name="ClawHeart Proxy" onclick="showNodeMenu(event, this)" style="grid-column: 1 / -1;">
+          <div class="arch-dot online pulse"></div>
+          <div class="arch-icon core-icon">&#9737;</div>
+          <div>
+            <div class="arch-label" style="font-size:14px;">ClawHeart 代理引擎</div>
+            <div class="arch-meta">127.0.0.1:19111 &middot; 8 层防御 &middot; 5 协议 &middot; 延迟 2.1ms</div>
+          </div>
+          <div class="arch-stats">
+            <span class="arch-stat-pill blue">1,847 req</span>
+            <span class="arch-stat-pill red">17 blocked</span>
+            <span class="arch-stat-pill">$4.72</span>
+          </div>
+        </div>
+      </div>
+      <div class="arch-connectors">
+        <div class="arch-line"></div><div class="arch-line"></div><div class="arch-line"></div>
+      </div>
+      <div class="arch-row">
+        <div class="arch-node upstream" data-name="Anthropic" onclick="showNodeMenu(event, this)">
+          <div class="arch-dot online"></div>
+          <div class="arch-icon up-icon">A</div>
+          <div class="arch-label">Anthropic</div>
+          <div class="arch-meta">Claude &middot; 健康</div>
+        </div>
+        <div class="arch-node upstream" data-name="OpenAI" onclick="showNodeMenu(event, this)">
+          <div class="arch-dot online"></div>
+          <div class="arch-icon up-icon">O</div>
+          <div class="arch-label">OpenAI</div>
+          <div class="arch-meta">GPT &middot; 健康</div>
+        </div>
+        <div class="arch-node upstream warn" data-name="Google" onclick="showNodeMenu(event, this)">
+          <div class="arch-dot warn-dot"></div>
+          <div class="arch-icon up-icon">G</div>
+          <div class="arch-label">Google</div>
+          <div class="arch-meta">Gemini &middot; 429 限流</div>
+        </div>
+        <div class="arch-node upstream" data-name="DeepSeek" onclick="showNodeMenu(event, this)">
+          <div class="arch-dot online"></div>
+          <div class="arch-icon up-icon">D</div>
+          <div class="arch-label">DeepSeek</div>
+          <div class="arch-meta">V4 &middot; 健康</div>
+        </div>
+        <div class="arch-node upstream" data-name="Ollama" onclick="showNodeMenu(event, this)">
+          <div class="arch-dot online"></div>
+          <div class="arch-icon up-icon">&#9673;</div>
+          <div class="arch-label">Ollama</div>
+          <div class="arch-meta">localhost &middot; 健康</div>
+        </div>
+      </div>
+    </div>
+    <!-- Context Menu -->
+    <div class="node-ctx-menu" id="nodeCtxMenu">
+      <div class="ctx-menu-header" id="ctxMenuHeader">节点名称</div>
+      <button class="ctx-menu-item" onclick="hideNodeMenu()">&#128269; 查看详情</button>
+      <button class="ctx-menu-item" onclick="hideNodeMenu()">&#9881; 配置</button>
+      <button class="ctx-menu-item" onclick="hideNodeMenu()">&#8635; 健康检查</button>
+      <button class="ctx-menu-item" onclick="hideNodeMenu()">&#128196; 请求日志</button>
+      <div class="ctx-menu-sep"></div>
+      <button class="ctx-menu-item danger" onclick="hideNodeMenu()">&#10074;&#10074; 暂停</button>
+    </div>
+  </div>
+
+  <div class="grid-2-1">
+    <div>
+      <div class="card" style="margin-bottom:16px;">
+        <div class="card-title">&#9618; 请求趋势 (24h)</div>
+        <div class="chart-area" id="trendChart"></div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">&#9888; 最近拦截事件</div>
+        <div class="scan-finding critical">
+          <div class="finding-id">14:23:07</div>
+          <div class="finding-body">
+            <div class="finding-title"><span class="tag critical">CRITICAL</span> MCP 攻击链检测</div>
+            <div class="finding-detail">检测到 recon→exfil 序列: list_files → read_file → http_post (间隔 3 步)</div>
+          </div>
+        </div>
+        <div class="scan-finding high">
+          <div class="finding-id">14:18:42</div>
+          <div class="finding-body">
+            <div class="finding-title"><span class="tag high">HIGH</span> 凭据泄露检测</div>
+            <div class="finding-detail">出站请求包含 sk-ant-*** 模式，已脱敏并阻止</div>
+          </div>
+        </div>
+        <div class="scan-finding medium">
+          <div class="finding-id">14:12:15</div>
+          <div class="finding-body">
+            <div class="finding-title"><span class="tag medium">MEDIUM</span> 预算阈值告警</div>
+            <div class="finding-detail">claude / claude-opus-4-6 日预算已用 $3.82 / $5.00 (76.4%)</div>
+          </div>
+        </div>
+        <div class="scan-finding info">
+          <div class="finding-id">14:05:33</div>
+          <div class="finding-body">
+            <div class="finding-title"><span class="tag info">INFO</span> 新 Agent 发现</div>
+            <div class="finding-detail">检测到 Cursor IDE (v3.1.0) 在 ~/.cursor/ 配置目录</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div>
+      <div class="card" style="margin-bottom:16px;">
+        <div class="card-title">&#9741; 8 层防御状态</div>
+        <div class="defense-layers">
+          <div class="defense-layer active"><span class="layer-num">L0</span><span class="layer-name">格式归一化</span><span class="layer-status">5 格式</span></div>
+          <div class="defense-layer active"><span class="layer-num">L1</span><span class="layer-name">网络代理</span><span class="layer-status">&#10004; TLS</span></div>
+          <div class="defense-layer active"><span class="layer-num">L2</span><span class="layer-name">内容检测</span><span class="layer-status">48 模式</span></div>
+          <div class="defense-layer active"><span class="layer-num">L3</span><span class="layer-name">MCP 深度</span><span class="layer-status">10 链</span></div>
+          <div class="defense-layer active"><span class="layer-num">L4</span><span class="layer-name">技能供应链</span><span class="layer-status">72 规则</span></div>
+          <div class="defense-layer active"><span class="layer-num">L5</span><span class="layer-name">Agent 发现</span><span class="layer-status">3 个</span></div>
+          <div class="defense-layer active"><span class="layer-num">L6</span><span class="layer-name">数据存储</span><span class="layer-status">&#128274; 加密</span></div>
+          <div class="defense-layer active"><span class="layer-num">L7</span><span class="layer-name">Kill Switch</span><span class="layer-status">待命</span></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">&#9741; 协议分布</div>
+        <div style="display:flex;flex-direction:column;gap:8px;">
+          <div style="display:flex;align-items:center;gap:8px;font-size:12px;">
+            <span style="color:var(--fg-muted);width:70px;">OpenAI</span>
+            <div style="flex:1;height:8px;border-radius:99px;background:var(--bg-3);overflow:hidden;">
+              <div style="width:45%;height:100%;background:#2563eb;border-radius:99px;"></div>
+            </div>
+            <span style="font-family:var(--mono);font-size:11px;color:var(--fg-dim);width:35px;text-align:right;">45%</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:8px;font-size:12px;">
+            <span style="color:var(--fg-muted);width:70px;">Claude</span>
+            <div style="flex:1;height:8px;border-radius:99px;background:var(--bg-3);overflow:hidden;">
+              <div style="width:35%;height:100%;background:var(--purple);border-radius:99px;"></div>
+            </div>
+            <span style="font-family:var(--mono);font-size:11px;color:var(--fg-dim);width:35px;text-align:right;">35%</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:8px;font-size:12px;">
+            <span style="color:var(--fg-muted);width:70px;">Gemini</span>
+            <div style="flex:1;height:8px;border-radius:99px;background:var(--bg-3);overflow:hidden;">
+              <div style="width:15%;height:100%;background:var(--blue);border-radius:99px;"></div>
+            </div>
+            <span style="font-family:var(--mono);font-size:11px;color:var(--fg-dim);width:35px;text-align:right;">15%</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:8px;font-size:12px;">
+            <span style="color:var(--fg-muted);width:70px;">Ollama</span>
+            <div style="flex:1;height:8px;border-radius:99px;background:var(--bg-3);overflow:hidden;">
+              <div style="width:5%;height:100%;background:var(--cyan);border-radius:99px;"></div>
+            </div>
+            <span style="font-family:var(--mono);font-size:11px;color:var(--fg-dim);width:35px;text-align:right;">5%</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════ PAGE: MONITOR ═══════════ -->
+<div class="page" id="page-monitor">
+  <div class="page-header">
+    <div class="page-title">&#9678; 流量监控</div>
+    <div class="page-actions">
+      <div class="btn">&#8635; 刷新</div>
+      <div class="btn">&#8681; 导出</div>
+    </div>
+  </div>
+
+  <div class="tabs">
+    <button class="tab active">请求日志</button>
+    <button class="tab">Token 用量</button>
+    <button class="tab">预算设置</button>
+  </div>
+
+  <div class="card">
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>时间</th><th>供应商</th><th>模型</th><th>格式</th><th>Input</th><th>Output</th><th>成本</th><th>延迟</th><th>状态</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td>14:23:07</td><td>Anthropic</td><td>claude-opus-4-6</td><td><span class="tag info">Claude</span></td><td>2,847</td><td>1,203</td><td>$0.142</td><td>3.2s</td><td><span class="tag critical">BLOCKED</span></td></tr>
+          <tr><td>14:22:51</td><td>Anthropic</td><td>claude-sonnet-4-6</td><td><span class="tag info">Claude</span></td><td>1,504</td><td>892</td><td>$0.024</td><td>1.8s</td><td><span class="tag safe">200</span></td></tr>
+          <tr><td>14:22:15</td><td>OpenAI</td><td>gpt-5.4</td><td><span class="tag info">OpenAI</span></td><td>3,210</td><td>1,847</td><td>$0.087</td><td>2.4s</td><td><span class="tag safe">200</span></td></tr>
+          <tr><td>14:21:33</td><td>Google</td><td>gemini-3-flash</td><td><span class="tag info">Gemini</span></td><td>985</td><td>542</td><td>$0.003</td><td>0.9s</td><td><span class="tag safe">200</span></td></tr>
+          <tr><td>14:20:47</td><td>DeepSeek</td><td>deepseek-v4-pro</td><td><span class="tag info">OpenAI</span></td><td>4,120</td><td>2,305</td><td>$0.011</td><td>4.1s</td><td><span class="tag safe">200</span></td></tr>
+          <tr><td>14:18:42</td><td>Anthropic</td><td>claude-opus-4-6</td><td><span class="tag info">Claude</span></td><td>1,847</td><td>0</td><td>$0.000</td><td>0.02s</td><td><span class="tag critical">DLP</span></td></tr>
+          <tr><td>14:17:20</td><td>Ollama</td><td>qwen3.5</td><td><span class="tag info">Ollama</span></td><td>512</td><td>384</td><td>$0.000</td><td>1.2s</td><td><span class="tag safe">200</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════ PAGE: SKILLS ═══════════ -->
+<div class="page" id="page-skills">
+  <div class="page-header">
+    <div class="page-title">&#10070; 技能市场</div>
+    <div class="page-actions">
+      <div class="btn">&#8635; 同步</div>
+      <div class="btn primary">&#10010; 安装技能</div>
+    </div>
+  </div>
+
+  <div class="tabs">
+    <button class="tab active">全部技能</button>
+    <button class="tab">安全审核</button>
+    <button class="tab">已禁用</button>
+  </div>
+
+  <div class="skill-item">
+    <div class="skill-icon" style="background:linear-gradient(135deg,#22c55e22,#0d948822);">&#128270;</div>
+    <div class="skill-info">
+      <div class="skill-name">web-search <span class="tag safe">SAFE</span></div>
+      <div class="skill-desc">在线搜索能力，支持多搜索引擎</div>
+    </div>
+    <div class="skill-score high">92</div>
+    <div class="toggle on" onclick="this.classList.toggle('on')"></div>
+  </div>
+
+  <div class="skill-item">
+    <div class="skill-icon" style="background:linear-gradient(135deg,#3b82f622,#6366f122);">&#128196;</div>
+    <div class="skill-info">
+      <div class="skill-name">file-manager <span class="tag safe">SAFE</span></div>
+      <div class="skill-desc">文件读写管理，沙箱内运行</div>
+    </div>
+    <div class="skill-score high">88</div>
+    <div class="toggle on" onclick="this.classList.toggle('on')"></div>
+  </div>
+
+  <div class="skill-item">
+    <div class="skill-icon" style="background:linear-gradient(135deg,#fbbf2422,#f9731622);">&#128187;</div>
+    <div class="skill-info">
+      <div class="skill-name">code-executor <span class="tag warn">REVIEW</span></div>
+      <div class="skill-desc">代码执行能力 -- 检测到 subprocess(shell=True)</div>
+    </div>
+    <div class="skill-score mid">54</div>
+    <div class="toggle on" onclick="this.classList.toggle('on')"></div>
+  </div>
+
+  <div class="skill-item">
+    <div class="skill-icon" style="background:linear-gradient(135deg,#ef444422,#dc262622);">&#9888;</div>
+    <div class="skill-info">
+      <div class="skill-name">data-exporter <span class="tag unsafe">UNSAFE</span></div>
+      <div class="skill-desc">硬触发: 检测到 eval(input) + curl|bash 模式</div>
+    </div>
+    <div class="skill-score low">12</div>
+    <div class="toggle" onclick="this.classList.toggle('on')"></div>
+  </div>
+
+  <div class="skill-item">
+    <div class="skill-icon" style="background:linear-gradient(135deg,#a78bfa22,#818cf822);">&#127891;</div>
+    <div class="skill-info">
+      <div class="skill-name">memory-manager <span class="tag safe">SAFE</span></div>
+      <div class="skill-desc">对话记忆管理与持久化存储</div>
+    </div>
+    <div class="skill-score high">95</div>
+    <div class="toggle on" onclick="this.classList.toggle('on')"></div>
+  </div>
+</div>
+
+<!-- ═══════════ PAGE: AGENTS ═══════════ -->
+<div class="page" id="page-agents">
+  <div class="page-header">
+    <div class="page-title">&#9881; Agent 管理</div>
+    <div class="page-actions">
+      <div class="btn">&#8635; 扫描</div>
+    </div>
+  </div>
+
+  <div class="grid-2">
+    <div class="card">
+      <div class="card-title">已发现的 Agent</div>
+      <div class="agent-tree">
+        <div class="agent-node active">
+          <div class="agent-dot active"></div>
+          <div class="agent-name">Claude Code</div>
+          <div class="agent-meta">v2.1.92</div>
+        </div>
+        <div class="agent-children">
+          <div class="agent-node"><span style="color:var(--fg-muted);font-size:11px;">&#9658;</span> <span style="font-size:12px;flex:1;">MCP Servers: 3</span></div>
+          <div class="agent-node"><span style="color:var(--fg-muted);font-size:11px;">&#9658;</span> <span style="font-size:12px;flex:1;">Skills: 5 已启用</span></div>
+          <div class="agent-node"><span style="color:var(--fg-muted);font-size:11px;">&#9658;</span> <span style="font-size:12px;flex:1;">Sessions: 12</span></div>
+        </div>
+
+        <div class="agent-node active">
+          <div class="agent-dot active"></div>
+          <div class="agent-name">Codex CLI</div>
+          <div class="agent-meta">v1.0.18</div>
+        </div>
+
+        <div class="agent-node active">
+          <div class="agent-dot active"></div>
+          <div class="agent-name">Gemini CLI</div>
+          <div class="agent-meta">v1.2.0</div>
+        </div>
+
+        <div class="agent-node">
+          <div class="agent-dot inactive"></div>
+          <div class="agent-name" style="color:var(--fg-muted);">Cursor IDE</div>
+          <div class="agent-meta">v3.1.0</div>
+        </div>
+
+        <div class="agent-node">
+          <div class="agent-dot inactive"></div>
+          <div class="agent-name" style="color:var(--fg-muted);">OpenClaw</div>
+          <div class="agent-meta">v2026.3</div>
+        </div>
+      </div>
+    </div>
+
+    <div>
+      <div class="card" style="margin-bottom:16px;">
+        <div class="card-title">MCP 工具基线</div>
+        <div style="display:flex;flex-direction:column;gap:6px;">
+          <div style="display:flex;align-items:center;gap:8px;padding:8px 10px;border-radius:6px;background:var(--bg-2);font-size:12px;">
+            <span class="tag safe">&#10004;</span>
+            <span style="flex:1;font-weight:600;">filesystem.read_file</span>
+            <span style="font-family:var(--mono);font-size:10px;color:var(--fg-muted);">hash: a7c3..f2</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:8px;padding:8px 10px;border-radius:6px;background:var(--bg-2);font-size:12px;">
+            <span class="tag safe">&#10004;</span>
+            <span style="flex:1;font-weight:600;">filesystem.write_file</span>
+            <span style="font-family:var(--mono);font-size:10px;color:var(--fg-muted);">hash: b1d4..e8</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:8px;padding:8px 10px;border-radius:6px;background:rgba(239,68,68,0.08);border:1px solid rgba(239,68,68,0.2);font-size:12px;">
+            <span class="tag critical">&#9888; DRIFT</span>
+            <span style="flex:1;font-weight:600;color:var(--red);">shell.execute</span>
+            <span style="font-family:var(--mono);font-size:10px;color:var(--red);">描述已变更</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:8px;padding:8px 10px;border-radius:6px;background:var(--bg-2);font-size:12px;">
+            <span class="tag safe">&#10004;</span>
+            <span style="flex:1;font-weight:600;">web.fetch</span>
+            <span style="font-family:var(--mono);font-size:10px;color:var(--fg-muted);">hash: c8e2..91</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">攻击链监控</div>
+        <div style="font-size:12px;color:var(--fg-dim);">
+          <div style="padding:6px 0;border-bottom:1px solid var(--border-subtle);display:flex;justify-content:space-between;">
+            <span>recon &#8594; exfil</span>
+            <span style="color:var(--red);font-weight:700;font-family:var(--mono);">2 匹配</span>
+          </div>
+          <div style="padding:6px 0;border-bottom:1px solid var(--border-subtle);display:flex;justify-content:space-between;">
+            <span>recon &#8594; persist</span>
+            <span style="color:var(--fg-muted);font-family:var(--mono);">0</span>
+          </div>
+          <div style="padding:6px 0;display:flex;justify-content:space-between;">
+            <span>cred_theft &#8594; exfil</span>
+            <span style="color:var(--fg-muted);font-family:var(--mono);">0</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════ PAGE: SCAN ═══════════ -->
+<div class="page" id="page-scan">
+  <div class="page-header">
+    <div class="page-title">&#8987; 安全扫描</div>
+    <div class="page-actions">
+      <div class="btn primary">&#9654; 开始扫描</div>
+    </div>
+  </div>
+
+  <div class="tabs">
+    <button class="tab active">扫描项</button>
+    <button class="tab">扫描结果</button>
+    <button class="tab">历史记录</button>
+  </div>
+
+  <div class="card" style="margin-bottom:16px;">
+    <div class="card-title">扫描进度</div>
+    <div style="display:flex;align-items:center;gap:12px;margin-bottom:8px;">
+      <span style="font-size:13px;font-weight:700;color:#2563eb;">扫描完成</span>
+      <span style="font-size:11px;color:var(--fg-muted);">80/80 检查项</span>
+    </div>
+    <div class="progress-bar"><div class="progress-fill" style="width:100%"></div></div>
+  </div>
+
+  <div class="grid-4" style="margin-bottom:16px;">
+    <div class="stat-card red" style="padding:12px;">
+      <div class="stat-label">CRITICAL</div>
+      <div class="stat-value red" style="font-size:24px;">2</div>
+    </div>
+    <div class="stat-card" style="padding:12px;">
+      <div class="stat-label">HIGH</div>
+      <div class="stat-value" style="font-size:24px;color:#f97316;">5</div>
+    </div>
+    <div class="stat-card amber" style="padding:12px;">
+      <div class="stat-label">MEDIUM</div>
+      <div class="stat-value amber" style="font-size:24px;">8</div>
+    </div>
+    <div class="stat-card green" style="padding:12px;">
+      <div class="stat-label">PASS</div>
+      <div class="stat-value green" style="font-size:24px;">65</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">发现详情</div>
+    <div class="scan-finding critical">
+      <div class="finding-id">GW-005</div>
+      <div class="finding-body">
+        <div class="finding-title">网关绑定非 loopback <span class="tag critical">CRITICAL</span></div>
+        <div class="finding-detail">gateway.bind = "0.0.0.0" -- 应设为 "127.0.0.1"。修复: gateway.bind = "loopback"</div>
+      </div>
+    </div>
+    <div class="scan-finding critical">
+      <div class="finding-id">FP-001</div>
+      <div class="finding-body">
+        <div class="finding-title">~/.openclaw/ 目录权限过宽 <span class="tag critical">CRITICAL</span></div>
+        <div class="finding-detail">权限 755，应为 700。修复: chmod 700 ~/.openclaw/</div>
+      </div>
+    </div>
+    <div class="scan-finding high">
+      <div class="finding-id">SK-002</div>
+      <div class="finding-body">
+        <div class="finding-title">技能代码含危险函数 <span class="tag high">HIGH</span></div>
+        <div class="finding-detail">data-exporter/main.py: 检测到 eval(input()) 在第 47 行</div>
+      </div>
+    </div>
+    <div class="scan-finding high">
+      <div class="finding-id">CL-001</div>
+      <div class="finding-body">
+        <div class="finding-title">会话日志包含 API 密钥 <span class="tag high">HIGH</span></div>
+        <div class="finding-detail">sessions/2026-05-14.jsonl: 匹配模式 sk-ant-***</div>
+      </div>
+    </div>
+    <div class="scan-finding medium">
+      <div class="finding-id">SM-001</div>
+      <div class="finding-body">
+        <div class="finding-title">MEMORY.md 注入模式检测 <span class="tag medium">MEDIUM</span></div>
+        <div class="finding-detail">检测到 "ignore previous instruction" 模式在 memory/MEMORY.md</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════ PAGE: ADVISORY ═══════════ -->
+<div class="page" id="page-advisory">
+  <div class="page-header">
+    <div class="page-title">&#9888; 安全公告</div>
+    <div class="page-actions">
+      <span style="font-size:11px;color:var(--fg-muted);font-family:var(--mono);">&#128274; Ed25519 签名验证</span>
+      <div class="btn">&#8635; 刷新 Feed</div>
+    </div>
+  </div>
+
+  <div class="tabs">
+    <button class="tab active">全部</button>
+    <button class="tab">Critical</button>
+    <button class="tab">High</button>
+    <button class="tab">Medium</button>
+  </div>
+
+  <div class="advisory-item" style="border-left:3px solid var(--red);">
+    <div class="advisory-header">
+      <span class="tag critical">CRITICAL</span>
+      <span class="advisory-id">CVE-2026-8305</span>
+      <span style="font-size:10px;color:var(--fg-muted);font-family:var(--mono);">CVSS 9.4</span>
+    </div>
+    <div class="advisory-title">OpenClaw Gateway 远程代码执行漏洞</div>
+    <div class="advisory-meta">
+      <span>&#128197; 2026-05-11</span>
+      <span>&#127919; 受影响: openclaw@<2026.4.1</span>
+      <span style="color:var(--red);font-weight:700;">&#9888; 已安装技能匹配!</span>
+    </div>
+  </div>
+
+  <div class="advisory-item" style="border-left:3px solid #f97316;">
+    <div class="advisory-header">
+      <span class="tag high">HIGH</span>
+      <span class="advisory-id">CLAW-2026-0042</span>
+      <span style="font-size:10px;color:var(--fg-muted);font-family:var(--mono);">CVSS 7.3</span>
+    </div>
+    <div class="advisory-title">web-search 技能 SSRF 漏洞 -- 可访问内网元数据服务</div>
+    <div class="advisory-meta">
+      <span>&#128197; 2026-05-09</span>
+      <span>&#127919; 受影响: web-search@1.2.x</span>
+      <span>&#128220; 来源: 社区报告</span>
+    </div>
+  </div>
+
+  <div class="advisory-item" style="border-left:3px solid var(--amber);">
+    <div class="advisory-header">
+      <span class="tag medium">MEDIUM</span>
+      <span class="advisory-id">CVE-2026-7891</span>
+      <span style="font-size:10px;color:var(--fg-muted);font-family:var(--mono);">CVSS 5.2</span>
+    </div>
+    <div class="advisory-title">MCP Server SDK 提示词注入漏洞</div>
+    <div class="advisory-meta">
+      <span>&#128197; 2026-05-07</span>
+      <span>&#127919; 受影响: @modelcontextprotocol/sdk@<1.15.2</span>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════ PAGE: SETTINGS ═══════════ -->
+<div class="page" id="page-settings">
+  <div class="page-header">
+    <div class="page-title">&#9881; 设置</div>
+  </div>
+
+  <div class="tabs">
+    <button class="tab active">连接</button>
+    <button class="tab">代理模式</button>
+    <button class="tab">路由映射</button>
+    <button class="tab">账户</button>
+  </div>
+
+  <div class="card">
+    <div class="setting-group">
+      <div class="setting-group-title">云端连接</div>
+      <div class="setting-row">
+        <div>
+          <div class="setting-label">API Base</div>
+          <div class="setting-desc">ClawHeart 云端服务地址</div>
+        </div>
+        <input class="input" value="https://api.clawheart.live" />
+      </div>
+      <div class="setting-row">
+        <div>
+          <div class="setting-label">OC API Key</div>
+          <div class="setting-desc">用于云端同步的 API 密钥</div>
+        </div>
+        <input class="input" type="password" value="sk-oc-xxxxxxxxxxxx" />
+      </div>
+    </div>
+
+    <div class="setting-group">
+      <div class="setting-group-title">代理模式</div>
+      <div class="setting-row">
+        <div>
+          <div class="setting-label">路由模式</div>
+          <div class="setting-desc">选择 LLM 请求的路由方式</div>
+        </div>
+        <select class="select">
+          <option>GATEWAY (推荐)</option>
+          <option>DIRECT</option>
+        </select>
+      </div>
+      <div class="setting-row">
+        <div>
+          <div class="setting-label">代理监听端口</div>
+          <div class="setting-desc">本地代理服务端口</div>
+        </div>
+        <input class="input" value="19111" style="width:100px;" />
+      </div>
+      <div class="setting-row">
+        <div>
+          <div class="setting-label">自动故障转移</div>
+          <div class="setting-desc">供应商不可用时自动切换 (熔断器)</div>
+        </div>
+        <div class="toggle on" onclick="this.classList.toggle('on')"></div>
+      </div>
+    </div>
+
+    <div class="setting-group">
+      <div class="setting-group-title">安全选项</div>
+      <div class="setting-row">
+        <div>
+          <div class="setting-label">失败关闭模式</div>
+          <div class="setting-desc">所有错误路径默认阻止请求</div>
+        </div>
+        <div class="toggle on" onclick="this.classList.toggle('on')"></div>
+      </div>
+      <div class="setting-row">
+        <div>
+          <div class="setting-label">DLP 优先于 DNS</div>
+          <div class="setting-desc">在 DNS 解析前执行数据防泄露扫描</div>
+        </div>
+        <div class="toggle on" onclick="this.classList.toggle('on')"></div>
+      </div>
+      <div class="setting-row">
+        <div>
+          <div class="setting-label">安全公告自动订阅</div>
+          <div class="setting-desc">每日拉取 Ed25519 签名的 CVE/CLAW 公告</div>
+        </div>
+        <div class="toggle on" onclick="this.classList.toggle('on')"></div>
+      </div>
+    </div>
+
+    <div style="display:flex;gap:8px;margin-top:16px;">
+      <div class="btn primary">&#10004; 保存设置</div>
+      <div class="btn danger">退出登录</div>
+    </div>
+  </div>
+</div>
+</div><!-- /main -->
+
+<!-- ═══════════ STATUS BAR ═══════════ -->
+<div class="statusbar">
+  <div class="status-item"><div class="status-dot"></div><span class="status-value">防护中</span></div>
+  <div class="status-sep"></div>
+  <div class="status-item"><span class="status-label">Agent</span><span class="status-value">3</span></div>
+  <div class="status-sep"></div>
+  <div class="status-item"><span class="status-label">请求</span><span class="status-value">1,847</span></div>
+  <div class="status-sep"></div>
+  <div class="status-item"><span class="status-label">拦截</span><span class="status-value" style="color:var(--red);">17</span></div>
+  <div class="status-sep"></div>
+  <div class="status-item"><span class="status-label">延迟</span><span class="status-value">2.1ms</span></div>
+  <div class="status-sep"></div>
+  <div class="status-item" style="margin-left:auto;"><span class="status-label">127.0.0.1:19111</span></div>
+</div>
+
+<!-- ═══════════ TRAY POPUP ═══════════ -->
+<div class="tray-overlay" id="trayOverlay" onclick="toggleTray()"></div>
+<div class="tray-popup" id="trayPopup">
+  <div class="tray-header">
+    <div class="brand-icon" style="width:28px;height:28px;font-size:14px;">&#9737;</div>
+    <div>
+      <div style="font-size:13px;font-weight:800;">ClawHeart</div>
+      <div style="font-size:10px;color:#2563eb;font-weight:600;">&#9679; 防护运行中</div>
+    </div>
+  </div>
+  <div class="tray-body">
+    <div class="tray-stat"><span class="tray-stat-label">防御层</span><span class="tray-stat-value" style="color:#2563eb;">8/8 激活</span></div>
+    <div class="tray-stat"><span class="tray-stat-label">Agent</span><span class="tray-stat-value">3 已检测</span></div>
+    <div class="tray-stat"><span class="tray-stat-label">今日请求</span><span class="tray-stat-value">1,847</span></div>
+    <div class="tray-stat"><span class="tray-stat-label">今日拦截</span><span class="tray-stat-value" style="color:var(--red);">17</span></div>
+    <div class="tray-stat"><span class="tray-stat-label">预算</span><span class="tray-stat-value">$4.72 / $50</span></div>
+    <div class="tray-stat"><span class="tray-stat-label">公告</span><span class="tray-stat-value" style="color:var(--amber);">2 未处理</span></div>
+  </div>
+  <div class="tray-actions">
+    <button class="tray-action" onclick="toggleTray()">&#9654; 打开面板</button>
+    <button class="tray-action">&#10074;&#10074; 暂停防护</button>
+    <button class="tray-action danger">&#9888; 激活 Kill Switch</button>
+    <button class="tray-action" style="color:var(--fg-muted);">退出 ClawHeart</button>
+  </div>
+</div>
+
+<script>
+// Navigation
+function switchPage(el) {
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  el.classList.add('active');
+  document.getElementById('page-' + el.dataset.page).classList.add('active');
+}
+
+// Sidebar collapse
+function toggleSidebar() {
+  document.getElementById('sidebar').classList.toggle('collapsed');
+}
+
+// Tray popup
+function toggleTray() {
+  document.getElementById('trayPopup').classList.toggle('show');
+  document.getElementById('trayOverlay').classList.toggle('show');
+}
+
+// Tabs
+document.querySelectorAll('.tabs').forEach(tabs => {
+  tabs.querySelectorAll('.tab').forEach(tab => {
+    tab.addEventListener('click', () => {
+      tabs.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+      tab.classList.add('active');
+    });
+  });
+});
+
+// Node context menu
+function showNodeMenu(e, node) {
+  e.stopPropagation();
+  const menu = document.getElementById('nodeCtxMenu');
+  const header = document.getElementById('ctxMenuHeader');
+  header.textContent = node.dataset.name;
+  menu.classList.add('show');
+  const rect = node.getBoundingClientRect();
+  const mainRect = document.getElementById('mainArea').getBoundingClientRect();
+  menu.style.left = (rect.left + rect.width/2 - 90 - mainRect.left + document.getElementById('mainArea').scrollLeft) + 'px';
+  menu.style.top = (rect.bottom + 6 - mainRect.top + document.getElementById('mainArea').scrollTop) + 'px';
+}
+function hideNodeMenu() {
+  document.getElementById('nodeCtxMenu').classList.remove('show');
+}
+document.addEventListener('click', hideNodeMenu);
+
+// Generate chart bars
+function generateChart() {
+  const chart = document.getElementById('trendChart');
+  if (!chart) return;
+  const hours = 24;
+  for (let i = 0; i < hours; i++) {
+    const bar = document.createElement('div');
+    bar.className = 'chart-bar';
+    const h = 10 + Math.random() * 90;
+    bar.style.height = h + '%';
+    if (Math.random() > 0.85) {
+      bar.style.background = 'linear-gradient(180deg, #dc2626, rgba(220,38,38,0.2))';
+    }
+    chart.appendChild(bar);
+  }
+}
+generateChart();
+</script>
+</body>
+</html>
